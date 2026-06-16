@@ -65,3 +65,40 @@ class ExamContentRepo:
             )
             for row in rows
         ]
+
+    def get_question(self, test_id: int) -> TestQuestion | None:
+        """Fetch a single question by rowid (includes correct_ans / hint)."""
+        with open_readonly(self._db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT t.rowid AS id, t.filename, t.type, t.question, t.options,
+                       t.correct_ans, t.hint, t.detailed_explanation
+                FROM tests t
+                WHERE t.rowid = ?
+                  AND COALESCE(t.has_issue, 0) = 0
+                  AND t.filename NOT IN (SELECT filename FROM tests_bug)
+                """,
+                (test_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return TestQuestion(
+            id=row["id"],
+            filename=row["filename"],
+            type=row["type"],
+            question=row["question"],
+            options=row["options"],
+            correct_ans=row["correct_ans"],
+            hint=row["hint"],
+            detailed_explanation=row["detailed_explanation"],
+        )
+
+    def get_image(self, filename: str) -> bytes | None:
+        with open_readonly(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT data FROM images WHERE filename = ?",
+                (filename,),
+            ).fetchone()
+        if row is None:
+            return None
+        return row["data"]

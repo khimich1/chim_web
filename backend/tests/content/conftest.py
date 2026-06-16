@@ -68,6 +68,14 @@ def _create_tests_db(path: Path, *, with_bug: bool) -> None:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE images (
+            filename TEXT PRIMARY KEY,
+            data BLOB NOT NULL
+        )
+        """
+    )
     conn.executemany(
         """
         INSERT INTO tests
@@ -76,9 +84,13 @@ def _create_tests_db(path: Path, *, with_bug: bool) -> None:
         """,
         [
             ("001.txt", 1, "Q1", "1", 0),
-            ("001.txt", 2, "Q2", "2", 0),
+            ("001.txt", 2, "Q2 with [рисунок0001]", "2", 0),
             ("002.txt", 1, "Bad Q", "9", 1),
         ],
+    )
+    conn.execute(
+        "INSERT INTO images (filename, data) VALUES (?, ?)",
+        ("рисунок0001.png", b"png-bytes"),
     )
     if with_bug:
         conn.execute("INSERT INTO tests_bug (filename) VALUES ('002.txt')")

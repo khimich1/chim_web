@@ -16,6 +16,12 @@ def test_list_questions_filters_has_issue(ege_tests_db) -> None:
     assert [q.type for q in questions] == [1, 2]
 
 
+def test_get_image_returns_blob(ege_tests_db) -> None:
+    repo = ExamContentRepo(ege_tests_db)
+    data = repo.get_image("рисунок0001.png")
+    assert data == b"png-bytes"
+
+
 def test_oge_repo_uses_separate_db(oge_tests_db, ege_tests_db) -> None:
     oge_variants = ExamContentRepo(oge_tests_db).list_variants()
     ege_variants = ExamContentRepo(ege_tests_db).list_variants()

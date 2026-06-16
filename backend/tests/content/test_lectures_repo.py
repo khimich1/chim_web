@@ -19,3 +19,24 @@ def test_list_chunks_ordered_by_chunk_idx(lectures_db) -> None:
     assert chunks[1].chunk_idx == 1
     assert chunks[0].has_audio is False
     assert chunks[1].has_audio is True
+
+
+def test_list_chunk_summaries_omits_lecture_text(lectures_db) -> None:
+    repo = LectureContentRepo(lectures_db)
+    summaries = repo.list_chunk_summaries("Соли")
+
+    assert len(summaries) == 2
+    assert summaries[0].chunk_title == "Введение"
+    assert summaries[1].has_audio is True
+
+
+def test_get_chunk_and_audio(lectures_db) -> None:
+    repo = LectureContentRepo(lectures_db)
+
+    chunk = repo.get_chunk("Соли", 1)
+    assert chunk is not None
+    assert chunk.lecture == "# Свойства солей"
+
+    assert repo.get_audio("Соли", 1) == b"audio"
+    assert repo.get_audio("Соли", 0) is None
+    assert repo.get_chunk("Соли", 99) is None
