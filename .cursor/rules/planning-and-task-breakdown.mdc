@@ -1,0 +1,136 @@
+---
+name: planning-and-task-breakdown
+description: Разбивает работу на упорядоченные задачи. Используй когда есть spec и нужен план реализации.
+alwaysApply: false
+---
+
+# Планирование и разбивка задач
+
+## Обзор
+
+Декомпозиция на мелкие верифицируемые задачи с явными acceptance criteria. Каждая задача — один фокусированный сеанс: реализовать, протестировать, проверить.
+
+## Когда использовать
+
+- Есть spec, нужны implementable units
+- Задача слишком большая/размытая
+- Нужен scope для человека
+- Порядок реализации неочевиден
+
+## Процесс
+
+### Шаг 1: Plan Mode
+
+Только чтение: spec, кодовая база, паттерны, зависимости, риски. **Код не писать** — выход = план.
+
+### Шаг 2: Граф зависимостей
+
+```
+Миграция Alembic / модель ORM
+    │
+    ├── Pydantic schemas
+    │       │
+    │       ├── Repository
+    │       │       │
+    │       │       └── Service
+    │       │               │
+    │       │               └── Router + тесты
+    │       │
+    │       └── Валидация
+    │
+    └── Seed data (опционально)
+```
+
+Снизу вверх: фундамент первым.
+
+### Шаг 3: Вертикальные срезы
+
+**Плохо (горизонтально):** вся БД → все API → все тесты.
+
+**Хорошо (вертикально):** регистрация (schema→repo→service→router→тест) → логин → CRUD задачи.
+
+### Шаг 4: Формат задачи
+
+```markdown
+## Task [N]: [Краткий заголовок]
+
+**Description:** Что делает задача.
+
+**Acceptance criteria:**
+- [ ] [Конкретное условие]
+- [ ] [Конкретное условие]
+
+**Verification:**
+- [ ] `pytest backend/tests/test_tasks.py -k create`
+- [ ] `cd frontend && npm run test -- TaskForm`
+- [ ] Next `:3000` + FastAPI `:8000` — flow в браузере
+
+**Dependencies:** Task 1, 2 или None
+
+**Files:**
+- `backend/app/api/routers/tasks.py`
+- `backend/tests/test_tasks.py`
+- `frontend/components/tasks/TaskForm.tsx`
+- `frontend/lib/api/tasks.ts`
+
+**Scope:** S (1-2 файла) | M (3-5) | L (5+) — L разбить дальше
+```
+
+### Пример full-stack задачи
+
+```markdown
+## Task 2: Пользователь создаёт задачу (UI + API)
+
+**Acceptance criteria:**
+- [ ] POST /api/tasks возвращает 201 (backend)
+- [ ] Форма на /tasks/new создаёт задачу и редиректит на список (frontend)
+- [ ] 422 от FastAPI показывается в UI
+
+**Verification:**
+- [ ] pytest backend/tests/test_tasks.py
+- [ ] vitest frontend/components/tasks/TaskForm.test.tsx
+```
+
+### Шаг 5: Checkpoint'ы
+
+```markdown
+## Checkpoint: после Tasks 1-3
+- [ ] pytest зелёный
+- [ ] Core flow работает
+- [ ] Review с человеком
+```
+
+## Размеры задач
+
+| Размер | Файлы | Пример |
+|--------|-------|--------|
+| XS | 1 | Правило валидации |
+| S | 1-2 | Один endpoint |
+| M | 3-5 | Flow регистрации |
+| L | 5-8 | Разбить |
+| XL | 8+ | Обязательно разбить |
+
+## Шаблон плана
+
+`tasks/plan.md` или `docs/plans/feature-name.md` — overview, architecture decisions, фазы, risks, open questions.
+
+## Рационализации
+
+| Рационализация | Реальность |
+|---|---|
+| «Разберусь по ходу» | 10 мин планирования экономят часы |
+| «Задачи очевидны» | Запись выявляет скрытые зависимости |
+
+## Red Flags
+
+- Реализация без списка задач
+- «Реализовать фичу» без acceptance criteria
+- Все задачи XL
+- Нет checkpoint'ов
+
+## Верификация
+
+- [ ] У каждой задачи acceptance + verify
+- [ ] Зависимости упорядочены
+- [ ] Не >5 файлов на задачу
+- [ ] Человек одобрил план

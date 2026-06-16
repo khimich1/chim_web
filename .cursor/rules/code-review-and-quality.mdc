@@ -1,0 +1,123 @@
+---
+name: code-review-and-quality
+description: Многомерное code review. Используй перед merge любого изменения.
+alwaysApply: false
+---
+
+# Code Review и качество
+
+## Обзор
+
+Ревью по пяти осям перед merge — без исключений: correctness, readability, architecture, security, performance.
+
+**Стандарт одобрения:** одобряй, если изменение **улучшает** здоровье кодовой базы, даже если не идеально.
+
+## Пять осей
+
+### 1. Correctness
+- Соответствие spec/task
+- Edge cases (null, empty, границы)
+- Error paths, не только happy path
+- Тесты проверяют правильное поведение
+
+### 2. Readability
+- Понятные имена по конвенциям проекта
+- Прямой control flow
+- Нет «умничания» без нужды
+- Можно ли меньше строк?
+
+### 3. Architecture
+
+**Backend (FastAPI):**
+- Router → Service → Repository соблюдён?
+- ORM не в router, HTTPException не в repository
+- Schemas отделены от models
+
+**Frontend (Next.js):**
+- Server vs Client Components — `'use client'` только где нужно
+- Бизнес-логика не в components — только в FastAPI
+- `lib/api/` — единый слой вызовов backend
+- Нет дублирования валидации Pydantic на фронте
+- Next API Routes без бизнес-правил (только proxy)
+
+**Граница:** типы/контракт API синхронизированы (OpenAPI / shared types)
+
+### 4. Security
+См. `security-and-hardening`: валидация, authz, секреты, parameterized queries.
+
+### 5. Performance
+- N+1 queries (SQLAlchemy `selectinload` / `joinedload`)
+- Unbounded list без pagination
+- Sync blocking в async endpoints (`time.sleep` → `asyncio.sleep` или run_in_executor)
+
+## Размер изменений
+
+```
+~100 строк  → отлично
+~300 строк  → ок для одной логической вещи
+~1000 строк → разбить
+```
+
+Рефакторинг и фича — **отдельные** PR.
+
+## Severity labels
+
+| Префикс | Значение |
+|---------|----------|
+| *(нет)* | Обязательно исправить |
+| **Critical:** | Блокирует merge |
+| **Nit:** | Опционально |
+| **Optional:** / **Consider:** | Предложение |
+| **FYI** | Информация |
+
+## Процесс ревью
+
+1. **Контекст** — что, зачем, какой spec
+2. **Тесты первыми** — coverage, имена, behavior vs implementation
+3. **Код** — пять осей по файлам
+4. **Findings** — с severity
+5. **Verification story** — `pytest`, `vitest`, `playwright`, browser check
+
+## Персона code-reviewer
+
+Для глубокого ревью: «Проверь diff по framework из `.cursor/rules/agents/code-reviewer.md`».
+
+## Dead code
+
+После рефакторинга — список мёртвого кода, **спроси** перед удалением.
+
+## Скорость ревью
+
+Ответ в течение рабочего дня. Большой PR — попроси разбить.
+
+## Честность
+
+- Не rubber-stamp «LGTM»
+- Не смягчай Critical
+- Количественно: «N+1 даст ~50ms на элемент»
+
+## Зависимости
+
+Перед добавлением пакета: нужен ли? размер? maintenance? `pip audit`? лицензия?
+
+## Рационализации
+
+| Рационализация | Реальность |
+|---|---|
+| «Работает — хватит» | Работает ≠ maintainable/secure |
+| «AI-код наверное ок» | AI-коду нужно **больше** scrutiny |
+| «Тесты прошли» | Тесты не ловят архитектуру и security |
+
+## Red Flags
+
+- Merge без ревью
+- Только «тесты зелёные»
+- Security change без security review
+- PR >1000 строк
+- Багфикс без regression test
+
+## Верификация
+
+- [ ] Critical resolved
+- [ ] `pytest` + build clean
+- [ ] Verification story задокументирована

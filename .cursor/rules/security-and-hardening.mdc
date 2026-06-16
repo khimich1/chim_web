@@ -1,0 +1,193 @@
+---
+name: security-and-hardening
+description: Защита от уязвимостей. Используй при auth, user input, хранении данных и внешних интеграциях.
+alwaysApply: false
+globs: backend/app/api/**/*.py,backend/app/core/**/*.py,backend/app/services/**/*.py,frontend/lib/api/**/*.ts,frontend/app/**/*.tsx
+---
+
+# Безопасность и hardening
+
+## Обзор
+
+Security-first для веб-приложений. Внешний ввод — враждебный, секреты — священны, проверка прав — обязательна на каждом protected endpoint.
+
+## Threat Model (5 минут)
+
+1. **Границы доверия:** HTTP, forms, uploads, webhooks, внешние API
+2. **Активы:** credentials, PII, admin actions
+3. **STRIDE** по каждой границе
+4. **Abuse cases** рядом с use cases
+
+## Трёхуровневая система
+
+### Always Do
+
+- Валидация внешнего ввода (Pydantic на границах)
+- Параметризованные запросы SQLAlchemy — никогда f-string SQL с user input
+- HTTPS
+- Хеш паролей: bcrypt / argon2 (passlib)
+- Секреты в `.env` через `pydantic-settings`
+- `pip audit` / `safety check` перед релизом
+
+### Ask First
+
+- Новые auth flows
+- Хранение новых категорий sensitive data
+- Новые внешние интеграции
+- Изменение CORS
+- File upload
+- Rate limiting
+- Повышение ролей
+
+### Never Do
+
+- Секреты в git
+- Логирование паролей/токенов
+- Доверие только client-side validation
+- Сырой SQL со строками пользователя
+- Stack traces клиенту в production
+- JWT в localStorage (предпочти httpOnly cookies или secure storage)
+
+## FastAPI: паттерны
+
+### Пароли
+
+```python
+from passlib.context import CryptContext
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+```
+
+### Auth dependency
+
+```python
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    session: AsyncSession = Depends(get_session),
+) -> User:
+    payload = decode_token(token)  # проверка signature + exp
+    user = await user_repo.get_by_id(payload.sub)
+    if not user:
+        raise HTTPException(401, detail="Invalid credentials")
+    return user
+```
+
+### Authorization (IDOR)
+
+```python
+task = await repo.get_by_id(task_id)
+if task.owner_id != current_user.id:
+    raise HTTPException(403, detail="Forbidden")
+```
+
+### CORS
+
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,  # ["http://localhost:3000"] в dev
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+```
+
+### Next.js (frontend/)
+
+```typescript
+// НЕ храни JWT в localStorage — XSS украдёт токен
+// Предпочтительно: httpOnly cookie (выставляет FastAPI) + credentials: 'include'
+
+await fetch(`${API}/api/tasks`, { credentials: 'include' });
+
+// React экранирует JSX по умолчанию — не используй dangerouslySetInnerHTML с user content
+// NEXT_PUBLIC_* — только публичные значения, не секреты
+
+// frontend/.env.local
+// NEXT_PUBLIC_API_URL=http://localhost:8000  — OK
+// SECRET_KEY=...  — НИКОГДА (только на backend)
+```
+
+### Settings
+
+```python
+# app/core/config.py
+class Settings(BaseSettings):
+    DATABASE_URL: str
+    SECRET_KEY: str
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:8000"]
+
+    model_config = SettingsConfigDict(env_file=".env")
+```
+
+### Rate limiting
+
+Используй `slowapi` или middleware на `/api/auth/login`.
+
+### SQL Injection
+
+```python
+# ПЛОХО
+await session.execute(text(f"SELECT * FROM users WHERE id = '{user_id}'"))
+
+# ХОРОШО
+await session.execute(select(User).where(User.id == user_id))
+```
+
+### Sensitive fields
+
+Не возвращай `password_hash`, `reset_token` в response schemas.
+
+## SSRF
+
+При server-side fetch URL от пользователя — allowlist хостов, блок private IP.
+
+## Секреты
+
+```
+.env.example  → в git (плейсхолдеры)
+.env          → НЕ в git
+```
+
+```bash
+git diff --staged | findstr /i "password secret api_key token"
+```
+
+Секрет в git → **ротация**, не только удаление строки.
+
+## LLM features (если есть)
+
+- Output модели = untrusted input
+- Permissions в коде, не в system prompt
+- Секреты вне context window
+
+См. `.cursor/rules/references/security-checklist.md`.
+
+## Рационализации
+
+| Рационализация | Реальность |
+|---|---|
+| «Внутренний инструмент» | Внутренние тоже взламывают |
+| «Безопасность потом» | Retrofit в 10 раз дороже |
+| «FastAPI сам защитит» | Framework даёт инструменты, не гарантии |
+
+## Red Flags
+
+- User input в SQL/shell
+- Секреты в коде
+- Endpoints без authz
+- CORS `*`
+- Нет rate limit на login
+- Stack trace в ответе API
+
+## Верификация
+
+- [ ] `pip audit` без critical/high
+- [ ] Нет секретов в коде/history
+- [ ] Валидация на границах
+- [ ] Auth + authz на protected routes
+- [ ] Generic errors в production
+- [ ] Rate limit на auth

@@ -1,0 +1,123 @@
+---
+name: documentation-and-adrs
+description: Документирование решений и ADR. Используй при архитектурных решениях, смене API и shipping фич.
+alwaysApply: false
+globs: docs/**/*.md
+---
+
+# Документация и ADR
+
+## Обзор
+
+Документируй **почему**, не только **что**. Код показывает реализацию; ADR и комментарии — контекст, ограничения и отвергнутые альтернативы.
+
+## Когда использовать
+
+- Значимое архитектурное решение
+- Выбор между подходами
+- Публичный API
+- Shipping user-facing фич
+- Онбординг в проект
+
+**Когда НЕ использовать:** очевидный код, throwaway прототипы.
+
+## ADR (Architecture Decision Records)
+
+`docs/decisions/ADR-001-title.md`
+
+```markdown
+# ADR-001: PostgreSQL как основная БД
+
+## Status
+Accepted
+
+## Date
+2025-01-15
+
+## Context
+FastAPI-приложение, реляционная модель (users, tasks), ACID, full-text search.
+
+## Decision
+PostgreSQL + SQLAlchemy 2.x async + Alembic.
+
+## Alternatives Considered
+### SQLite — отклонён: ограничения concurrent writes в production
+### MongoDB — отклонён: реляционные связи
+
+## Consequences
+- AsyncSession + Alembic migrations
+- Команда знает PostgreSQL
+```
+
+**Не удаляй старые ADR** — помечай Superseded новым ADR.
+
+## Inline-комментарии
+
+Комментируй **why**, не **what**:
+
+```python
+# ПЛОХО: counter += 1
+
+# ХОРОШО: sliding window rate limit — сброс на границе окна,
+# не по фиксированному расписанию (защита от burst на краях)
+if now - window_start > WINDOW_SIZE_MS:
+    counter = 0
+```
+
+Не оставляй закомментированный код — git помнит.
+
+## API-документация (FastAPI)
+
+```python
+@router.post(
+    "/tasks",
+    response_model=TaskRead,
+    status_code=201,
+    summary="Создать задачу",
+    responses={422: {"model": APIError}},
+)
+async def create_task(...) -> TaskRead:
+    """Создаёт задачу для текущего пользователя.
+
+    - **title**: обязательно, 1–200 символов
+    - Возвращает созданную задачу с server-generated id
+    """
+```
+
+OpenAPI на `/docs` — часть документации.
+
+## README
+
+- Quick start (venv, `.env`, migrate, run)
+- Таблица команд (`pytest`, `uvicorn`, `alembic`)
+- Архитектура + ссылки на ADR
+- Contributing
+
+## Документация для агентов
+
+- `.cursor/rules/` — конвенции
+- `SPEC.md` / `AGENTS.md` — контекст проекта
+- ADR — почему прошлые решения нельзя «переизобретать»
+
+## Рационализации
+
+| Рационализация | Реальность |
+|---|---|
+| «Код self-documenting» | Код не объясняет отвергнутые альтернативы |
+| «ADR — overhead» | 10 мин ADR экономят 2ч спора через полгода |
+
+## Red Flags
+
+- Архитектура без rationale
+- Публичный API без types/docs
+- README без инструкции запуска
+- Закомментированный код
+- TODO неделями
+
+## Верификация
+
+- [ ] ADR для значимых решений
+- [ ] README с quick start
+- [ ] Endpoints с docstrings / OpenAPI
+- [ ] Gotchas задокументированы
+- [ ] Rules актуальны

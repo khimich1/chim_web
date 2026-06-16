@@ -1,0 +1,217 @@
+---
+name: frontend-ui-engineering
+description: Production-quality UI для Next.js. Используй при создании компонентов, страниц, layouts, state и UX.
+alwaysApply: false
+globs: frontend/**/*.{tsx,ts}
+---
+
+# Frontend UI Engineering (Next.js App Router)
+
+## Обзор
+
+Production-quality UI: доступность, производительность, polish. UI должен выглядеть как работа design-aware инженера, а не generic AI aesthetic.
+
+**Принцип monorepo:** бизнес-логика только в FastAPI (`backend/`). Next (`frontend/`) — presentation + вызовы API через `lib/api/`.
+
+## Когда использовать
+
+- Новые компоненты или страницы
+- Изменение user-facing интерфейса
+- Responsive layouts, state, интерактивность
+- Исправление visual/UX issues
+
+## Структура Next.js
+
+```
+frontend/
+  app/                    # App Router: routes, layouts, loading.tsx, error.tsx
+    tasks/
+      page.tsx            # Server Component по умолчанию
+      loading.tsx
+  components/             # Переиспользуемые UI
+    tasks/
+      TaskList.tsx
+      TaskList.test.tsx
+  lib/
+    api/                  # api-client к FastAPI
+      tasks.ts
+    hooks/                # useTasks и т.д.
+```
+
+## Server vs Client Components
+
+```tsx
+// app/tasks/page.tsx — Server Component (default)
+// fetch к FastAPI на сервере, без 'use client'
+export default async function TasksPage() {
+  const tasks = await fetch(`${process.env.API_URL}/api/tasks`, {
+    cache: 'no-store',
+  }).then(r => r.json());
+  return <TaskList initialTasks={tasks} />;
+}
+
+// components/tasks/TaskForm.tsx — Client Component
+'use client';
+import { useState } from 'react';
+import { createTask } from '@/lib/api/tasks';
+
+export function TaskForm() {
+  const [title, setTitle] = useState('');
+  // events, hooks, browser APIs — только здесь
+}
+```
+
+**Правило:** `'use client'` только где нужны state, effects, event handlers, browser APIs. Не помечай весь app клиентским.
+
+## Data fetching
+
+| Сценарий | Подход |
+|----------|--------|
+| Initial page data | Server Component + `fetch` к FastAPI |
+| Mutations, optimistic UI | Client + TanStack Query или `useTransition` |
+| Filters, pagination в URL | `searchParams` в Server Component |
+| Shared read-heavy state | React Context (theme, locale) |
+
+```tsx
+// lib/api/tasks.ts — единый клиент
+const API = process.env.NEXT_PUBLIC_API_URL;
+
+export async function createTask(data: { title: string }) {
+  const res = await fetch(`${API}/api/tasks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new ApiError(res.status, err);
+  }
+  return res.json();
+}
+```
+
+Не дублируй Pydantic-валидацию на фронте — отображай 422 от FastAPI.
+
+## Component Patterns
+
+**Composition over configuration:**
+
+```tsx
+<Card>
+  <CardHeader><CardTitle>Tasks</CardTitle></CardHeader>
+  <CardBody><TaskList tasks={tasks} /></CardBody>
+</Card>
+```
+
+**Разделяй data и presentation:**
+
+```tsx
+// Container (client hook или server fetch)
+export function TaskListContainer() {
+  const { tasks, isLoading, error } = useTasks();
+  if (isLoading) return <TaskListSkeleton />;
+  if (error) return <ErrorState message="Не удалось загрузить" />;
+  if (!tasks.length) return <EmptyState />;
+  return <TaskList tasks={tasks} />;
+}
+
+// Presentation — чистый render
+export function TaskList({ tasks }: { tasks: Task[] }) {
+  return (
+    <ul role="list" className="divide-y">
+      {tasks.map(t => <TaskItem key={t.id} task={t} />)}
+    </ul>
+  );
+}
+```
+
+## State Management
+
+```
+useState          → UI state компонента
+searchParams      → filters, pagination (shareable URL)
+TanStack Query    → server state, cache, mutations
+Context           → theme, auth context (read-heavy)
+Zustand           → сложный client state app-wide (редко)
+```
+
+Избегай prop drilling >3 уровней.
+
+## Design System
+
+### Избегай AI aesthetic
+
+| AI default | Production |
+|------------|------------|
+| Purple/indigo везде | Палитра проекта |
+| rounded-2xl на всём | Scale из design system |
+| Shadow-heavy | Subtle или без |
+| Generic hero | Content-first |
+
+### Spacing / Typography
+
+Tailwind scale: `p-4`, `gap-3` — не `padding: 13px`.
+Один `h1` на страницу, не пропускай уровни заголовков.
+
+## Accessibility (WCAG 2.1 AA)
+
+```tsx
+<button aria-label="Закрыть"><XIcon /></button>
+<label htmlFor="title">Название</label>
+<input id="title" />
+```
+
+- Все interactive — keyboard accessible (`<button>`, не `<div onClick>`)
+- Focus visible, modals trap focus
+- Empty/error/loading states с `role="status"` / `role="alert"`
+
+См. `.cursor/rules/references/accessibility-checklist.md`.
+
+## Responsive (mobile-first)
+
+```tsx
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+```
+
+Тест: 320px, 768px, 1024px, 1440px.
+
+## Loading States
+
+```tsx
+function TaskListSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Загрузка задач" className="space-y-3">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="h-12 bg-muted animate-pulse rounded" />
+      ))}
+    </div>
+  );
+}
+```
+
+## Рационализации
+
+| Рационализация | Реальность |
+|---|---|
+| «a11y потом» | Legal + quality standard |
+| «Responsive потом» | Retrofit в 3 раза дороже |
+| «Прототип, стили не нужны» | Foundation с design system сразу |
+
+## Red Flags
+
+- Компонент >200 строк
+- Бизнес-логика в components (должна быть в FastAPI)
+- API Routes с бизнес-правилами (только proxy к FastAPI)
+- Нет loading/error/empty states
+- JWT в localStorage
+- `'use client'` на всём дереве
+
+## Верификация
+
+- [ ] Нет console errors
+- [ ] Tab через страницу работает
+- [ ] Responsive на 4 breakpoints
+- [ ] Loading, error, empty обработаны
+- [ ] Design system соблюдён
+- [ ] Vitest component tests для ключевых flows

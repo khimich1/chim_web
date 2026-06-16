@@ -1,0 +1,123 @@
+---
+name: spec-driven-development
+description: Создаёт spec до кода. Используй при новом проекте, фиче или значительном изменении без спецификации.
+alwaysApply: false
+---
+
+# Spec-Driven Development
+
+## Обзор
+
+Структурированная спецификация **до** любого кода. Spec — общий источник правды: что строим, зачем, как поймём, что готово. Код без spec — угадывание.
+
+## Когда использовать
+
+- Новый проект или фича
+- Неоднозначные требования
+- Изменение затрагивает несколько модулей
+- Архитектурное решение
+- Реализация >30 минут
+
+**Когда НЕ использовать:** однострочные фиксы, опечатки, однозначные изменения.
+
+## Gated Workflow
+
+```
+SPECIFY → PLAN → TASKS → IMPLEMENT
+   │        │       │         │
+   ▼        ▼       ▼         ▼
+ Human   Human   Human     Human
+ reviews reviews reviews   reviews
+```
+
+### Фаза 1: Specify
+
+Задавай уточняющие вопросы, пока требования не станут конкретными.
+
+**Озвучь допущения сразу:**
+
+```
+ДОПУЩЕНИЯ:
+1. Backend на FastAPI + Python 3.11+
+2. PostgreSQL + SQLAlchemy 2.x + Alembic
+3. Auth через JWT (access token)
+→ Поправь или продолжу.
+```
+
+**Шесть областей spec:**
+
+1. **Objective** — что и зачем, для кого, критерии успеха
+2. **Commands** — полные команды (не только имена инструментов):
+   ```
+   Dev:  cd backend && uvicorn app.main:app --reload --port 8000
+   Test: pytest backend/tests --cov=app
+   Lint: ruff check .
+   Type: mypy app/
+   Migrate: alembic upgrade head
+   ```
+3. **Project Structure** — слои FastAPI:
+   ```
+   backend/app/main.py           → точка входа FastAPI
+   backend/app/api/routers/      → endpoints
+   backend/app/schemas/          → Pydantic DTO
+   backend/app/services/         → бизнес-логика
+   frontend/app/                 → Next.js routes
+   frontend/components/          → UI
+   frontend/lib/api/             → клиент к FastAPI
+   backend/tests/                → pytest
+   frontend/**/*.test.tsx        → vitest
+   ```
+4. **Code Style** — пример + конвенции (type hints, Depends, HTTPException)
+5. **Testing Strategy** — pytest, TestClient/httpx, coverage, уровни пирамиды
+6. **Boundaries:**
+   - **Always:** тесты перед коммитом, валидация входа, секреты в `.env`
+   - **Ask first:** смена схемы БД, новые зависимости, CI
+   - **Never:** секреты в коде, сырой SQL со строками пользователя, удаление падающих тестов без одобрения
+
+**Шаблон spec:** `SPEC.md` в корне или `docs/specs/`.
+
+### Фаза 2: Plan
+
+Технический план: компоненты, порядок, риски, параллелизм, checkpoint'ы.
+
+### Фаза 3: Tasks
+
+Дискретные задачи с acceptance criteria и verify. Не >5 файлов на задачу.
+
+```markdown
+- [ ] Task: [Описание]
+  - Acceptance: [что должно быть true]
+  - Verify: pytest tests/..., ручная проверка
+  - Files: app/...
+```
+
+### Фаза 4: Implement
+
+По одной задаче: `incremental-implementation` + `test-driven-development`.
+
+## Живой spec
+
+Обновляй при смене решений/scope. Храни в git. Ссылайся в PR.
+
+## Рационализации
+
+| Рационализация | Реальность |
+|---|---|
+| «Простая задача, spec не нужен» | Двухстрочный spec с acceptance criteria — достаточно |
+| «Напишу spec после кода» | Это документация, не specification |
+| «Spec замедлит» | 15 мин spec экономят часы отладки |
+
+## Red Flags
+
+- Код без записанных требований
+- «Просто начать писать?» без определения «готово»
+- Фичи вне spec/task list
+- Архитектурные решения без записи
+
+## Верификация
+
+- [ ] Все 6 областей покрыты
+- [ ] Человек одобрил spec
+- [ ] Success criteria тестируемы
+- [ ] Boundaries определены
+- [ ] Spec сохранён в репозитории

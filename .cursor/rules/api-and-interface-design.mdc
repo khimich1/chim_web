@@ -1,0 +1,183 @@
+---
+name: api-and-interface-design
+description: Стабильный дизайн API и интерфейсов. Используй при REST endpoints, Pydantic-схемах и границах между слоями.
+alwaysApply: false
+globs: backend/app/api/**/*.py,backend/app/schemas/**/*.py
+---
+
+# Дизайн API и интерфейсов
+
+## Обзор
+
+Стабильные, документированные интерфейсы, которые сложно использовать неправильно. Применимо к REST API, Pydantic-схемам, контрактам service/repository и публичным методам модулей.
+
+## FastAPI: слоистая архитектура
+
+```
+Router (тонкий)     → HTTP, Depends, status codes
+    ↓
+Service             → бизнес-правила
+    ↓
+Repository          → SQLAlchemy, транзакции
+    ↓
+Model (ORM)         → таблицы БД
+
+Schemas (Pydantic)  → вход/выход, отдельно от ORM
+```
+
+Роутер не содержит SQL. Сервис не знает о HTTP. Repository не вызывает `HTTPException`.
+
+## Hyrum's Law
+
+Любое наблюдаемое поведение API станет контрактом, даже недокументированное. Не утекай деталями реализации. Планируй deprecation заранее.
+
+## One-Version Rule
+
+Расширяй, не форкуй. Одна версия зависимости/API в системе.
+
+## 1. Contract First
+
+```python
+# schemas/task.py — контракт
+class TaskCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+
+class TaskRead(BaseModel):
+    id: UUID
+    title: str
+    status: TaskStatus
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+```
+
+## 2. Единая семантика ошибок
+
+```python
+# app/schemas/errors.py
+class APIError(BaseModel):
+    code: str          # VALIDATION_ERROR
+    message: str
+    details: dict | None = None
+
+# Маппинг:
+# 400 — неверный запрос
+# 401 — не аутентифицирован
+# 403 — нет прав
+# 404 — не найдено
+# 409 — конфликт
+# 422 — семантическая валидация (FastAPI + Pydantic)
+# 500 — сервер (без внутренних деталей)
+```
+
+Используй `HTTPException` или централизованные exception handlers — один формат везде.
+
+## 3. Валидация на границах
+
+```python
+@router.post("/tasks", response_model=TaskRead, status_code=201)
+async def create_task(
+    data: TaskCreate,  # Pydantic валидирует на входе
+    service: TaskService = Depends(get_task_service),
+    current_user: User = Depends(get_current_user),
+) -> TaskRead:
+    return await service.create(data, user_id=current_user.id)
+```
+
+Валидировать: HTTP body, query params, ответы внешних API.
+Не валидировать повторно: данные между внутренними typed-функциями.
+
+## 4. Добавление, не ломание
+
+Новые поля — optional с default. Не меняй типы и не удаляй поля без миграции/версии.
+
+## 5. Именование REST
+
+```
+GET    /api/tasks              → список (пагинация)
+POST   /api/tasks              → создать
+GET    /api/tasks/{id}         → один
+PATCH  /api/tasks/{id}         → частичное обновление
+DELETE /api/tasks/{id}         → удалить
+```
+
+Query: `?page=1&page_size=20&sort_by=created_at`
+
+## Пагинация
+
+```python
+class PaginatedTasks(BaseModel):
+    data: list[TaskRead]
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+```
+
+## Input/Output separation
+
+- `TaskCreate` — что присылает клиент
+- `TaskRead` — что возвращает API (id, timestamps, server fields)
+- ORM `Task` — не отдавать напрямую без schema
+
+## Контракт для Next.js (frontend/)
+
+FastAPI — **единственный** источник правды. Next только потребляет API.
+
+```typescript
+// frontend/lib/api/types.ts — вручную или openapi-typescript из /openapi.json
+export interface TaskRead {
+  id: string;
+  title: string;
+  status: 'pending' | 'completed';
+  created_at: string;
+}
+
+export interface APIError {
+  error: { code: string; message: string; details?: unknown };
+}
+```
+
+**Правила синхронизации:**
+- Pydantic `TaskRead` ↔ TypeScript `TaskRead` — одни поля и типы
+- Ошибки 422/401/403 — единый `APIError`; UI показывает `message`
+- Генерация типов: `npx openapi-typescript http://localhost:8000/openapi.json -o lib/api/schema.d.ts`
+- Next **не** дублирует бизнес-валидацию — только отображает ответ FastAPI
+- Next API Routes — только proxy/rewrites к FastAPI, не бизнес-логика
+
+```typescript
+// next.config.ts — опциональный proxy в dev
+async rewrites() {
+  return [{ source: '/api/:path*', destination: 'http://localhost:8000/api/:path*' }];
+}
+```
+
+## OpenAPI
+
+FastAPI генерирует OpenAPI автоматически — `response_model`, `summary`, `description` на endpoints. Next-команда сверяется с `/docs`.
+
+## Рационализации
+
+| Рационализация | Реальность |
+|---|---|
+| «Документацию потом» | Pydantic-схемы и OpenAPI — документация |
+| «Пагинация не нужна» | Нужна при 100+ записях |
+| «PUT проще PATCH» | PATCH — то, что хотят клиенты |
+
+## Red Flags
+
+- Разные формы ответа на разных endpoints
+- Разные форматы ошибок
+- Валидация внутри repository
+- Список без пагинации
+- Глаголы в URL (`/api/createTask`)
+
+## Верификация
+
+- [ ] Typed input/output на каждом endpoint
+- [ ] Единый формат ошибок
+- [ ] Валидация только на границах
+- [ ] Пагинация на list endpoints
+- [ ] Новые поля optional
+- [ ] OpenAPI актуален

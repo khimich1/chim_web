@@ -1,0 +1,137 @@
+---
+name: source-driven-development
+description: Решения по официальной документации. Используй при работе с FastAPI, SQLAlchemy, Alembic и другими фреймворками.
+alwaysApply: false
+---
+
+# Source-Driven Development
+
+## Обзор
+
+Каждое framework-решение — с опорой на официальную документацию. Не из памяти: verify, cite, покажи источники. Training data устаревает.
+
+## Когда использовать
+
+- Boilerplate и паттерны, которые копируются по проекту
+- «Правильная» реализация по best practices
+- Auth, routing, async DB, migrations, validation
+- Любой framework-specific код «из головы»
+
+**Когда НЕ использовать:** переименование, typos, чистая логика без версий.
+
+## Процесс
+
+```
+DETECT → FETCH → IMPLEMENT → CITE
+```
+
+### Шаг 1: Detect Stack
+
+```python
+# backend/pyproject.toml + frontend/package.json
+STACK DETECTED:
+- FastAPI 0.115.x
+- SQLAlchemy 2.0.x
+- Pydantic v2
+- Python 3.11
+→ Fetch docs для конкретных паттернов.
+```
+
+Версии неясны — **спроси**, не угадывай.
+
+### Шаг 2: Fetch Official Docs
+
+| Приоритет | Источник |
+|-----------|----------|
+| 1 | fastapi.tiangolo.com, docs.sqlalchemy.org, docs.pydantic.dev |
+| 2 | Официальные changelog / migration guides |
+| 3 | PEP, docs.python.org |
+
+**Не authoritative:** Stack Overflow, блоги, training data.
+
+Точные URL:
+```
+ПЛОХО:  homepage fastapi.tiangolo.com
+ХОРОШО: fastapi.tiangolo.com/tutorial/dependencies/
+```
+
+### Шаг 3: Implement
+
+- Сигнатуры API из docs, не из памяти
+- Deprecated patterns — не использовать
+- Нет в docs — пометь UNVERIFIED
+
+**Конфликт docs vs кодовая база:**
+
+```
+КОНФЛИКТ:
+Код использует sync Session, docs рекомендуют AsyncSession для FastAPI.
+Источник: docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html
+A) Мигрировать на async (современный паттерн)
+B) Сохранить sync (консистентность codebase)
+→ Что предпочитаешь?
+```
+
+### Шаг 4: Cite
+
+```python
+# AsyncSession + dependency yield pattern
+# Source: https://fastapi.tiangolo.com/tutorial/sql-databases/#create-a-dependency
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    async with async_session() as session:
+        yield session
+```
+
+В чате — полные URL, цитата для неочевидных решений.
+
+```
+UNVERIFIED: официальной документации для этого паттерна не нашёл.
+Основано на training data — проверь перед production.
+```
+
+## Backend: частые источники
+
+| Тема | URL |
+|------|-----|
+| Dependencies | fastapi.tiangolo.com/tutorial/dependencies/ |
+| SQL Databases | fastapi.tiangolo.com/tutorial/sql-databases/ |
+| Security | fastapi.tiangolo.com/tutorial/security/ |
+| Settings | docs.pydantic.dev/latest/concepts/pydantic_settings/ |
+| SQLAlchemy 2.0 | docs.sqlalchemy.org/en/20/ |
+| Alembic | alembic.sqlalchemy.org/en/latest/ |
+
+## Frontend (Next.js): частые источники
+
+Версии из `frontend/package.json`.
+
+| Тема | URL |
+|------|-----|
+| App Router | nextjs.org/docs/app |
+| Server Components | nextjs.org/docs/app/building-your-application/rendering/server-components |
+| Data Fetching | nextjs.org/docs/app/building-your-application/data-fetching |
+| React | react.dev |
+| TanStack Query | tanstack.com/query/latest/docs/framework/react/overview |
+
+## Рационализации
+
+| Рационализация | Реальность |
+|---|---|
+| «Уверен в API» | Уверенность ≠ evidence |
+| «Docs жрут токены» | Галлюцинация API стоит часов отладки |
+| «Простая задача» | Простой шаблон копируется 10 раз с устаревшим паттерном |
+
+## Red Flags
+
+- Framework-код без проверки docs
+- «Думаю, что API такой»
+- Citation SO вместо official docs
+- Deprecated API из training data
+- Код без source citations
+
+## Верификация
+
+- [ ] Версии из dependency files
+- [ ] Official docs fetched
+- [ ] Код соответствует docs текущей версии
+- [ ] Citations с полными URL
+- [ ] UNVERIFIED явно помечено

@@ -1,0 +1,24 @@
+from app.repositories.content.tests import ExamContentRepo
+
+
+def test_list_variants_excludes_bug_and_has_issue(ege_tests_db) -> None:
+    repo = ExamContentRepo(ege_tests_db)
+    variants = repo.list_variants()
+
+    assert variants == ["001.txt"]
+
+
+def test_list_questions_filters_has_issue(ege_tests_db) -> None:
+    repo = ExamContentRepo(ege_tests_db)
+    questions = repo.list_questions("001.txt")
+
+    assert len(questions) == 2
+    assert [q.type for q in questions] == [1, 2]
+
+
+def test_oge_repo_uses_separate_db(oge_tests_db, ege_tests_db) -> None:
+    oge_variants = ExamContentRepo(oge_tests_db).list_variants()
+    ege_variants = ExamContentRepo(ege_tests_db).list_variants()
+
+    assert oge_variants == ["001.txt", "019.txt"]
+    assert ege_variants == ["001.txt"]

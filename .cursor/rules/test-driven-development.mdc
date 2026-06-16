@@ -1,0 +1,171 @@
+---
+name: test-driven-development
+description: Разработка через тесты. Используй при любой логике, багфиксах и изменении поведения.
+alwaysApply: false
+globs: backend/tests/**/*.py,frontend/**/*.test.{ts,tsx}
+---
+
+# Test-Driven Development (TDD)
+
+## Обзор
+
+Сначала падающий тест, потом код. При багах — сначала тест, воспроизводящий баг. Тесты — доказательство. «Кажется работает» ≠ готово.
+
+## Когда использовать
+
+- Новая логика или поведение
+- Багфиксы (Prove-It Pattern)
+- Изменение существующего поведения
+- Edge cases
+
+**Когда НЕ использовать:** чистый конфиг, документация без поведения.
+
+## Уровни тестов (monorepo)
+
+| Слой | Инструмент | Справочник |
+|------|------------|------------|
+| Backend logic/API | pytest + TestClient | `references/testing-patterns.md` |
+| Frontend components | Vitest + RTL | `references/testing-patterns-frontend.md` |
+| Critical user flows | Playwright E2E | `references/testing-patterns-frontend.md` |
+| UI runtime verify | Browser DevTools | `browser-testing-with-devtools` |
+
+## Цикл TDD
+
+```
+RED → GREEN → REFACTOR → (повтор)
+Тест падает → Минимальный код → Упростить → тесты зелёные
+```
+
+### RED — падающий тест
+
+```python
+# RED: create_task ещё не существует
+def test_create_task_sets_default_status(client):
+    response = client.post("/api/tasks", json={"title": "Купить молоко"})
+    assert response.status_code == 201
+    data = response.json()
+    assert data["title"] == "Купить молоко"
+    assert data["status"] == "pending"
+    assert "id" in data
+```
+
+### GREEN — минимум кода
+
+```python
+async def create_task(self, data: TaskCreate) -> Task:
+    task = Task(title=data.title, status="pending")
+    return await self.repo.save(task)
+```
+
+### REFACTOR — без смены поведения
+
+После каждого шага — `pytest`.
+
+## Prove-It Pattern (багфиксы)
+
+```
+Баг → Тест воспроизводит → FAIL → Фикс → PASS → полный pytest
+```
+
+```python
+def test_complete_task_sets_completed_at(client, db_session):
+    task = create_task_fixture(db_session, title="Test")
+    response = client.patch(f"/api/tasks/{task.id}", json={"status": "completed"})
+    assert response.status_code == 200
+    assert response.json()["completed_at"] is not None  # падало до фикса
+```
+
+## Пирамида тестов
+
+```
+        E2E (~5%)
+    Integration (~15%)
+   Unit (~80%)
+```
+
+**Beyonce Rule:** если важно — покрой тестом.
+
+| Размер | Ограничения | Пример |
+|--------|-------------|--------|
+| Small | Без I/O | Чистые функции, валидация Pydantic |
+| Medium | Test DB, TestClient | API + repository |
+| Large | E2E, staging | Критические user flows |
+
+## Хорошие тесты
+
+### Состояние, не взаимодействия
+
+```python
+# Хорошо: результат
+def test_list_tasks_sorted_by_created_desc(service):
+    tasks = service.list_tasks(sort_by="created_at", order="desc")
+    assert tasks[0].created_at >= tasks[1].created_at
+
+# Плохо: внутренние вызовы
+def test_list_calls_repo_with_order(mock_repo):
+    ...
+    mock_repo.list.assert_called_with(order_by="created_at DESC")
+```
+
+### DAMP > DRY в тестах
+
+Дублирование в тестах допустимо ради читаемости.
+
+### Arrange-Act-Assert
+
+```python
+def test_rejects_empty_title():
+    # Arrange
+    payload = {"title": ""}
+    # Act & Assert
+    with pytest.raises(ValidationError):
+        TaskCreate(**payload)
+```
+
+### Именование
+
+```python
+class TestCompleteTask:
+    def test_sets_status_and_timestamp(self): ...
+    def test_raises_404_for_missing_task(self): ...
+    def test_is_idempotent_for_already_completed(self): ...
+```
+
+## FastAPI: фикстуры
+
+```python
+import pytest
+from httpx import ASGITransport, AsyncClient
+from app.main import app
+
+@pytest.fixture
+async def client():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+```
+
+См. также `.cursor/rules/references/testing-patterns.md`.
+
+## Рационализации
+
+| Рационализация | Реальность |
+|---|---|
+| «Тесты после кода» | Не напишешь; тесты после кода проверяют реализацию, не поведение |
+| «Слишком просто для теста» | Тест = спецификация |
+| «Проверил вручную» | Ручная проверка не переживает завтрашний коммит |
+
+## Red Flags
+
+- Код без тестов
+- Тест прошёл с первого раза (возможно, не то тестируешь)
+- Багфикс без regression test
+- Повторный pytest без изменений кода
+
+## Верификация
+
+- [ ] Каждое новое поведение покрыто тестом
+- [ ] `pytest` зелёный
+- [ ] Багфиксы с reproduction test
+- [ ] Имена тестов описывают поведение
+- [ ] Тесты не пропущены/disabled
