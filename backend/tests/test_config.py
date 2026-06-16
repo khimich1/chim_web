@@ -19,15 +19,16 @@ def test_settings_loads_required_fields(test_settings: Settings) -> None:
 def test_settings_requires_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
     get_settings.cache_clear()
+    # _env_file=None: ignore any local dev .env so the "required" check is real.
     with pytest.raises(ValidationError):
-        Settings()
+        Settings(_env_file=None)
 
 
 def test_settings_requires_jwt_secret(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("JWT_SECRET", raising=False)
     get_settings.cache_clear()
     with pytest.raises(ValidationError):
-        Settings()
+        Settings(_env_file=None)
 
 
 def test_settings_parses_multiple_cors_origins(

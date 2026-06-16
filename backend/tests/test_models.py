@@ -134,3 +134,27 @@ def test_alembic_upgrade_head_creates_tables(
         assert "student_profiles" in tables
 
     asyncio.run(_assert_tables())
+
+
+def test_alembic_reads_url_from_settings_not_ini_placeholder(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: env.py must pull DATABASE_URL from Settings.
+
+    The alembic.ini `sqlalchemy.url` is blank on purpose; if a non-empty
+    placeholder (e.g. `driver://...`) is reintroduced, env.py would stop
+    falling back to Settings and `command.upgrade` would raise
+    NoSuchModuleError. This test fails loudly in that case.
+    """
+    db_file = tmp_path / "from_settings.db"
+    url = f"sqlite+aiosqlite:///{db_file.as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", url)
+    monkeypatch.setenv("JWT_SECRET", "test-jwt-secret")
+    get_settings.cache_clear()
+
+    # Intentionally do NOT set sqlalchemy.url — env.py must inject it.
+    cfg = Config("alembic.ini")
+    command.upgrade(cfg, "head")
+
+    assert db_file.exists()
