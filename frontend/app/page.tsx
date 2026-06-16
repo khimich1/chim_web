@@ -18,6 +18,12 @@ export default function Home() {
             {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}
           </code>
         </p>
+        <a
+          href="/login"
+          className="mt-6 inline-block rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700"
+        >
+          Войти
+        </a>
       </div>
     </main>
   );
