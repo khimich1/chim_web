@@ -1,26 +1,120 @@
 @import "tailwindcss";
 
+/* Periodic-table palette — use sparingly as accents */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --chem-peach: #ffc878;
+  --chem-sky: #00adef;
+  --chem-royal: #1b4f9b;
+  --chem-green: #009640;
+  --chem-gold: #ffb800;
+  --chem-crimson: #c1272d;
+
+  --background: #fffdf9;
+  --foreground: #1a1a1a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-chem-peach: var(--chem-peach);
+  --color-chem-sky: var(--chem-sky);
+  --color-chem-royal: var(--chem-royal);
+  --color-chem-green: var(--chem-green);
+  --color-chem-gold: var(--chem-gold);
+  --color-chem-crimson: var(--chem-crimson);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Surfaces */
+.chem-surface {
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--chem-peach) 22%, white) 0%,
+    white 45%
+  );
+}
+
+.chem-card {
+  border: 1px solid color-mix(in srgb, var(--chem-royal) 12%, #e4e4e7);
+  background: white;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--chem-royal) 6%, transparent);
+}
+
+/* Typography accents */
+.chem-kicker {
+  color: var(--chem-royal);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.chem-link {
+  color: var(--chem-royal);
+  font-weight: 500;
+  text-underline-offset: 2px;
+}
+
+.chem-link:hover {
+  color: var(--chem-sky);
+  text-decoration: underline;
+}
+
+/* Controls */
+.chem-btn-primary {
+  border-radius: 0.375rem;
+  background: var(--chem-royal);
+  color: white;
+  font-weight: 500;
+  transition: filter 0.15s ease;
+}
+
+.chem-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.chem-btn-primary:disabled {
+  opacity: 0.6;
+}
+
+.chem-input:focus {
+  border-color: var(--chem-sky);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chem-sky) 25%, transparent);
+}
+
+/* Track badges (ЕГЭ = gold alkali, ОГЭ = green transition) */
+.chem-badge-ege {
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--chem-gold) 88%, white);
+  color: #3d2e00;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.125rem 0.625rem;
+}
+
+.chem-badge-oge {
+  border-radius: 9999px;
+  background: var(--chem-green);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.125rem 0.625rem;
+}
+
+.chem-nav-active {
+  background: var(--chem-royal);
+  color: white;
+}
+
+.chem-table-head {
+  background: color-mix(in srgb, var(--chem-peach) 35%, white);
+  color: var(--chem-royal);
 }
