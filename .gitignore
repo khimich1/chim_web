@@ -17,6 +17,8 @@ frontend/.env.local
 
 # SQLite databases (local dev app DB + read-only content sources)
 *.db
+*.db-shm
+*.db-wal
 
 # Node / Next.js
 node_modules/
