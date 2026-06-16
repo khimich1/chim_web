@@ -33,6 +33,18 @@ class Settings(BaseSettings):
 
     database_url: str = Field(alias="DATABASE_URL")
     jwt_secret: str = Field(alias="JWT_SECRET")
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(
+        default=480,
+        alias="ACCESS_TOKEN_EXPIRE_MINUTES",
+    )
+
+    # Auth cookie settings. In dev (http://localhost) Secure must be False;
+    # set COOKIE_SECURE=true behind HTTPS in production.
+    cookie_name: str = Field(default="access_token", alias="COOKIE_NAME")
+    cookie_secure: bool = Field(default=False, alias="COOKIE_SECURE")
+    cookie_samesite: str = Field(default="lax", alias="COOKIE_SAMESITE")
+
     cors_origins: Annotated[
         list[str],
         NoDecode,

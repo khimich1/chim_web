@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routers import auth as auth_router
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
 from app.db.session import dispose_engine, init_engine
@@ -42,6 +43,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    application.include_router(auth_router.router)
 
     @application.get("/health")
     def health(request: Request) -> dict[str, object]:
