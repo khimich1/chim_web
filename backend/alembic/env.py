@@ -15,7 +15,12 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.config import get_settings
 from app.db.base import Base
-from app.models import StudentProfile, User  # noqa: F401 — register metadata
+from app.models import (  # noqa: F401 — register metadata
+    StudentProfile,
+    TestSession,
+    TestSessionStep,
+    User,
+)
 
 config = context.config
 

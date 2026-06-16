@@ -89,3 +89,7 @@ def require_student(user: CurrentUser) -> User:
             detail="Student role required",
         )
     return user
+
+
+TeacherUser = Annotated[User, Depends(require_teacher)]
+StudentUser = Annotated[User, Depends(require_student)]
