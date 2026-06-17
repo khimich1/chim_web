@@ -1,7 +1,6 @@
 import { apiFetch } from "@/lib/api/client";
 import type {
   ActiveSessionResult,
-  HintResult,
   StepCheckResult,
   TestSession,
   TestVariant,
@@ -67,15 +66,6 @@ export function checkStep(
       method: "POST",
       body: JSON.stringify({ answer }),
     },
-  );
-}
-
-export function getHint(
-  sessionId: string,
-  position: number,
-): Promise<HintResult> {
-  return apiFetch<HintResult>(
-    `/api/tests/sessions/${sessionId}/steps/${position}/hint`,
   );
 }
 

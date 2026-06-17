@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { StepView } from "@/components/tests/StepView";
-import { checkStep, completeSession, getHint } from "@/lib/api/tests";
+import { checkStep, completeSession } from "@/lib/api/tests";
 import type { TestSession } from "@/lib/api/types";
 
 const push = vi.fn();
@@ -14,7 +14,6 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api/tests", () => ({
   checkStep: vi.fn(),
-  getHint: vi.fn(),
   completeSession: vi.fn(),
 }));
 
@@ -23,7 +22,6 @@ vi.mock("@/components/tests/QuestionContent", () => ({
 }));
 
 const mockedCheck = vi.mocked(checkStep);
-const mockedHint = vi.mocked(getHint);
 const mockedComplete = vi.mocked(completeSession);
 
 const session: TestSession = {
@@ -46,7 +44,6 @@ const session: TestSession = {
       answer: "23",
       is_correct: true,
       hint_used: false,
-      detailed_explanation: "Разбор шага 1",
     },
     {
       position: 1,
@@ -64,7 +61,6 @@ const session: TestSession = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockedHint.mockResolvedValue({ hint: "Подсказка" });
 });
 
 describe("StepView", () => {
@@ -82,18 +78,16 @@ describe("StepView", () => {
     expect(screen.getByLabelText("Ваш ответ")).toHaveValue("");
   });
 
-  it("restores explanation for checked steps without rechecking", async () => {
+  it("does not show hint or explanation controls", () => {
     render(<StepView session={session} />);
 
-    expect(screen.queryByText(/Разбор шага 1/)).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getAllByRole("tab")[0]);
-
-    expect(screen.getByText(/Разбор шага 1/)).toBeInTheDocument();
-    expect(mockedCheck).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Подсказка" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Разбор" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Разбор:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Подсказка:/)).not.toBeInTheDocument();
   });
 
-  it("checks an answer and shows instant feedback", async () => {
+  it("checks an answer and shows instant feedback without explanation", async () => {
     const freshSession: TestSession = {
       ...session,
       steps: [
@@ -116,7 +110,6 @@ describe("StepView", () => {
       position: 0,
       is_correct: true,
       status: "checked",
-      detailed_explanation: "Разбор задания",
     });
 
     render(<StepView session={freshSession} />);
@@ -126,59 +119,7 @@ describe("StepView", () => {
 
     expect(mockedCheck).toHaveBeenCalledWith("sess-1", 0, "23");
     expect(await screen.findByRole("status")).toHaveTextContent("Верно");
-    expect(screen.getByText(/Разбор задания/)).toBeInTheDocument();
-  });
-
-  it("loads a hint only when requested", async () => {
-    const freshSession: TestSession = {
-      ...session,
-      steps: [
-        {
-          position: 0,
-          test_id: 11,
-          type: 1,
-          question: "Вопрос 1",
-          options: null,
-          status: "unseen",
-          answer: null,
-          is_correct: null,
-          hint_used: false,
-        },
-        session.steps[1],
-      ],
-    };
-
-    mockedHint.mockResolvedValue({ hint: "Смотри валентность" });
-
-    render(<StepView session={freshSession} />);
-
-    expect(screen.queryByText(/Смотри валентность/)).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Подсказка" }));
-
-    expect(mockedHint).toHaveBeenCalledWith("sess-1", 0);
-    expect(await screen.findByText(/Смотри валентность/)).toBeInTheDocument();
-  });
-
-  it("restores hints from session data without refetching", async () => {
-    const hintedSession: TestSession = {
-      ...session,
-      steps: [
-        {
-          ...session.steps[0],
-          status: "answered",
-          hint_used: true,
-          hint: "Сохранённая подсказка",
-        },
-        session.steps[1],
-      ],
-    };
-
-    render(<StepView session={hintedSession} />);
-
-    await userEvent.click(screen.getAllByRole("tab")[0]);
-    expect(await screen.findByText(/Сохранённая подсказка/)).toBeInTheDocument();
-    expect(mockedHint).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Разбор/)).not.toBeInTheDocument();
   });
 
   it("completes the test on the last step and navigates to summary", async () => {

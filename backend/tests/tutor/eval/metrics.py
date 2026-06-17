@@ -30,6 +30,7 @@ def recall_at_k(
     cases: list[EvalCase],
     *,
     k: int = 5,
+    use_rewrite: bool = False,
 ) -> tuple[float, list[EvalResult]]:
     """Fraction of cases where the expected topic+chunk_idx appears in top-k hits."""
     if not cases:
@@ -38,12 +39,20 @@ def recall_at_k(
     results: list[EvalResult] = []
     recalled_count = 0
     for case in cases:
-        hits = retriever.search(
-            case.query,
-            track=case.track,
-            source=case.source,
-            limit=k,
-        )
+        if use_rewrite:
+            hits = retriever.search_with_rewrite(
+                case.query,
+                track=case.track,
+                source=case.source,
+                limit=k,
+            )
+        else:
+            hits = retriever.search(
+                case.query,
+                track=case.track,
+                source=case.source,
+                limit=k,
+            )
         recalled = any(hit_matches_case(hit, case) for hit in hits)
         if recalled:
             recalled_count += 1

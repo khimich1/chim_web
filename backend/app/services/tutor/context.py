@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 import uuid
-from dataclasses import dataclass
-from typing import Literal
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Literal, TypeVar
 
 from app.services.rag.documents import ExamTrack
 
+if TYPE_CHECKING:
+    from app.services.tutor.student_tools import StudentTutorToolsService
+
 TutorRole = Literal["student", "teacher"]
+T = TypeVar("T")
+AsyncRunner = Callable[[Awaitable[T]], T]
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +24,12 @@ class TutorRunContext:
     user_id: str = "anonymous"
     role: TutorRole = "student"
     active_test_session_id: uuid.UUID | None = None
+    run_async: AsyncRunner | None = field(default=None, compare=False, repr=False)
+    student_tools_service: StudentTutorToolsService | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
 
 
 _tutor_context: ContextVar[TutorRunContext | None] = ContextVar(

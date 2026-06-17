@@ -59,7 +59,20 @@ def eval_hybrid_settings(eval_lectures_db: Path) -> Settings:
         jwt_secret="test-secret",
         content_lectures_db_path=eval_lectures_db,
         rag_hybrid_enabled=True,
+        rag_query_rewrite_enabled=False,
         openai_api_key="test-key",
+    )
+
+
+@pytest.fixture
+def eval_rewrite_settings(eval_lectures_db: Path) -> Settings:
+    return Settings(
+        database_url="postgresql+asyncpg://user:pass@localhost:5432/chemistry",
+        jwt_secret="test-secret",
+        content_lectures_db_path=eval_lectures_db,
+        rag_hybrid_enabled=True,
+        rag_query_rewrite_enabled=True,
+        openai_api_key="",
     )
 
 
@@ -86,7 +99,23 @@ def eval_keyword_retriever(eval_documents) -> Retriever:
             database_url="postgresql+asyncpg://user:pass@localhost:5432/chemistry",
             jwt_secret="test-secret",
             rag_hybrid_enabled=False,
+            rag_query_rewrite_enabled=False,
         ),
+    )
+
+
+@pytest.fixture
+def eval_rewrite_retriever(
+    eval_documents,
+    eval_vector_store: InMemoryVectorStore,
+    eval_embeddings_provider: DeterministicEmbeddingsProvider,
+    eval_rewrite_settings: Settings,
+) -> Retriever:
+    return Retriever(
+        eval_documents,
+        settings=eval_rewrite_settings,
+        vector_store=eval_vector_store,
+        embeddings_provider=eval_embeddings_provider,
     )
 
 

@@ -38,6 +38,7 @@ from app.schemas.tutor import (
 )
 from app.services.tutor.context import TutorRunContext
 from app.services.tutor.graph import build_graph
+from app.services.tutor.student_tools import StudentTutorToolsService
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +140,24 @@ class TutorService:
         user_message_id = user_message.id
         await self._db.commit()
 
-        ctx = await self._build_run_context(user, session.page_context)
+        loop = asyncio.get_running_loop()
+        invoke_timeout = self._settings.tutor_invoke_timeout
+
+        def run_async(coro):  # type: ignore[no-untyped-def]
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=invoke_timeout)
+
+        student_service = (
+            StudentTutorToolsService(self._db, user=user)
+            if user.role == UserRole.STUDENT
+            else None
+        )
+        ctx = await self._build_run_context(
+            user,
+            session.page_context,
+            run_async=run_async,
+            student_tools_service=student_service,
+        )
         graph = build_graph(ctx, llm=self._llm, settings=self._settings)
         invoke_input = {
             "messages": [
@@ -173,7 +191,10 @@ class TutorService:
             ) from exc
 
         assistant_text = self._extract_assistant_text(result["messages"])
-        sources = self._extract_sources(result["messages"])
+        sources = self._extract_sources(
+            result["messages"],
+            theory_hits=result.get("theory_hits"),
+        )
 
         # I2 (phase 2) + S3: persist the assistant turn in a fresh transaction;
         # serialize sources with mode="json" for parity with page_context.
@@ -247,6 +268,9 @@ class TutorService:
         self,
         user: User,
         page_context: dict[str, Any] | None,
+        *,
+        run_async=None,
+        student_tools_service: StudentTutorToolsService | None = None,
     ) -> TutorRunContext:
         track: ExamTrack = ExamTrack.EGE
         active_test_session_id: uuid.UUID | None = None
@@ -272,6 +296,8 @@ class TutorService:
             user_id=str(user.id),
             role=user.role.value,  # type: ignore[arg-type]
             active_test_session_id=active_test_session_id,
+            run_async=run_async,
+            student_tools_service=student_tools_service,
         )
 
     async def _get_active_test_session_id(self, student_id: uuid.UUID) -> uuid.UUID | None:
@@ -317,9 +343,33 @@ class TutorService:
         return "Не удалось сформировать ответ."
 
     @staticmethod
-    def _extract_sources(messages: list) -> list[TutorSourceCitation]:
+    def _extract_sources(
+        messages: list,
+        *,
+        theory_hits: list[dict[str, Any]] | None = None,
+    ) -> list[TutorSourceCitation]:
         citations: list[TutorSourceCitation] = []
         seen: set[tuple[str | None, str | None, int | None]] = set()
+
+        for hit in theory_hits or []:
+            if not isinstance(hit, dict):
+                continue
+            key = (
+                hit.get("topic"),
+                hit.get("chunk_title"),
+                hit.get("chunk_idx"),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            citations.append(
+                TutorSourceCitation(
+                    source=hit.get("source") or "lecture",
+                    topic=hit.get("topic"),
+                    chunk_idx=hit.get("chunk_idx"),
+                    chunk_title=hit.get("chunk_title"),
+                )
+            )
 
         for message in messages:
             if not isinstance(message, ToolMessage) or message.name != "retrieve_theory":

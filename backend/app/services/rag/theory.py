@@ -25,13 +25,19 @@ def search_theory(
     track: ExamTrack,
     top_k: int | None = None,
     retriever: Retriever | None = None,
+    page_context_topic: str | None = None,
 ) -> list[TheoryHit]:
     """Find lecture fragments for tutor tools (no correct_ans / test keys)."""
     settings = get_settings()
     rag = retriever or Retriever.from_settings()
     limit = top_k or settings.rag_top_k
 
-    hits = rag.search(query, track=track, limit=limit)
+    hits = rag.search_with_rewrite(
+        query,
+        track=track,
+        limit=limit,
+        page_context_topic=page_context_topic,
+    )
     theory_hits: list[TheoryHit] = []
     for hit in hits:
         source = hit.metadata.get("source")

@@ -45,5 +45,9 @@ def test_input_guard_blocks_off_topic_first_message() -> None:
 
 
 def test_route_after_input_guard_ends_on_stub() -> None:
+    from app.services.tutor.context import TutorRunContext
+    from app.services.tutor.graph import route_after_input_guard
+
     state = {"messages": [AIMessage(content="stub")]}
-    assert guards.route_after_input_guard(state) == END
+    ctx = TutorRunContext(track="ege", user_id="u1")
+    assert route_after_input_guard(state, ctx) == END

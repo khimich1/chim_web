@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { StepView } from "@/components/tests/StepView";
+import { TestReferenceFabColumn } from "@/components/tests/TestReferenceFabColumn";
 import { formatSessionTitle } from "@/components/tests/session-utils";
 import { getTestSession } from "@/lib/api/server";
 
@@ -41,6 +42,8 @@ export default async function TestSessionPage({
       <section className="mt-10">
         <StepView session={session} />
       </section>
+
+      <TestReferenceFabColumn />
     </main>
   );
 }

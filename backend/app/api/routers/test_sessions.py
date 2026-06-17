@@ -6,7 +6,6 @@
 | GET    | /api/tests/sessions/active                    | student | ActiveSessionResponse |
 | GET    | /api/tests/sessions/{id}                      | student | SessionRead       |
 | POST   | /api/tests/sessions/{id}/steps/{n}/check      | student | StepCheckResponse |
-| GET    | /api/tests/sessions/{id}/steps/{n}/hint       | student | HintResponse      |
 | POST   | /api/tests/sessions/{id}/complete             | student | SessionSummary    |
 """
 
@@ -23,7 +22,6 @@ from app.core.config import Settings
 from app.db.session import get_db
 from app.schemas.test_session import (
     ActiveSessionResponse,
-    HintResponse,
     SessionCreate,
     SessionRead,
     SessionSummary,
@@ -86,19 +84,6 @@ async def check_step(
     service: Annotated[TestSessionService, Depends(get_test_session_service)],
 ) -> StepCheckResponse:
     return await service.check_step(student, session_id, position, payload.answer)
-
-
-@router.get(
-    "/{session_id}/steps/{position}/hint",
-    response_model=HintResponse,
-)
-async def get_hint(
-    session_id: uuid.UUID,
-    position: int,
-    student: StudentUser,
-    service: Annotated[TestSessionService, Depends(get_test_session_service)],
-) -> HintResponse:
-    return await service.get_hint(student, session_id, position)
 
 
 @router.post("/{session_id}/complete", response_model=SessionSummary)

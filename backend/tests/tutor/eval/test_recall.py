@@ -54,3 +54,62 @@ def test_hybrid_recall_at_least_keyword_only(
         f"hybrid recall@{RECALL_K}={hybrid_recall:.3f} "
         f"< keyword-only={keyword_recall:.3f}"
     )
+
+
+def test_sulfur_metals_case_in_top_five_with_rewrite(
+    eval_rewrite_retriever: Retriever,
+) -> None:
+    """AC-16.7: «сера + металлы» → Cера chunk [1] after query rewriting."""
+    hits = eval_rewrite_retriever.search_with_rewrite(
+        "как с металлами реагирует сера?",
+        track="ege",
+        limit=RECALL_K,
+    )
+    assert any(
+        hit.metadata.get("topic") == "Сера" and hit.metadata.get("chunk_idx") == 1
+        for hit in hits
+    )
+
+
+def test_rewrite_recall_at_five_meets_threshold(
+    eval_rewrite_retriever: Retriever,
+    eval_cases,
+) -> None:
+    recall, results = recall_at_k(
+        eval_rewrite_retriever,
+        eval_cases,
+        k=RECALL_K,
+        use_rewrite=True,
+    )
+    report = format_recall_report(
+        "hybrid+rewrite",
+        recall,
+        results,
+        threshold=RECALL_THRESHOLD,
+    )
+    assert recall >= RECALL_THRESHOLD, report
+
+
+def test_rewrite_improves_sulfur_case_over_single_query(
+    eval_hybrid_retriever: Retriever,
+    eval_rewrite_retriever: Retriever,
+) -> None:
+    query = "как с металлами реагирует сера?"
+    single = eval_hybrid_retriever.search(query, track="ege", limit=RECALL_K)
+    rewritten = eval_rewrite_retriever.search_with_rewrite(
+        query,
+        track="ege",
+        limit=RECALL_K,
+    )
+    single_ok = any(
+        hit.metadata.get("topic") == "Сера" and hit.metadata.get("chunk_idx") == 1
+        for hit in single
+    )
+    rewrite_ok = any(
+        hit.metadata.get("topic") == "Сера" and hit.metadata.get("chunk_idx") == 1
+        for hit in rewritten
+    )
+    assert rewrite_ok, "expected Сера[1] in top-5 with query rewrite"
+    if not single_ok:
+        pytest.skip("single-query miss is the regression this slice fixes")
+

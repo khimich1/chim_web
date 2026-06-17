@@ -226,6 +226,32 @@ body {
   padding: 0.25rem 0.75rem;
 }
 
+/* Solubility table cells */
+.chem-solubility-p {
+  background: color-mix(in srgb, var(--chem-green) 22%, white);
+  color: var(--chem-teal-dark);
+}
+
+.chem-solubility-m {
+  background: color-mix(in srgb, var(--chem-gold) 28%, white);
+  color: #8a5a00;
+}
+
+.chem-solubility-n {
+  background: var(--chem-surface-muted);
+  color: #5c5c5c;
+}
+
+.chem-solubility-d {
+  background: color-mix(in srgb, var(--chem-crimson) 12%, white);
+  color: var(--chem-crimson);
+}
+
+.chem-solubility-q {
+  background: color-mix(in srgb, var(--chem-teal-soft) 45%, white);
+  color: #6b7280;
+}
+
 .chem-step-dots {
   display: flex;
   flex-wrap: wrap;

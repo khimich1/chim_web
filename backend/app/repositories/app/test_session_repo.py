@@ -3,12 +3,23 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import TestSession, TestSessionStatus
+from app.models.enums import ExamTrack, StepStatus
+
+
+@dataclass(frozen=True, slots=True)
+class IncorrectStepRow:
+    test_id: int
+    session_id: uuid.UUID
+    track: ExamTrack
+    checked_at: datetime | None
 
 
 class TestSessionRepository:
@@ -55,3 +66,46 @@ class TestSessionRepository:
             TestSession.id.desc(),
         ).limit(1)
         return await self._session.scalar(stmt)
+
+    async def list_incorrect_steps(
+        self,
+        student_id: uuid.UUID,
+        *,
+        limit: int = 20,
+        exclude_session_id: uuid.UUID | None = None,
+    ) -> list[IncorrectStepRow]:
+        """Return recent incorrect checked steps for a student (newest first)."""
+        from app.models import TestSessionStep
+
+        stmt = (
+            select(
+                TestSessionStep.test_id,
+                TestSessionStep.session_id,
+                TestSession.track,
+                TestSessionStep.checked_at,
+            )
+            .join(TestSession, TestSessionStep.session_id == TestSession.id)
+            .where(
+                TestSession.student_id == student_id,
+                TestSessionStep.status == StepStatus.CHECKED,
+                TestSessionStep.is_correct.is_(False),
+            )
+            .order_by(
+                TestSessionStep.checked_at.desc().nullslast(),
+                TestSessionStep.id.desc(),
+            )
+            .limit(max(1, limit))
+        )
+        if exclude_session_id is not None:
+            stmt = stmt.where(TestSession.id != exclude_session_id)
+
+        result = await self._session.execute(stmt)
+        return [
+            IncorrectStepRow(
+                test_id=row.test_id,
+                session_id=row.session_id,
+                track=row.track,
+                checked_at=row.checked_at,
+            )
+            for row in result.all()
+        ]

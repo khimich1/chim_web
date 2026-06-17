@@ -1,9 +1,9 @@
 # Implementation Plan: Chemistry (chim_web) MVP
 
-**Источник:** [SPEC.md](../SPEC.md) v0.7.3 · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.1  
+**Источник:** [SPEC.md](../SPEC.md) v0.7.5 · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2  
 **Дата плана:** 2026-06-09  
-**Обновлено:** 2026-06-17  
-**Статус:** MVP core + Phase 12 ✅ (`7804506`); Task 29 ✅ routers ≥80%; Task 41.1 RAG-cleanup ✅ (`46cd6d1`); Phase 11 UI redesign ✅ student cabinet (`9fb016a`, Tasks 48–52); **Phase 10 Task 41.2–41.3 ⭐ — hybrid pgvector + eval — ведущая**; tutor Tasks 31–38 в истории `08b418a`
+**Обновлено:** 2026-06-18  
+**Статус:** MVP core + Phase 12 ✅ (`7804506`); Task 29 ✅ routers ≥80%; Task 41 ✅ RAG accuracy (cleanup + hybrid + eval + query rewrite); Task 42 ✅ solve-pipeline этап A; Phase 11 UI redesign ✅ student cabinet (`9fb016a`, Tasks 48–52); **далее: Task 56 (таблица Менделеева) или Task 42 этап B / Task 44**; tutor Tasks 31–38 в истории `08b418a`
 
 ---
 
@@ -42,7 +42,7 @@
 | 26–27 | Notifications | 🟡 local | backend + `NotificationBell` |
 | 28 | Dashboards | 🟡 partial | счётчики и ссылки есть; отдельные `*Nav` — нет |
 | 29 | RBAC test suite | ✅ done | routers auth/homework/test_sessions/notifications ≥80%; overall 80% |
-| 30 | Docker + CI | ⏳ pending | |
+| 30 | Docker + CI | 🟡 local | config + local CI; Docker/gh skipped |
 | 31 | RAG layer (keyword + Chroma, interim) | 🟡 local | CLI `index_rag --rebuild [--chroma]`; **Task 41** — pgvector + убрать test-индекс |
 | 32 | LangGraph agent port | 🟡 local | `services/tutor/` from RAG_chemistry |
 | 33 | PostgreSQL sessions/messages | 🟡 local | migration `004_tutor` |
@@ -53,9 +53,9 @@
 | 38 | Tutor hardening (code review) | ✅ local | `docs/specs/tutor-rag.md` §15 — round 1 (I1–I7, S1, S3, S4) + round 2 (B1–B4) закрыты; S2 (markdown в bubble) отложен как отдельный подсрез |
 | 39 | Homework мульти-item submit + hardening | ✅ local | SPEC §1.7: агрегация всех items (одна `TestSession`, `variant_ref=null`), `HomeworkItemProgress`, per-item прогресс, submit при 100%; общий `homework_mapper`; tutor settings-инъекция (баг реального LLM в pytest) |
 | 40 | Homework UI — конструктор выбора заданий | ✅ local | мульти-item форма; gap AC-3.8 → Task 55 |
-| 41 | ⭐ Точность RAG: cleanup + hybrid (pgvector) + eval (срез 16-1) | 🟡 partial | 41.1 ✅ `46cd6d1`; 41.2–41.3 hybrid + eval ⏳ |
-| 42 | Solve-pipeline v1.5 (срез 16-2) | ⏳ pending | `tutor-rag.md` §17: intent_router/prepare_context/validation/critic (этап A) → planner (этап B); заменяет/детализирует Task 34 |
-| 43 | Персональный тьютор — student tools (срез 16-3) | ⏳ pending | §16.2: `get_my_homework`, `analyze_my_mistakes`, `recommend_topics` |
+| 41 | ⭐ Точность RAG: cleanup + hybrid (pgvector) + eval + query rewrite (срез 16-1/16-1b) | ✅ local | 41.1 ✅ `46cd6d1`; 41.2 hybrid pgvector ✅; 41.3 eval recall@5 ✅; 41.4 query rewrite + multi-query ✅ |
+| 42 | Solve-pipeline v1.5 (срез 16-2) | ✅ local (этап A) | `tutor-rag.md` §17: intent_router/prepare_context/validation/код-критик ✅; этап B (planner + LLM-критик) ⏳ |
+| 43 | Персональный тьютор — student tools (срез 16-3) | ✅ local | §16.2: `get_my_homework`, `analyze_my_mistakes`, `recommend_topics` |
 | 44 | Тренажёр + suggested prompts (срез 16-4) | ⏳ pending | §16.2/16.3: `generate_practice`, `get_selfcheck`, U3/U4 |
 | 45 | Teacher-аналитика — tools (срез 16-5) | ⏳ pending | §16.2: `summarize_student`, `suggest_homework` (черновик), `class_overview` |
 | 46 | ⏸️ Анти-галлюцинации guards A2/A3 (отложено) | ⏸️ deferred | §16.1: citation guard + порог retrieval. Разморозить, если eval после hybrid (Task 41) покажет остаточные галлюцинации |
@@ -68,8 +68,9 @@
 | 53 | Active session API + `active_test_session_id` | ✅ done | `7804506` |
 | 54 | StepProgressDots + resume UX в StepView | ✅ done | `7804506`; hint в `StepRead` при `hint_used` |
 | 55 | «Продолжить» — VariantPicker + TestHomeworkActions | ✅ done | `7804506` |
+| 56 | Таблица Менделеева — overlay при тестах | ✅ done | `PeriodicTableOverlay`, asset в `assets/` + `public/images/` |
 
-**Текущий этап:** Phase 12 ✅; Task 30 (Docker/CI); **Task 41.2–41.3** (hybrid pgvector + eval).
+**Текущий этап:** Phase 12 ✅; **Task 56** (справочник таблицы при тестах); Task 30 (Docker/CI); Task 44 (тренажёр) или Task 42 этап B.
 
 ---
 
@@ -78,12 +79,14 @@
 | Решение в SPEC / tutor-rag | Где в плане | Статус |
 |----------------------------|-------------|--------|
 | RAG индексирует **только учебник** (`lecture`, `lecture_qa`); `hint`/`detailed_explanation` **не** в индексе | Task 41.1 (RAG-cleanup) | ✅ `46cd6d1` |
-| Целевой retrieval: **hybrid** keyword ∪ embeddings на **pgvector**, rerank top-10 → top-4 | Task 41.2 | ✅ зафиксировано; Chroma в Task 31 — interim/dev |
-| Eval **recall@5 ≥ 0.8** (кейс «карбоновые кислоты» → chunk `[2]`) | Task 41.3 | ✅ зафиксировано; Task 37 — устаревшая метрика top-3, закрывается Task 41 |
+| Целевой retrieval: **hybrid** keyword ∪ embeddings на **pgvector**, rerank top-10 → top-4 | Task 41.2 | ✅ `retriever.py`, `pgvector_store.py`, `007_rag_embeddings.py`, `ADR-002` |
+| Eval **recall@5 ≥ 0.8** (кейс «карбоновые кислоты» → chunk `[2]`) | Task 41.3 | ✅ `tests/tutor/eval/` — recall@5 ≥ 0.8 на фикстурах |
+| **Query rewriting** + multi-query retrieval (кейс «сера + металлы») | Task 41.4 (A8) | ✅ `query_rewrite.py`, `search_with_rewrite`, AC-16.7 в eval |
 | Guards A2/A3 (citation + порог retrieval) **отложены** | Task 46 ⏸️ | ✅ согласовано; разморозка по eval после hybrid |
 | Solve-pipeline строит разбор сам (не копирует test-разбор) | Task 42 (заменяет Task 34) | ✅ согласовано |
-| `page_context.topic` **не** используется в retrieval | — | ⚠️ нет отдельной задачи (решение в tutor-rag §4; проверить при Task 41) |
+| `page_context.topic` **не** используется в retrieval | — | ✅ мягкий сигнал только в rewriter (не жёсткий `topic=` фильтр) |
 | StepProgressDots + «Продолжить» (§1.3.1–1.3.2) | Phase 12, Tasks 53–55 | ✅ `7804506` |
+| Таблица Менделеева при тестах (§1.3.3) | Task 56 | ✅ done |
 | UI redesign teal + mobile-first (§14) | Phase 11, Tasks 48–52 | ✅ `9fb016a` |
 | Мульти-item ДЗ (§1.7) | Tasks 39–40 | ✅ local |
 
@@ -895,22 +898,24 @@ Task 3  Content SQLite repos                 ✅
 
 ## Task 28: Dashboards (student + teacher)
 
-> **Статус:** 🟡 базовые dashboards на `/student` и `/teacher` есть; отдельные `StudentNav`/`TeacherNav` не выделены
+> **Статус:** ✅ `StudentNav` + `TeacherNav` в layout; dashboards на `/student` и `/teacher`
 
 **Description:** P0 dashboard: краткие ссылки на учебник, тесты, задания / ученики, ДЗ, уведомления.
 
 **Acceptance criteria:**
-- [ ] Student dashboard: активные ДЗ, быстрый вход в учебник/тесты
-- [ ] Teacher dashboard: счётчики (ученики, непрочитанные уведомления)
+- [x] Student dashboard: активные ДЗ, быстрый вход в учебник/тесты
+- [x] Teacher dashboard: счётчики (ученики, непрочитанные уведомления)
+- [x] `StudentNav` / `TeacherNav` в layout кабинетов
 
 **Verification:**
-- [ ] Ручная проверка навигации
+- [x] Ручная проверка навигации (vitest: `StudentNav.test.tsx`, `TeacherNav.test.tsx`)
 
 **Dependencies:** Task 5, Task 24, Task 27
 
 **Files:**
-- `frontend/app/(student)/page.tsx`, `frontend/app/(teacher)/page.tsx`
+- `frontend/app/student/page.tsx`, `frontend/app/teacher/page.tsx`
 - `frontend/components/layout/StudentNav.tsx`, `TeacherNav.tsx`
+- `frontend/app/student/layout.tsx`, `frontend/app/teacher/layout.tsx`
 
 **Scope:** M
 
@@ -942,17 +947,21 @@ Task 3  Content SQLite repos                 ✅
 
 ## Task 30: Docker Compose + CI (post-MVP slice)
 
-> **Статус:** ⏳ pending
+> **Статус:** 🟡 local (2026-06-18)
+
+**Верификация:** YAML/`docker-compose` структура (Python yaml); `backend/Dockerfile`, `frontend/Dockerfile`, `nginx/nginx.conf`; local mirror CI: ruff OK, pytest 181 passed, eslint (warnings only), vitest 75 passed, next build OK. **Не проверено:** Docker CLI отсутствует; `docker compose up --build` — вручную; GitHub Actions green — не подтверждён (`gh` нет).
 
 **Description:** `docker-compose.yml` (nginx, next, fastapi, postgres), GitHub Actions: ruff, pytest, frontend lint+build.
 
 **Acceptance criteria:**
-- [ ] `docker compose up` поднимает stack
-- [ ] CI green on push
+- [ ] `docker compose up` поднимает stack (блокер: нет Docker локально)
+- [ ] CI green on push (блокер: не проверено на GitHub)
 
 **Verification:**
+- [x] Compose/Dockerfiles/nginx + `.github/workflows/ci.yml` ревью
+- [x] Local CI mirror: backend ruff+pytest; frontend lint+vitest+build
 - [ ] Local `docker compose up --build`
-- [ ] CI run green
+- [ ] CI run green on `main`
 
 **Dependencies:** Task 29
 
@@ -1023,11 +1032,12 @@ Task 3  Content SQLite repos                 ✅
 41 → 42 → 43 → 44 → 45 → [46?] → 47 (надёжность и расширение агента; §16/§17; Task 46 отложен)
 48 → 49 → 50 → 51 → 52 (UI redesign §14; можно параллельно; начать с 48→49)
 53 → 54 → 55 (SPEC §1.3.1–1.3.2: active session + StepProgressDots + «Продолжить»; P0 UX gap)
+56 (SPEC §1.3.3: таблица Менделеева overlay при тестах; frontend-only)
 ```
 
-**Оценка:** ~30 задач MVP + 8 задач AI-советчика (v2+, Tasks 31–38) + Tasks 39–40 (мульти-item ДЗ) + Tasks 41–47 (надёжность и расширение агента) + Tasks 48–52 (UI redesign §14) + **Tasks 53–55 (SPEC §1.3.1–1.3.2: step-dots + resume)**.
+**Оценка:** ~30 задач MVP + 8 задач AI-советчика (v2+, Tasks 31–38) + Tasks 39–40 (мульти-item ДЗ) + Tasks 41–47 (надёжность и расширение агента) + Tasks 48–52 (UI redesign §14) + **Tasks 53–55 (SPEC §1.3.1–1.3.2: step-dots + resume)** + **Task 56 (таблица Менделеева)**.
 
-**Прогресс на 2026-06-17:** Tasks 0–29 ✅ | Task 30 ⏳ | Tasks 31–40 ✅ в git | Task 41.1 ✅ | Tasks 41.2–47 ⏳ | Task 46 ⏸️ | Tasks 48–55 ✅ | **далее: Task 30, Task 41.2 (hybrid pgvector)**
+**Прогресс на 2026-06-18:** Tasks 0–29 ✅ | Task 30 🟡 | Tasks 31–40 ✅ в git | Task 41 ✅ (41.1–41.4) | **Task 42 ✅ этап A** | **Task 43 ✅ local** | Task 46 ⏸️ | Tasks 48–55 ✅ | **Task 56 ⏳** | **далее: Task 56, Task 44 или Task 42 этап B**
 
 ---
 
@@ -1198,14 +1208,14 @@ Task 3  Content SQLite repos                 ✅
 - [x] I1: сброс `sessionId` при смене `pathname` (render-time reset, паттерн «adjust state on prop change»)
 - [x] I6: state `opening`; disable кнопки «AI-советчик» и spinner при `handleOpen`
 - [x] S1: `aria-live="polite"` на loading-индикаторе
-- [ ] S2: markdown render + sanitization в `MessageBubble` — **отложено** (отдельный подсрез; сейчас `whitespace-pre-wrap` plain text)
+- [x] S2: markdown render + sanitization в `MessageBubble` — `react-markdown` + `rehype-sanitize`, `sanitizeLectureText` (defense in depth); user — plain text
 
 **Verification:**
 - [x] `pytest backend/tests/tutor/` — 35 passed (вкл. `test_tutor_health_requires_auth`, `test_session_transcript_ordered_by_created_at`, `test_multi_turn_history_replayed_into_agent`, `test_send_message_agent_error_returns_503_and_rolls_back`); полный backend — 135 passed
-- [x] `npm run test` — vitest `TutorChatOverlay.test.tsx` (open, send, error rollback, pathname → new session); полный — 15 passed
+- [x] `npm run test` — vitest `TutorChatOverlay.test.tsx` + `MessageBubble.test.tsx` (markdown, sanitization); полный — passed
 - [ ] Ручная проверка: навигация учебник → тест с открытым чатом — контекст обновляется
 **Dependencies:** Task 35, Task 36
-**Files:** `backend/app/services/tutor_service.py`, `backend/app/services/tutor/{memory,guards}.py`, `backend/app/repositories/app/tutor_repo.py`, `backend/app/api/routers/tutor.py`, `backend/app/core/config.py`, `backend/tests/tutor/test_tutor_api.py`, `frontend/components/tutor/TutorChatOverlay.tsx`
+**Files:** `backend/app/services/tutor_service.py`, `backend/app/services/tutor/{memory,guards}.py`, `backend/app/repositories/app/tutor_repo.py`, `backend/app/api/routers/tutor.py`, `backend/app/core/config.py`, `backend/tests/tutor/test_tutor_api.py`, `frontend/components/tutor/TutorChatOverlay.tsx`, `frontend/components/tutor/MessageBubble.tsx`
 **Scope:** M → L (с round 2)
 
 ---
@@ -1285,18 +1295,18 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 > **После** базового среза AI-советчика (Tasks 31–38). Каждая задача — отдельный
 > вертикальный срез за фичефлагом; реальный LLM в `pytest` не вызывается (mock).
 >
-> **Приоритет (РЕШЕНО 2026-06-17 — «точность агента»):** **41 (точность RAG: cleanup + hybrid + eval)**
+> **Приоритет (РЕШЕНО 2026-06-17 — «точность агента»; доп. 2026-06-18):** **41 (точность RAG: cleanup + hybrid + eval + query rewrite)**
 > → 42 (solve-pipeline) → 43 → 44 → 45 → 47 (UX). **Task 46 (guards A2/A3) — отложен**: ставка на то,
-> что hybrid retrieval сам поднимает точность теории; вернуть guards, если eval покажет остаточные
-> галлюцинации. Корневая причина неточности (кейс «карбоновые кислоты») — слабый recall keyword-поиска
-> + индексация готовых разборов, поэтому Task 41 чинит причину и идёт первой.
+> что hybrid retrieval + query rewriting поднимают recall теории; вернуть guards, если eval покажет остаточные
+> галлюцинации. Корневая причина неточности — слабый recall keyword-поиска, индексация test-разборов
+> и нестабильный search-query от ReAct (кейсы «карбоновые кислоты», «сера + металлы»).
 
-## Task 41: Точность RAG — RAG-cleanup + hybrid retrieval (pgvector) + eval (срез 16-1) ⭐ ВЕДУЩАЯ
+## Task 41: Точность RAG — cleanup + hybrid + eval + query rewrite (срез 16-1 / 16-1b) ⭐ ВЕДУЩАЯ
 
-> Источник: `tutor-rag.md` §4 (целевой retrieval), §2 (RAG-cleanup), §16.1 (A4, A5), §16.4 (O1, O2).
-> **Корневая причина неточности агента** (кейс «химические свойства карбоновых кислот»): слабый
-> recall keyword-поиска + индексация готовых разборов. Чиним причину, а не симптом.
-> Реализовать **в три под-среза** (каждый — отдельный коммит/PR, проект остаётся рабочим):
+> Источник: `tutor-rag.md` §4 (retrieval + query rewriting), §2 (RAG-cleanup), §16.1 (A4, A5, A8), §16.4 (O1, O2).
+> **Корневая причина неточности агента:** (1) слабый recall keyword-поиска (кейс «карбоновые кислоты»);
+> (2) нестабильный `query` в `retrieve_theory` и доминирование общих терминов (кейс «сера + металлы»).
+> Реализовать **в четыре под-среза** (каждый — отдельный коммит/PR, проект остаётся рабочим):
 
 **Под-срез 41.1 — RAG-cleanup (быстрый, без LLM):**
 - Убрать `ingest_test_documents` из ingestion-пайплайна советчика: индекс строится **только** по
@@ -1316,20 +1326,29 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 - Метрика **recall@5** в `pytest` без реального LLM (эмбеддинги мокаются или фикстурный детерминированный провайдер).
 - O1: `logging` INFO по tool-вызовам (имя, кол-во hits, режим keyword/hybrid, латентность); без утечки `correct_ans`.
 
+**Под-срез 41.4 — Query rewriting + multi-query (A8, срез 16-1b):**
+- `services/rag/query_rewrite.py` — адаптация вопроса ученика в 1–3 поисковых запроса (LLM rewriter с коротким промптом **или** rule-based fallback без ключа).
+- `search_theory` / `retrieve_theory`: для каждого search-query — `Retriever.search()` → union → dedup/rerank (переиспользовать A5).
+- Фичефлаг `rag_query_rewrite_enabled` в `Settings`; при выключенном — текущее поведение (один query от агента).
+- Опционально: мягкий сигнал `page_context.topic` в rewriter (доп. вариант query, **не** жёсткий `topic=` фильтр — см. tutor-rag §4).
+- Eval: кейс «как с металлами реагирует сера?» → `topic: Cера`, `chunk_idx: 1` (AC-16.7).
+
 **Acceptance criteria:**
 - [ ] 41.1: индекс без `source == "test"`; кейс «химические свойства карбоновых кислот» больше не ссылается на `test`-разбор
 - [ ] AC-16.5 (O2): eval recall@5 ≥ 0.8 на эталонном наборе; кейс карбоновых кислот находит чанк `[2]`
 - [ ] hybrid даёт recall ≥ keyword-only (сравнение задокументировано); фолбэк на keyword работает без ключа
 - [ ] ADR: pgvector vs Chroma зафиксирован (выбран pgvector)
 - [ ] O1: tool-вызовы и латентность логируются на INFO
+- [ ] AC-16.7 (A8): eval-кейс «сера + металлы» в top-5 после rewriter; сравнение с/без rewriter в eval README
 
 **Verification:**
 - [ ] `pytest backend/tests/tutor/test_retriever.py` + `tests/tutor/eval/`: recall@5 ≥ 0.8; дедуп; фолбэк
+- [ ] `pytest backend/tests/tutor/test_query_rewrite.py` (mock LLM): multi-query merge, фичефлаг, fallback
 - [ ] `alembic upgrade head` создаёт `rag_embeddings` (pgvector)
-- [ ] Сравнение recall keyword-only vs hybrid в `tests/tutor/eval/README` или ADR
+- [ ] Сравнение recall keyword-only vs hybrid vs hybrid+rewriter в `tests/tutor/eval/README` или ADR
 
-**Dependencies:** Task 31 (RAG), Task 37 (deps/eval каркас)
-**Files:** `backend/app/services/rag/{ingestion,retriever,theory,embeddings}.py`, новый `backend/app/services/rag/pgvector_store.py`, `backend/app/cli/index_rag.py`, `backend/app/core/config.py`, `backend/alembic/versions/*_rag_embeddings.py`, `backend/tests/tutor/{test_retriever,eval/*}`, `docs/decisions/ADR-*-rag-store.md`
+**Dependencies:** Task 31 (RAG), Task 37 (deps/eval каркас); **41.4 после 41.2–41.3** (rewriter поверх hybrid)
+**Files:** `backend/app/services/rag/{ingestion,retriever,theory,embeddings,query_rewrite}.py`, новый `backend/app/services/rag/pgvector_store.py`, `backend/app/cli/index_rag.py`, `backend/app/core/config.py`, `backend/app/services/tutor/{tools,graph}.py` (опц.), `backend/alembic/versions/*_rag_embeddings.py`, `backend/tests/tutor/{test_retriever,test_query_rewrite,eval/*}`, `docs/decisions/ADR-*-rag-store.md`
 **Scope:** L
 
 ---
@@ -1342,20 +1361,20 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 **Description:** Отдельная ветка графа для «разбери задание N» **вне** активной тест-сессии. Доступ к данным (`get_task` → `retrieve_theory`) и сверка ключа — детерминированно в коде; LLM только объясняет.
 
 **Acceptance criteria (этап A):**
-- [ ] AC-17.1: в логах виден `get_task(N)`; финальный ключ == `correct_ans` после нормализации
-- [ ] AC-17.2: в разборе есть цитата (`topic`/`chunk_title`) из реально вызванного `retrieve_theory`
-- [ ] `validation.py`: `digit_string` (порядок АБВГ без переупорядочивания) и `number` (допуск, `,`↔`.`, отбрасывание единиц)
-- [ ] AC-17.4: во время активной `TestSession` solve-ветка не запускается (только теория)
-- [ ] `intent_router` (regex задание+номер) + `prepare_context` (код) + код-критик
+- [x] AC-17.1: в логах виден `get_task(N)`; финальный ключ == `correct_ans` после нормализации
+- [x] AC-17.2: в разборе есть цитата (`topic`/`chunk_title`) из реально вызванного `retrieve_theory`
+- [x] `validation.py`: `digit_string` (порядок АБВГ без переупорядочивания) и `number` (допуск, `,`↔`.`, отбрасывание единиц)
+- [x] AC-17.4: во время активной `TestSession` solve-ветка не запускается (только теория)
+- [x] `intent_router` (regex задание+номер) + `prepare_context` (код) + код-критик
 
 **Acceptance criteria (этап B):**
 - [ ] AC-17.3: критик отбраковывает ключ ≠ `correct_ans` → retry; цикл ≤2; `answer_finalize` с эталоном при провале
 - [ ] `planner` (`SolvePlan`) только для сложных типов 7,8,26–28; LLM-критик химической согласованности
 
 **Verification:**
-- [ ] `pytest backend/tests/tutor/test_solve.py` (mock LLM): gating, routing критика, лимит ретраев
-- [ ] `pytest backend/tests/tutor/test_validation.py`: ключ/цитата/формат (вкл. соответствия, число с «хвостом»)
-- [ ] AC-17.6: прежние tutor-тесты зелёные (нет регрессий общего чата)
+- [x] `pytest backend/tests/tutor/test_solve.py` (mock LLM): gating, routing критика, лимит ретраев
+- [x] `pytest backend/tests/tutor/test_validation.py`: ключ/цитата/формат (вкл. соответствия, число с «хвостом»)
+- [x] AC-17.6: прежние tutor-тесты зелёные (нет регрессий общего чата) — 74 passed
 
 **Dependencies:** Task 41 (hybrid `theory_hits` + score/цитаты переиспользуются в `prepare_context`/`critic`), Task 32, Task 33, Task 14
 **Files:** `backend/app/services/tutor/solve/{__init__,state,task_flow,planner,solver,critic}.py`, `backend/app/services/tutor/validation.py`, `backend/app/services/tutor/graph.py`, `backend/app/schemas/tutor.py`, `backend/tests/tutor/{test_solve,test_validation}.py`
@@ -1370,16 +1389,16 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 **Description:** Новые tools, читающие данные текущего ученика (RBAC по `user_id`): `get_my_homework()` (→ `HomeworkService`), `analyze_my_mistakes(limit)` (агрегация неверных `TestSession.steps` по `type`), `recommend_topics()` (слабые темы → учебник через маппинг `type`→`topic`).
 
 **Acceptance criteria:**
-- [ ] AC-16.4: tools возвращают данные **только** текущего ученика; `correct_ans` не утекает во время активного теста
-- [ ] `analyze_my_mistakes` агрегирует по `type`/теме из реальных `TestSession`
-- [ ] `recommend_topics` отдаёт темы трека ученика; маппинг `type→topic` зафиксирован (open question §16 №1)
-- [ ] Tools зарегистрированы только для роли student; teacher их не видит
+- [x] AC-16.4: tools возвращают данные **только** текущего ученика; `correct_ans` не утекает во время активного теста
+- [x] `analyze_my_mistakes` агрегирует по `type`/теме из реальных `TestSession`
+- [x] `recommend_topics` отдаёт темы трека ученика; маппинг `type→topic` зафиксирован (open question §16 №1)
+- [x] Tools зарегистрированы только для роли student; teacher их не видит
 
 **Verification:**
-- [ ] `pytest backend/tests/tutor/test_tools.py` (mock DB): RBAC, агрегация ошибок, gating на тесте
+- [x] `pytest backend/tests/tutor/test_student_tools.py` + `test_graph.py`: RBAC, агрегация ошибок, gating на тесте — 84 tutor tests passed
 
 **Dependencies:** Task 32, Task 15 (TestSession), Task 21 (Homework)
-**Files:** `backend/app/services/tutor/tools.py`, `backend/app/services/tutor/context.py`, `backend/tests/tutor/test_tools.py`
+**Files:** `backend/app/services/tutor/{tools,student_tools,type_topic_map,context}.py`, `backend/app/schemas/tutor_student_tools.py`, `backend/app/repositories/app/test_session_repo.py`, `backend/app/services/tutor_service.py`, `backend/tests/tutor/{test_student_tools,test_graph}.py`
 **Scope:** M
 
 ---
@@ -1608,9 +1627,9 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ---
 
-## Phase 12: StepProgressDots + возобновление сессии (SPEC §1.3.1–1.3.2)
+## Phase 12: StepProgressDots + возобновление сессии + таблица Менделеева (SPEC §1.3.1–1.3.3)
 
-> Источник: `SPEC.md` §1.3.1–1.3.2, AC-2.10–2.12, AC-3.8, §8 API.
+> Источник: `SPEC.md` §1.3.1–1.3.3, AC-2.10–2.13, AC-3.8, §8 API.
 > **Приоритет P0** — закрывает UX-gap: ученик не может продолжить прерванный тест; progress bar вместо кружков.
 > Можно вести **до** Phase 11 (не требует design tokens) или параллельно с Task 48.
 
@@ -1677,9 +1696,37 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ---
 
-### Checkpoint: Step-dots + resume (после Tasks 53–55)
+### Checkpoint: Step-dots + resume (после Tasks 53–55) — см. расширенный checkpoint ниже после Task 56
 
-- [ ] AC-2.10–2.12, AC-3.8 закрыты
+## Task 56: Таблица Менделеева — overlay при прохождении теста
+
+> Источник: `SPEC.md` §1.3.3, AC-2.13, §14.2 (`PeriodicTableOverlay`).
+> **Frontend-only** — статический PNG, backend не нужен.
+> Asset: канонический файл `assets/mendeleev-periodic-table.png`; runtime-копия `frontend/public/images/mendeleev-periodic-table.png`.
+
+**Description:** На экране активной тест-сессии (`StepView` / `/student/tests/sessions/{id}`) — плавающая кнопка **«Таблица Менделеева»**. По клику — modal поверх страницы с изображением таблицы (русские подписи, цветовое кодирование из референса преподавателя). Закрытие: «×», backdrop, `Escape`. Прогресс теста и поле ответа **не сбрасываются**. Расположение FAB согласовано с `TutorChatOverlay` (не перекрывать sticky «Далее» / «Проверить» на мобилке).
+
+**Acceptance criteria:**
+- [ ] AC-2.13: кнопка видна только на экране пошагового теста (не summary, не список вариантов)
+- [ ] Modal: `role="dialog"`, `aria-modal="true"`, focus trap, возврат фокуса на FAB при закрытии
+- [ ] Изображение: `/images/mendeleev-periodic-table.png`, `object-contain`, читаемо на desktop и 360–414px (горизонтальный скролл допустим)
+- [ ] Открытие/закрытие таблицы не влияет на `answer`, `current` step, состояние проверки
+- [ ] FAB + открытый AI-overlay не конфликтуют (z-index, позиционирование на test session)
+
+**Verification:**
+- [ ] `vitest`: `PeriodicTableOverlay.test.tsx` — open/close, Escape, aria
+- [ ] Ручная проверка: открыть таблицу на шаге 2 → закрыть → ответ и шаг на месте; mobile 375px
+
+**Dependencies:** Task 18 (StepView), Task 54 (layout теста)
+**Files:** `frontend/components/tests/PeriodicTableOverlay.tsx`, `frontend/app/student/tests/sessions/[id]/page.tsx` (или вложить в `StepView`), `frontend/public/images/mendeleev-periodic-table.png`, `assets/mendeleev-periodic-table.png`, `frontend/components/tests/PeriodicTableOverlay.test.tsx`
+**Scope:** S
+
+---
+
+### Checkpoint: Step-dots + resume + Mendeleev (после Tasks 53–56)
+
+- [ ] AC-2.10–2.12, AC-3.8 закрыты (Tasks 53–55)
+- [ ] AC-2.13: таблица Менделеева доступна во время теста (Task 56)
 - [ ] Ученик прерывает тест на шаге N и продолжает через «Продолжить» (ДЗ и свободная практика)
 - [ ] Кружки отражают верно/неверно/не открыто; клик по открытым шагам работает
 - [ ] `pytest` + `vitest` зелёные; нет регрессий Tasks 17–19
@@ -1692,9 +1739,10 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 2. **Закоммитить** срез Tasks 20–27 (homework + notifications).
 3. ~~**Task 39** — мульти-item submit (SPEC §1.7)~~ ✅ сделано (одна `TestSession` `variant_ref=null`, `HomeworkItemProgress`, общий `homework_mapper`, новый эндпоинт `items/{index}/complete`).
 4. ~~**Task 40** — UI-конструктор выбора заданий.~~ ✅ сделано.
-5. **Phase 12 (Tasks 53–55)** — StepProgressDots + «Продолжить тест» (SPEC §1.3.1–1.3.2). **← рекомендуется следующим P0 UX срезом:** `53 (backend) → 54 + 55 (frontend)`.
-6. **Task 29** — coverage check (`pytest-cov` по auth, homework, test_sessions, notifications).
-7. **Task 30** — Docker Compose + GitHub Actions.
-8. После MVP → Phase 9 (Tasks 31–38, AI-советчик).
-9. После базового советчика → Phase 10 (Tasks 41–47). Начать с **Task 41**.
-10. **Phase 11 (UI redesign, SPEC §14)** — параллельно с Phase 12 или после. Начать с **Task 48** → **Task 49**. Task 51 опирается на Task 54 (кружки).
+5. **Phase 12 (Tasks 53–55)** — StepProgressDots + «Продолжить тест» (SPEC §1.3.1–1.3.2). ✅
+6. **Task 56** — overlay «Таблица Менделеева» при прохождении теста (SPEC §1.3.3). **← рекомендуется следующим P0 UX срезом** (frontend-only, asset уже в repo).
+7. **Task 29** — coverage check (`pytest-cov` по auth, homework, test_sessions, notifications).
+8. **Task 30** — Docker Compose + GitHub Actions.
+9. После MVP → Phase 9 (Tasks 31–38, AI-советчик).
+10. После базового советчика → Phase 10 (Tasks 41–47). Начать с **Task 41**. ✅
+11. **Phase 11 (UI redesign, SPEC §14)** — параллельно с Phase 12 или после. ✅ Task 48 → Task 49. Task 51 опирается на Task 54 (кружки).

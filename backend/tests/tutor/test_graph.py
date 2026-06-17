@@ -47,6 +47,22 @@ def test_build_tools_include_task_tools() -> None:
     ctx = TutorRunContext(track="ege", user_id="u1")
     names = {tool.name for tool in build_tools(ctx)}
     assert {"retrieve_theory", "get_task", "search_tasks", "save_user_info"} <= names
+    assert "get_my_homework" not in names
+
+
+def test_build_tools_include_student_tools_when_wired() -> None:
+    import asyncio
+    from unittest.mock import MagicMock
+
+    ctx = TutorRunContext(
+        track="ege",
+        user_id="u1",
+        role="student",
+        run_async=lambda coro: asyncio.run(coro),
+        student_tools_service=MagicMock(),
+    )
+    names = {tool.name for tool in build_tools(ctx)}
+    assert {"get_my_homework", "analyze_my_mistakes", "recommend_topics"} <= names
 
 
 def test_save_user_info_persists(tmp_path, monkeypatch) -> None:

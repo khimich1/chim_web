@@ -12,7 +12,8 @@ from app.services.rag.embeddings import EmbeddingsProvider, get_embeddings_provi
 from app.services.rag.ingestion import ingest_all_documents
 from app.services.rag.keyword import keyword_score, tokenize
 from app.services.rag.pgvector_store import VectorStore
-from app.services.rag.rerank import hybrid_rerank
+from app.services.rag.query_rewrite import rewrite_queries
+from app.services.rag.rerank import dedup_hits, hybrid_rerank, reciprocal_rank_fusion
 from app.services.rag.store import load_index, save_index
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,121 @@ class Retriever:
         save_index(documents, app_settings.rag_index_path)
         self._documents = documents
         return len(documents)
+
+    def search_with_rewrite(
+        self,
+        query: str,
+        *,
+        track: TrackFilter = None,
+        source: SourceFilter = None,
+        topic: str | None = None,
+        limit: int = 4,
+        page_context_topic: str | None = None,
+    ) -> list[RagChunkHit]:
+        """Search with optional query rewriting (Task 41.4)."""
+        settings = self._settings or get_settings()
+        if not settings.rag_query_rewrite_enabled:
+            return self.search(
+                query,
+                track=track,
+                source=source,
+                topic=topic,
+                limit=limit,
+            )
+
+        started = time.perf_counter()
+        queries = rewrite_queries(
+            query,
+            page_context_topic=page_context_topic,
+            settings=settings,
+        )
+        hits = self.search_multi(
+            queries,
+            track=track,
+            source=source,
+            topic=topic,
+            limit=limit,
+        )
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        logger.info(
+            "rag.search rewrite variants=%d returned=%d latency_ms=%.1f",
+            len(queries),
+            len(hits),
+            elapsed_ms,
+        )
+        return hits
+
+    def search_multi(
+        self,
+        queries: list[str],
+        *,
+        track: TrackFilter = None,
+        source: SourceFilter = None,
+        topic: str | None = None,
+        limit: int = 4,
+    ) -> list[RagChunkHit]:
+        """Run retrieval for each query and fuse ranked lists (multi-query A8)."""
+        if not queries:
+            return []
+        if len(queries) == 1:
+            return self.search(
+                queries[0],
+                track=track,
+                source=source,
+                topic=topic,
+                limit=limit,
+            )
+
+        settings = self._settings or get_settings()
+        ranked_lists: list[list[str]] = []
+        hits_by_id: dict[str, RagChunkHit] = {}
+
+        for sub_query in queries:
+            if not tokenize(sub_query):
+                continue
+            if self._should_use_hybrid(settings):
+                hits = self._hybrid_search(
+                    sub_query,
+                    track=track,
+                    source=source,
+                    topic=topic,
+                    limit=_HYBRID_POOL_SIZE,
+                    settings=settings,
+                )
+            else:
+                hits = self._keyword_search(
+                    sub_query,
+                    track=track,
+                    source=source,
+                    topic=topic,
+                    limit=_HYBRID_POOL_SIZE,
+                )
+            if not hits:
+                continue
+            ranked_lists.append([hit.doc_id for hit in hits])
+            for hit in hits:
+                hits_by_id.setdefault(hit.doc_id, hit)
+
+        if not ranked_lists:
+            return []
+
+        fused_scores = reciprocal_rank_fusion(ranked_lists)
+        fused_hits: list[RagChunkHit] = []
+        for doc_id, score in fused_scores.items():
+            base = hits_by_id[doc_id]
+            fused_hits.append(
+                RagChunkHit(
+                    doc_id=base.doc_id,
+                    score=score,
+                    title=base.title,
+                    body=base.body,
+                    metadata=dict(base.metadata),
+                )
+            )
+        fused_hits.sort(key=lambda hit: hit.score, reverse=True)
+        deduped = dedup_hits(fused_hits)
+        deduped.sort(key=lambda hit: hit.score, reverse=True)
+        return deduped[:limit]
 
     def search(
         self,

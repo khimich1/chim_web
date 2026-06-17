@@ -9,6 +9,7 @@ from langchain_core.tools import BaseTool, tool
 from app.services.rag.theory import search_theory
 from app.services.tutor.context import TutorRunContext
 from app.services.tutor.memory import update_profile
+from app.services.tutor.student_tools import StudentTutorToolsService
 from app.services.tutor.tasks import (
     get_task as repo_get_task,
     question_requires_image,
@@ -120,4 +121,40 @@ def build_tools(ctx: TutorRunContext) -> list[BaseTool]:
         return json.dumps(payload, ensure_ascii=False)
 
     tools: list[BaseTool] = [retrieve_theory, save_user_info, get_task, search_tasks]
+
+    if ctx.role == "student" and ctx.student_tools_service is not None and ctx.run_async is not None:
+        service = ctx.student_tools_service
+        run = ctx.run_async
+
+        @tool
+        def get_my_homework() -> str:
+            """Список активных домашних заданий ученика со статусом и сроком."""
+            items = run(service.get_my_homework())
+            payload = [item.model_dump(mode="json") for item in items]
+            return json.dumps(payload, ensure_ascii=False)
+
+        @tool
+        def analyze_my_mistakes(limit: int = 20) -> str:
+            """Анализ последних ошибок в тестах: агрегация по типу задания (type)."""
+            analysis = run(
+                service.analyze_my_mistakes(
+                    limit=limit,
+                    exclude_active_session_id=ctx.active_test_session_id,
+                )
+            )
+            return json.dumps(analysis.model_dump(mode="json"), ensure_ascii=False)
+
+        @tool
+        def recommend_topics() -> str:
+            """Рекомендации тем учебника для повторения на основе слабых мест."""
+            topics = run(
+                service.recommend_topics(
+                    exclude_active_session_id=ctx.active_test_session_id,
+                )
+            )
+            payload = [item.model_dump(mode="json") for item in topics]
+            return json.dumps(payload, ensure_ascii=False)
+
+        tools.extend([get_my_homework, analyze_my_mistakes, recommend_topics])
+
     return tools

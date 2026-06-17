@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     )
     rag_top_k: int = Field(default=5, ge=1, le=20, alias="RAG_TOP_K")
     rag_hybrid_enabled: bool = Field(default=True, alias="RAG_HYBRID_ENABLED")
+    rag_query_rewrite_enabled: bool = Field(
+        default=True,
+        alias="RAG_QUERY_REWRITE_ENABLED",
+    )
     # Max seconds to wait for a single tutor agent (LangGraph) invocation before
     # returning 504. Guards the worker thread pool against a hung LLM call.
     tutor_invoke_timeout: float = Field(

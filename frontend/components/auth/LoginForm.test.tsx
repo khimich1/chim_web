@@ -79,7 +79,7 @@ describe("LoginForm", () => {
     await fillAndSubmit("teacher@example.com", "pw");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Запустите backend на порту 8000",
+      "Бэкенд не отвечает на",
     );
     expect(replace).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Войти" })).toBeEnabled();

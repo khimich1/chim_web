@@ -14,18 +14,38 @@ export class ApiError extends Error {
   }
 }
 
+function getErrorName(err: unknown): string | undefined {
+  if (typeof err === "object" && err !== null && "name" in err) {
+    return String((err as { name: unknown }).name);
+  }
+  return undefined;
+}
+
+function apiUnreachableMessage(): string {
+  return `Бэкенд не отвечает на ${API_URL}. Запустите: cd backend && uvicorn app.main:app --port 8000`;
+}
+
+function apiTimeoutMessage(): string {
+  const seconds = API_FETCH_TIMEOUT_MS / 1000;
+  return `Превышено время ожидания API (${seconds} с). Убедитесь, что backend запущен на ${API_URL}.`;
+}
+
 /** Map fetch/network failures to user-facing Russian messages. */
 export function formatFetchError(err: unknown, fallback: string): string {
   if (err instanceof ApiError) return err.message;
+
+  const errorName = getErrorName(err);
+  if (errorName === "TimeoutError" || errorName === "AbortError") {
+    return apiTimeoutMessage();
+  }
+
   if (err instanceof Error) {
-    if (err.name === "AbortError" || err.name === "TimeoutError") {
-      return "Не удалось связаться с API. Запустите backend на порту 8000.";
-    }
     if (err.message === "Failed to fetch") {
-      return "Не удалось связаться с API. Запустите backend на порту 8000.";
+      return apiUnreachableMessage();
     }
     return err.message;
   }
+
   return fallback;
 }
 

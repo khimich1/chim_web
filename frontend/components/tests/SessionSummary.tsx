@@ -45,14 +45,7 @@ export function SessionSummary({ session }: { session: TestSession }) {
                 >
                   {index + 1}
                 </span>
-                <span className="min-w-0 truncate">
-                  Задание {step.type}
-                  {step.hint_used ? (
-                    <span className="ml-2 text-xs text-zinc-400">
-                      (с подсказкой)
-                    </span>
-                  ) : null}
-                </span>
+                <span className="min-w-0 truncate">Задание {step.type}</span>
               </span>
               <span
                 className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${

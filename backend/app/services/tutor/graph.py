@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 from langgraph.graph import END, START, MessagesState, StateGraph
@@ -16,11 +16,22 @@ from app.services.tutor.context import TutorRunContext, set_tutor_context
 from app.services.tutor.guards import (
     make_input_guard,
     make_is_on_topic_checker,
-    route_after_input_guard,
     tool_output_guard,
 )
 from app.services.tutor.memory import load_profile
 from app.services.tutor.prompts import build_system_prompt
+from app.services.tutor.solve.critic import (
+    make_answer_finalize_node,
+    make_critic_node,
+    route_after_critic,
+)
+from app.services.tutor.solve.intent_router import route_intent
+from app.services.tutor.solve.prepare_context import (
+    make_prepare_context_node,
+    route_after_prepare_context,
+)
+from app.services.tutor.solve.solver import make_solver_node
+from app.services.tutor.solve.state import SolveState
 from app.services.tutor.tools import build_tools
 
 
@@ -55,6 +66,16 @@ def route_after_agent(state: MessagesState) -> str:
     return "tools" if getattr(last, "tool_calls", None) else END
 
 
+def route_after_input_guard(state: MessagesState, ctx: TutorRunContext) -> str:
+    """Off-topic → END; solve intent → prepare_context; else general agent."""
+    last = state["messages"][-1]
+    if isinstance(last, AIMessage):
+        return END
+    if route_intent(state, ctx) == "solve_pipeline":
+        return "prepare_context"
+    return "agent"
+
+
 def build_graph(
     ctx: TutorRunContext,
     llm: ChatOpenAI | None = None,
@@ -75,18 +96,38 @@ def build_graph(
     tools = build_tools(ctx)
     is_on_topic = make_is_on_topic_checker(llm)
 
-    builder = StateGraph(MessagesState)
+    builder = StateGraph(SolveState)
     builder.add_node("input_guard", make_input_guard(is_on_topic))
     builder.add_node("agent", make_agent_node(llm, ctx, tools))
     builder.add_node("tools", ToolNode(tools))
     builder.add_node("tool_output_guard", tool_output_guard)
+    builder.add_node("prepare_context", make_prepare_context_node(ctx))
+    builder.add_node("solver", make_solver_node(llm, ctx))
+    builder.add_node("critic", make_critic_node())
+    builder.add_node("answer_finalize", make_answer_finalize_node())
 
     builder.add_edge(START, "input_guard")
     builder.add_conditional_edges(
         "input_guard",
-        route_after_input_guard,
-        {END: END, "agent": "agent"},
+        lambda state: route_after_input_guard(state, ctx),
+        {
+            END: END,
+            "agent": "agent",
+            "prepare_context": "prepare_context",
+        },
     )
+    builder.add_conditional_edges(
+        "prepare_context",
+        route_after_prepare_context,
+        {"end": END, "solver": "solver"},
+    )
+    builder.add_edge("solver", "critic")
+    builder.add_conditional_edges(
+        "critic",
+        route_after_critic,
+        {"end": END, "solver": "solver", "answer_finalize": "answer_finalize"},
+    )
+    builder.add_edge("answer_finalize", END)
     builder.add_conditional_edges(
         "agent",
         route_after_agent,

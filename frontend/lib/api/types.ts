@@ -55,8 +55,6 @@ export interface TestStep {
   answer: string | null;
   is_correct: boolean | null;
   hint_used: boolean;
-  hint?: string | null;
-  detailed_explanation?: string | null;
 }
 
 export interface TestSession {
@@ -75,11 +73,6 @@ export interface StepCheckResult {
   position: number;
   is_correct: boolean;
   status: StepStatus;
-  detailed_explanation: string | null;
-}
-
-export interface HintResult {
-  hint: string | null;
 }
 
 export interface ActiveSessionResult {

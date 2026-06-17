@@ -65,7 +65,7 @@ describe("SessionSummary", () => {
     expect(screen.getByText("✓ Верно")).toBeInTheDocument();
     expect(screen.getByText("✗ Неверно")).toBeInTheDocument();
     expect(screen.getByText("— Не отвечено")).toBeInTheDocument();
-    expect(screen.getByText("(с подсказкой)")).toBeInTheDocument();
+    expect(screen.queryByText("(с подсказкой)")).not.toBeInTheDocument();
   });
 
   it("includes decorative blobs with aria-hidden", () => {

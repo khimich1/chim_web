@@ -32,7 +32,6 @@ from app.repositories.content.base import ContentDbError
 from app.repositories.content.tests import ExamContentRepo, TestQuestion
 from app.schemas.test_session import (
     ActiveSessionResponse,
-    HintResponse,
     SessionCreate,
     SessionRead,
     SessionSummary,
@@ -267,26 +266,7 @@ class TestSessionService:
             position=step.position,
             is_correct=is_correct,
             status=step.status,
-            detailed_explanation=question.detailed_explanation,
         )
-
-    async def get_hint(
-        self,
-        student: User,
-        session_id: uuid.UUID,
-        position: int,
-    ) -> HintResponse:
-        test_session = await self._load_owned_session(student, session_id)
-        step = self._find_step(test_session, position)
-        repo = self._content_repo(test_session.track)
-        question = self._require_question(repo, step.test_id)
-
-        step.hint_used = True
-        if step.status == StepStatus.UNSEEN:
-            step.status = StepStatus.ANSWERED
-        await self._session.commit()
-
-        return HintResponse(hint=question.hint)
 
     async def complete_session(
         self, student: User, session_id: uuid.UUID
@@ -372,10 +352,6 @@ class TestSessionService:
         steps: list[StepRead] = []
         for step in test_session.steps:
             question = self._require_question(repo, step.test_id)
-            hint = question.hint if step.hint_used else None
-            explanation = None
-            if step.status == StepStatus.CHECKED:
-                explanation = question.detailed_explanation
             steps.append(
                 StepRead(
                     position=step.position,
@@ -387,8 +363,6 @@ class TestSessionService:
                     answer=step.answer,
                     is_correct=step.is_correct,
                     hint_used=step.hint_used,
-                    hint=hint,
-                    detailed_explanation=explanation,
                 )
             )
         return SessionRead(

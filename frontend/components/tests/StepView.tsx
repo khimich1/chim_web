@@ -4,11 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ApiError } from "@/lib/api/client";
-import {
-  checkStep,
-  completeSession,
-  getHint,
-} from "@/lib/api/tests";
+import { checkStep, completeSession } from "@/lib/api/tests";
 import type { TestSession, TestStep } from "@/lib/api/types";
 import { QuestionContent } from "@/components/tests/QuestionContent";
 import { StepProgressDots } from "@/components/tests/StepProgressDots";
@@ -16,40 +12,6 @@ import { StepProgressDots } from "@/components/tests/StepProgressDots";
 function findFirstUnchecked(steps: TestStep[]): number {
   const index = steps.findIndex((step) => step.status !== "checked");
   return index === -1 ? 0 : index;
-}
-
-function buildInitialExplanations(
-  steps: TestStep[],
-): Record<number, string | null> {
-  const map: Record<number, string | null> = {};
-  steps.forEach((step, index) => {
-    if (step.status === "checked" && step.detailed_explanation) {
-      map[index] = step.detailed_explanation;
-    }
-  });
-  return map;
-}
-
-function buildInitialHints(steps: TestStep[]): Record<number, string | null> {
-  const map: Record<number, string | null> = {};
-  steps.forEach((step, index) => {
-    if (step.hint_used) {
-      map[index] = step.hint ?? null;
-    }
-  });
-  return map;
-}
-
-function buildInitialExplanationVisibility(
-  steps: TestStep[],
-): Record<number, boolean> {
-  const map: Record<number, boolean> = {};
-  steps.forEach((step, index) => {
-    if (step.status === "checked" && step.detailed_explanation) {
-      map[index] = true;
-    }
-  });
-  return map;
 }
 
 export function StepView({ session }: { session: TestSession }) {
@@ -60,25 +22,12 @@ export function StepView({ session }: { session: TestSession }) {
   const [answer, setAnswer] = useState(
     session.steps[initialIndex]?.answer ?? "",
   );
-  const [hints, setHints] = useState<Record<number, string | null>>(() =>
-    buildInitialHints(session.steps),
-  );
-  const [explanations, setExplanations] = useState<Record<number, string | null>>(
-    () => buildInitialExplanations(session.steps),
-  );
-  const [showExplanation, setShowExplanation] = useState<Record<number, boolean>>(
-    () => buildInitialExplanationVisibility(session.steps),
-  );
   const [checking, setChecking] = useState(false);
-  const [hintLoading, setHintLoading] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const step = steps[current];
   const isLast = current === steps.length - 1;
-  const hintShown = current in hints;
-  const explanation = explanations[current];
-  const explanationVisible = showExplanation[current] ?? false;
 
   const checkedCount = useMemo(
     () => steps.filter((s) => s.status === "checked").length,
@@ -107,16 +56,10 @@ export function StepView({ session }: { session: TestSession }) {
                 answer,
                 is_correct: result.is_correct,
                 status: "checked",
-                detailed_explanation: result.detailed_explanation,
               }
             : s,
         ),
       );
-      setExplanations((prev) => ({
-        ...prev,
-        [current]: result.detailed_explanation,
-      }));
-      setShowExplanation((prev) => ({ ...prev, [current]: true }));
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -126,43 +69,6 @@ export function StepView({ session }: { session: TestSession }) {
     } finally {
       setChecking(false);
     }
-  }
-
-  async function handleHint() {
-    if (!step) {
-      return;
-    }
-    setError(null);
-    setHintLoading(true);
-    try {
-      const result = await getHint(session.id, step.position);
-      setHints((prev) => ({ ...prev, [current]: result.hint }));
-      setSteps((prev) =>
-        prev.map((s) =>
-          s.position === step.position
-            ? {
-                ...s,
-                hint_used: true,
-                hint: result.hint,
-                status: s.status === "unseen" ? "answered" : s.status,
-              }
-            : s,
-        ),
-      );
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : "Не удалось загрузить подсказку.",
-      );
-    } finally {
-      setHintLoading(false);
-    }
-  }
-
-  function handleToggleExplanation() {
-    setShowExplanation((prev) => ({
-      ...prev,
-      [current]: !explanationVisible,
-    }));
   }
 
   async function handleComplete() {
@@ -242,23 +148,6 @@ export function StepView({ session }: { session: TestSession }) {
             </p>
           ) : null}
 
-          {hintShown ? (
-            <div className="chem-callout chem-callout-important mt-4">
-              <span className="font-semibold text-chem-teal-dark">Подсказка: </span>
-              {hints[current] ?? "Подсказка отсутствует."}
-            </div>
-          ) : null}
-
-          {isChecked && explanation && explanationVisible ? (
-            <div
-              id="step-explanation"
-              className="chem-callout chem-callout-example mt-4"
-            >
-              <span className="font-semibold text-chem-teal-dark">Разбор: </span>
-              <span className="whitespace-pre-wrap">{explanation}</span>
-            </div>
-          ) : null}
-
           {error ? (
             <p role="alert" className="mt-4 text-sm text-[var(--chem-crimson)]">
               {error}
@@ -280,24 +169,6 @@ export function StepView({ session }: { session: TestSession }) {
               className="chem-btn-primary min-h-[44px] flex-1 px-4 py-2.5 text-sm disabled:opacity-60 sm:flex-none sm:px-5"
             >
               {checking ? "Проверка…" : "Проверить"}
-            </button>
-            <button
-              type="button"
-              onClick={handleHint}
-              disabled={hintLoading || hintShown}
-              className="chem-btn-secondary min-h-[44px] flex-1 px-4 py-2.5 text-sm disabled:opacity-55 sm:flex-none sm:px-5"
-            >
-              {hintLoading ? "Загрузка…" : "Подсказка"}
-            </button>
-            <button
-              type="button"
-              onClick={handleToggleExplanation}
-              disabled={!isChecked || !explanation}
-              className="chem-btn-secondary min-h-[44px] flex-1 px-4 py-2.5 text-sm disabled:opacity-55 sm:flex-none sm:px-5"
-              aria-expanded={explanationVisible}
-              aria-controls="step-explanation"
-            >
-              {explanationVisible ? "Скрыть разбор" : "Разбор"}
             </button>
           </div>
         </div>

@@ -1,4 +1,4 @@
-"""TestSession API: create, get, check step, hint, complete, RBAC."""
+"""TestSession API: create, get, check step, complete, RBAC."""
 
 from __future__ import annotations
 
@@ -193,21 +193,50 @@ def test_check_step_wrong_answer_then_recheck(client: TestClient) -> None:
     assert step0["status"] == "checked"
 
 
-def test_hint_returned_only_after_use(client: TestClient) -> None:
+def test_check_step_does_not_return_explanation(client: TestClient) -> None:
+    _login(client)
+    body = _create_session(client)
+    session_id = body["id"]
+
+    response = client.post(
+        f"/api/tests/sessions/{session_id}/steps/0/check",
+        json={"answer": "1"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_correct"] is True
+    assert "detailed_explanation" not in data
+    assert "hint" not in data
+
+
+def test_hint_endpoint_removed(client: TestClient) -> None:
     _login(client)
     body = _create_session(client)
     session_id = body["id"]
 
     assert body["steps"][0]["hint_used"] is False
-    assert body["steps"][0]["hint"] is None
+    assert "hint" not in body["steps"][0]
+    assert "detailed_explanation" not in body["steps"][0]
 
     response = client.get(f"/api/tests/sessions/{session_id}/steps/0/hint")
-    assert response.status_code == 200
-    hint_text = response.json()["hint"]
+    assert response.status_code == 404
+
+
+def test_session_read_omits_hint_and_explanation(client: TestClient) -> None:
+    _login(client)
+    body = _create_session(client)
+    session_id = body["id"]
+
+    client.post(
+        f"/api/tests/sessions/{session_id}/steps/0/check",
+        json={"answer": "1"},
+    )
 
     state = client.get(f"/api/tests/sessions/{session_id}").json()
-    assert state["steps"][0]["hint_used"] is True
-    assert state["steps"][0]["hint"] == hint_text
+    step0 = state["steps"][0]
+    assert step0["status"] == "checked"
+    assert "hint" not in step0
+    assert "detailed_explanation" not in step0
 
 
 def test_complete_session_computes_score(client: TestClient) -> None:
