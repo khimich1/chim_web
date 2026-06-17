@@ -1,9 +1,9 @@
 # Implementation Plan: Chemistry (chim_web) MVP
 
-**Источник:** [SPEC.md](../SPEC.md) v0.6  
+**Источник:** [SPEC.md](../SPEC.md) v0.7.3 · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.1  
 **Дата плана:** 2026-06-09  
 **Обновлено:** 2026-06-17  
-**Статус:** MVP ~90% + AI-советчик v2 (Tasks 31–37) в working tree; Task 38 — tutor hardening (code review round 1+2); Task 39–40 — мульти-item ДЗ (SPEC §1.7) + hardening; **Phase 11 (Tasks 48–52) — UI redesign (SPEC §14), визуальный язык по референсам, адаптив под мобилку — ⏳ pending**
+**Статус:** MVP core + Phase 12 ✅ (`7804506`); Task 29 ✅ routers ≥80%; Task 41.1 RAG-cleanup ✅ (`46cd6d1`); Phase 11 UI redesign ✅ student cabinet (`9fb016a`, Tasks 48–52); **Phase 10 Task 41.2–41.3 ⭐ — hybrid pgvector + eval — ведущая**; tutor Tasks 31–38 в истории `08b418a`
 
 ---
 
@@ -18,8 +18,8 @@
 | `backend/` | FastAPI: auth, students, textbook, tests, TestSession, homework, notifications |
 | `frontend/` | Next.js: login, dashboards, учебник, Stepik-тесты, ДЗ, уведомления |
 | Контентные `.db` | В корне monorepo, read-only |
-| Тесты | `pytest` 128 passed; `vitest` 11 passed |
-| Git | Tasks 0–19 закоммичены; MVP 20–28 + tutor 31–36 — **в working tree** |
+| Тесты | `pytest` 159 passed; `vitest` 68 passed |
+| Git | `main` ahead of origin; Tasks 0–19, MVP 20–28, tutor, Phase 11–12, RAG cleanup — в истории |
 
 **Стратегия:** вертикальные срезы (schema → repo → service → router → frontend → тест) по приоритету P0 из spec §9.
 
@@ -41,9 +41,9 @@
 | 24–25 | Homework UI | 🟡 local | create, list, submit flows, teacher results |
 | 26–27 | Notifications | 🟡 local | backend + `NotificationBell` |
 | 28 | Dashboards | 🟡 partial | счётчики и ссылки есть; отдельные `*Nav` — нет |
-| 29 | RBAC test suite | 🟡 local | `test_rbac.py` + `test_security.py`; coverage check pending |
+| 29 | RBAC test suite | ✅ done | routers auth/homework/test_sessions/notifications ≥80%; overall 80% |
 | 30 | Docker + CI | ⏳ pending | |
-| 31 | RAG layer (keyword + Chroma) | 🟡 local | CLI `index_rag --rebuild [--chroma]` |
+| 31 | RAG layer (keyword + Chroma, interim) | 🟡 local | CLI `index_rag --rebuild [--chroma]`; **Task 41** — pgvector + убрать test-индекс |
 | 32 | LangGraph agent port | 🟡 local | `services/tutor/` from RAG_chemistry |
 | 33 | PostgreSQL sessions/messages | 🟡 local | migration `004_tutor` |
 | 34 | Solve-pipeline + gating | ⏳ pending | planner/critic not ported |
@@ -52,21 +52,42 @@
 | 37 | Eval + deps lock | 🟡 partial | deps in requirements.txt; eval pending |
 | 38 | Tutor hardening (code review) | ✅ local | `docs/specs/tutor-rag.md` §15 — round 1 (I1–I7, S1, S3, S4) + round 2 (B1–B4) закрыты; S2 (markdown в bubble) отложен как отдельный подсрез |
 | 39 | Homework мульти-item submit + hardening | ✅ local | SPEC §1.7: агрегация всех items (одна `TestSession`, `variant_ref=null`), `HomeworkItemProgress`, per-item прогресс, submit при 100%; общий `homework_mapper`; tutor settings-инъекция (баг реального LLM в pytest) |
-| 40 | Homework UI — конструктор выбора заданий | ✅ local | мульти-item форма, выбор `type` из разных вариантов, per-item прогресс у ученика (AC-3.6) |
-| 41 | Анти-галлюцинации агента (срез 16-1) | ⏳ pending | `tutor-rag.md` §16.1 A3+A2+O1: порог retrieval, citation guard, логи tool-вызовов |
-| 42 | Solve-pipeline v1.5 (срез 16-2) | ⏳ pending | `tutor-rag.md` §17: intent_router/prepare_context/validation/critic (+ planner этап B); заменяет/детализирует Task 34 |
+| 40 | Homework UI — конструктор выбора заданий | ✅ local | мульти-item форма; gap AC-3.8 → Task 55 |
+| 41 | ⭐ Точность RAG: cleanup + hybrid (pgvector) + eval (срез 16-1) | 🟡 partial | 41.1 ✅ `46cd6d1`; 41.2–41.3 hybrid + eval ⏳ |
+| 42 | Solve-pipeline v1.5 (срез 16-2) | ⏳ pending | `tutor-rag.md` §17: intent_router/prepare_context/validation/critic (этап A) → planner (этап B); заменяет/детализирует Task 34 |
 | 43 | Персональный тьютор — student tools (срез 16-3) | ⏳ pending | §16.2: `get_my_homework`, `analyze_my_mistakes`, `recommend_topics` |
 | 44 | Тренажёр + suggested prompts (срез 16-4) | ⏳ pending | §16.2/16.3: `generate_practice`, `get_selfcheck`, U3/U4 |
 | 45 | Teacher-аналитика — tools (срез 16-5) | ⏳ pending | §16.2: `summarize_student`, `suggest_homework` (черновик), `class_overview` |
-| 46 | Hybrid retrieval 2b + eval (срез 16-6) | ⏳ pending | §16.1 A4 + §16.4 O2: keyword∪embeddings, recall@5 ≥ 0.8 |
-| 47 | UX + профиль в PostgreSQL (срез 16-7) | ⏳ pending | §16.1 A7 + §16.3 U1/U2: streaming SSE, markdown, профиль из JSON → PG |
-| 48 | Design tokens + базовая тема + логотип + blobs | ⏳ pending | SPEC §14.1/14.2: палитра (teal), `globals.css`, логотип-колба, `DecorativeBlobs` |
-| 49 | Редизайн страницы учебника + mobile nav | ⏳ pending | SPEC §14.2/14.5: карточка, section pill, callouts, formula chips, collapsible nav |
-| 50 | Кастомный аудиоплеер | ⏳ pending | SPEC §14.2: pill-плеер вместо нативного `<audio>`, a11y/клавиатура |
-| 51 | Редизайн тестов (Stepik) + test-modal + итог | ⏳ pending | SPEC §14.2/14.5: card strip, прогресс, blobs, адаптив |
-| 52 | Редизайн ДЗ/дашборд/login + mobile & a11y pass | ⏳ pending | SPEC §14.5/14.6: одноколоночные карточки, focus-visible, контраст |
+| 46 | ⏸️ Анти-галлюцинации guards A2/A3 (отложено) | ⏸️ deferred | §16.1: citation guard + порог retrieval. Разморозить, если eval после hybrid (Task 41) покажет остаточные галлюцинации |
+| 47 | UX + профиль в PostgreSQL (срез 16-6) | ⏳ pending | §16.1 A7 + §16.3 U1/U2: streaming SSE, markdown, профиль из JSON → PG |
+| 48 | Design tokens + базовая тема + логотип + blobs | ✅ done | `9fb016a` |
+| 49 | Редизайн страницы учебника + mobile nav | ✅ done | `9fb016a` |
+| 50 | Кастомный аудиоплеер | ✅ done | `9fb016a` |
+| 51 | Редизайн тестов (Stepik) + StepProgressDots + итог | ✅ done | `9fb016a` + Phase 12 |
+| 52 | Редизайн ДЗ/дашборд/login + mobile & a11y pass | ✅ done | `9fb016a` |
+| 53 | Active session API + `active_test_session_id` | ✅ done | `7804506` |
+| 54 | StepProgressDots + resume UX в StepView | ✅ done | `7804506`; hint в `StepRead` при `hint_used` |
+| 55 | «Продолжить» — VariantPicker + TestHomeworkActions | ✅ done | `7804506` |
 
-**Текущий этап:** Task 40 (UI-конструктор мульти-item ДЗ) — ✅ local; далее Task 29 (coverage), Task 30 (Docker/CI), Phase 10 (Tasks 41–47), **Phase 11 (Tasks 48–52, UI redesign) — можно вести параллельно, начиная с Task 48→49**.
+**Текущий этап:** Phase 12 ✅; Task 30 (Docker/CI); **Task 41.2–41.3** (hybrid pgvector + eval).
+
+---
+
+## Согласование SPEC v0.7.3 ↔ план (2026-06-17)
+
+| Решение в SPEC / tutor-rag | Где в плане | Статус |
+|----------------------------|-------------|--------|
+| RAG индексирует **только учебник** (`lecture`, `lecture_qa`); `hint`/`detailed_explanation` **не** в индексе | Task 41.1 (RAG-cleanup) | ✅ `46cd6d1` |
+| Целевой retrieval: **hybrid** keyword ∪ embeddings на **pgvector**, rerank top-10 → top-4 | Task 41.2 | ✅ зафиксировано; Chroma в Task 31 — interim/dev |
+| Eval **recall@5 ≥ 0.8** (кейс «карбоновые кислоты» → chunk `[2]`) | Task 41.3 | ✅ зафиксировано; Task 37 — устаревшая метрика top-3, закрывается Task 41 |
+| Guards A2/A3 (citation + порог retrieval) **отложены** | Task 46 ⏸️ | ✅ согласовано; разморозка по eval после hybrid |
+| Solve-pipeline строит разбор сам (не копирует test-разбор) | Task 42 (заменяет Task 34) | ✅ согласовано |
+| `page_context.topic` **не** используется в retrieval | — | ⚠️ нет отдельной задачи (решение в tutor-rag §4; проверить при Task 41) |
+| StepProgressDots + «Продолжить» (§1.3.1–1.3.2) | Phase 12, Tasks 53–55 | ✅ `7804506` |
+| UI redesign teal + mobile-first (§14) | Phase 11, Tasks 48–52 | ✅ `9fb016a` |
+| Мульти-item ДЗ (§1.7) | Tasks 39–40 | ✅ local |
+
+**Расхождения spec ↔ подспеки:** закрыты в SPEC v0.7.3 и tutor-rag v0.8.1 (AC-6.2, tools §3, `TutorSourceCitation` без `test`).
 
 ---
 
@@ -78,9 +99,11 @@
 | Два слоя репозиториев: `repositories/content/` (SQLite SELECT) и `repositories/app/` (PostgreSQL) | Spec §6: не смешивать ORM контента с app DB |
 | JWT в httpOnly cookies | Spec §3, security checklist |
 | `TestSession` в app DB для Stepik-flow | Spec §1.3; один UI для свободной практики и ДЗ |
+| `TestSession.status=in_progress` персистентна | Spec §1.3.2; возобновление по `session_id` + кнопка «Продолжить» |
+| `StepProgressDots` вместо progress bar | Spec §1.3.1, §14.2; цвет = статус шага |
 | `grading_mode=exact` в v1 | Spec §1.4; письменные скрыты до v2 |
 | Первый teacher — Alembic seed / CLI | Один преподаватель на MVP; self-registration учеников нет |
-| shadcn/ui + Tailwind | Spec §9; минимальный UI, desktop-first |
+| Tailwind + `.chem-*` в `globals.css` (без shadcn) | Spec §14.0; mobile-first для экранов ученика (§14.5) |
 | CI / Docker — после первого E2E-среза | Spec §8, допущение 8 |
 
 ---
@@ -113,7 +136,7 @@ Task 3  Content SQLite repos                 ✅
 
 | # | Вопрос | Дефолт для плана |
 |---|--------|------------------|
-| 1 | «Пункт 3 MVP» в исходном ТЗ | Игнорируем — в SPEC v0.6 нет отдельной фичи |
+| 1 | «Пункт 3 MVP» в исходном ТЗ | Игнорируем — в SPEC v0.7.3 нет отдельной фичи |
 | 2 | Пароль ученика при онбординге | Teacher задаёт временный пароль; смена при первом входе — **вне v1** |
 | 3 | VPS / HTTPS в v1 | Dev-only до Task 30; prod Docker + Let's Encrypt — отдельная фаза |
 | 4 | ОГЭ картинки без плейсхолдера | MVP: только явные `[рисунокNNNN]` / известные паттерны; маппинг `type→OGE000N` — Task 15a, если нужен |
@@ -535,6 +558,7 @@ Task 3  Content SQLite repos                 ✅
 - [ ] AC-2.6: hint только по отдельному GET (не в questions list)
 - [ ] Повторная проверка шага обновляет ответ (spec §1.3)
 - [ ] RBAC: только владелец session
+- [ ] **Gap (SPEC §1.3.1–1.3.2):** `GET /api/tests/sessions/active` — **Task 53**
 
 **Verification:**
 - [ ] `pytest backend/tests/test_test_sessions.py`
@@ -583,6 +607,7 @@ Task 3  Content SQLite repos                 ✅
 **Acceptance criteria:**
 - [ ] AC-2.1, AC-2.2 в UI
 - [ ] Кнопка «Начать» создаёт session и редиректит на шаг 1
+- [ ] **Gap (SPEC §1.3.1–1.3.2):** при `in_progress` сессии для варианта — «Продолжить» вместо «Начать» → **Task 55**
 
 **Verification:**
 - [ ] vitest + MSW
@@ -601,22 +626,25 @@ Task 3  Content SQLite repos                 ✅
 
 ## Task 18: Tests UI — step view (Stepik)
 
-**Description:** `/(student)/tests/sessions/[id]` — одно задание на экран, progress bar, «Проверить», «Подсказка», «Разбор», «Назад»/«Далее».
+**Description:** `/(student)/tests/sessions/[id]` — одно задание на экран, **StepProgressDots** (§1.3.1), «Проверить», «Подсказка», «Разбор», «Назад»/«Далее».
 
 **Acceptance criteria:**
-- [ ] AC-2.3, AC-2.4, AC-2.5, AC-2.6, AC-2.7
+- [x] AC-2.4, AC-2.5, AC-2.6, AC-2.7 (базовый flow)
+- [ ] AC-2.3 — сейчас `ProgressBar` (линия); нужен **StepProgressDots** → Task 54
+- [ ] AC-2.10–2.11 — цвета кружков, клик, первый непроверенный шаг при входе → Task 54
 - [ ] Instant feedback без full page reload
 - [ ] Images inline
+- [ ] При возврате в сессию: восстановить hint/разбор на проверенных шагах (§1.3.2) → Task 54
 
 **Verification:**
-- [ ] vitest: StepView interactions
+- [ ] vitest: StepView interactions + StepProgressDots
 - [ ] Ручная проверка полного прохождения 3+ шагов
 
 **Dependencies:** Task 13, Task 15, Task 17
 
 **Files:**
 - `frontend/app/(student)/tests/sessions/[id]/page.tsx`
-- `frontend/components/tests/StepView.tsx`, `ProgressBar.tsx`, `AnswerInput.tsx`
+- `frontend/components/tests/StepView.tsx`, `ProgressBar.tsx` → **`StepProgressDots.tsx`**, `AnswerInput.tsx`
 - `frontend/components/tests/StepView.test.tsx`
 
 **Scope:** M
@@ -650,6 +678,7 @@ Task 3  Content SQLite repos                 ✅
 - [x] Track isolation проверен
 - [x] pytest + vitest зелёные
 - [x] **Review:** UX Stepik, нормализация ответов
+- [ ] **Gap SPEC §1.3.1–1.3.2:** StepProgressDots, resume — **Tasks 53–55**
 
 ---
 
@@ -690,6 +719,7 @@ Task 3  Content SQLite repos                 ✅
 - [ ] AC-3.1, AC-3.2
 - [ ] `test_variant` и `test_partial` (AC-3.4)
 - [ ] Student не видит чужое ДЗ → 403
+- [ ] **Gap (SPEC §1.3.1–1.3.2):** `HomeworkRead.active_test_session_id` для student → **Task 53**
 
 **Verification:**
 - [ ] `pytest backend/tests/test_homework_api.py`
@@ -784,6 +814,7 @@ Task 3  Content SQLite repos                 ✅
 **Acceptance criteria:**
 - [ ] AC-3.3, AC-3.5 в UI
 - [ ] Teacher видит score после сдачи тестового ДЗ
+- [ ] **Gap (SPEC §1.3.1–1.3.2):** AC-3.8 «Продолжить тест» на экране ДЗ → **Task 55**
 
 **Verification:**
 - [ ] Ручная проверка full flow: assign → do → teacher sees result
@@ -936,6 +967,7 @@ Task 3  Content SQLite repos                 ✅
 ### Checkpoint: Complete
 
 - [ ] Все acceptance criteria SPEC §7 (US-1…US-5) — US-3/US-4 ждут финальной верификации
+- [ ] **SPEC §1.3.1–1.3.2:** AC-2.10–2.12, AC-3.8 — Tasks 53–55
 - [x] `pytest` + `vitest` зелёные
 - [ ] `npm run build` — проверить перед merge
 - [ ] Task 29 coverage check
@@ -952,6 +984,8 @@ Task 3  Content SQLite repos                 ✅
 | Task 10 UI + Task 11 grading (разные агенты) | Auth перед всем protected API |
 | Task 17 UI + Task 16 complete API | Migrations перед models consumers |
 | Task 28 dashboards + Task 29 tests | Homework submit после TestSession |
+| Task 53 (active session API) + Task 55 (Continue UI) | Task 54 зависит от Task 53 для resume |
+| Task 48 (tokens) + Task 53 (backend) | Task 54→55 после Task 53 |
 
 **Контракт-first:** перед параллелью backend/frontend на одной фиче — зафиксировать Pydantic schemas / OpenAPI fragment.
 
@@ -966,6 +1000,8 @@ Task 3  Content SQLite repos                 ✅
 | ЕГЭ vs ОГЭ разная структура | Med | `ExamTrack` enum, отдельные query | 3, 12 |
 | Нестандартные `correct_ans` | Med | Grading + лог mismatch | 11 |
 | OGE images без плейсхолдера | Med | Task 13 MVP; расширение — отдельный spike | 13 |
+| Дубликаты `in_progress` сессий | Low | UI показывает только latest active; «Начать» скрыт при active | 53, 55 |
+| 28 кружков на мобилке | Med | Горизонтальный scroll + scroll-snap (§1.3.1) | 54 |
 | Задачи L+ | Med | План уже разбит на S/M | — |
 
 ---
@@ -984,13 +1020,14 @@ Task 3  Content SQLite repos                 ✅
 28 → 29 → 30 → [complete MVP]
 31 → 32 → 33 → 34 → 35 → 36 → 37 → 38 → [AI-советчик v2+]
 39 → 40 (мульти-item ДЗ; backend 39, затем UI 40; 39 можно параллельно с 38)
-41 → 42 → 43 → 44 → 45 → 46 → 47 (надёжность и расширение агента; §16/§17)
+41 → 42 → 43 → 44 → 45 → [46?] → 47 (надёжность и расширение агента; §16/§17; Task 46 отложен)
 48 → 49 → 50 → 51 → 52 (UI redesign §14; можно параллельно; начать с 48→49)
+53 → 54 → 55 (SPEC §1.3.1–1.3.2: active session + StepProgressDots + «Продолжить»; P0 UX gap)
 ```
 
-**Оценка:** ~30 задач MVP + 8 задач AI-советчика (v2+, Tasks 31–38) + Tasks 39–40 (мульти-item ДЗ) + Tasks 41–47 (надёжность и расширение агента, v0.7) + Tasks 48–52 (UI redesign §14, кабинет ученика, адаптив).
+**Оценка:** ~30 задач MVP + 8 задач AI-советчика (v2+, Tasks 31–38) + Tasks 39–40 (мульти-item ДЗ) + Tasks 41–47 (надёжность и расширение агента) + Tasks 48–52 (UI redesign §14) + **Tasks 53–55 (SPEC §1.3.1–1.3.2: step-dots + resume)**.
 
-**Прогресс на 2026-06-17:** Tasks 0–19 ✅ | Tasks 20–28 🟡 | Tasks 29–30 ⏳ | Tasks 31–37 🟡 (v2+, в working tree) | Task 38 ✅ local | Task 39 ✅ local | Task 40 ✅ local | Tasks 41–47 ⏳
+**Прогресс на 2026-06-17:** Tasks 0–29 ✅ | Task 30 ⏳ | Tasks 31–40 ✅ в git | Task 41.1 ✅ | Tasks 41.2–47 ⏳ | Task 46 ⏸️ | Tasks 48–55 ✅ | **далее: Task 30, Task 41.2 (hybrid pgvector)**
 
 ---
 
@@ -1000,7 +1037,9 @@ Task 3  Content SQLite repos                 ✅
 > **Только после MVP (Tasks 0–30).** Движок — портированный `RAG_chemistry`, а не разработка с нуля.
 > Сквозной гейт: MVP-тесты (Tasks 0–29) остаются зелёными; реальный LLM в `pytest` не вызывается (mock).
 
-## Task 31: Порт RAG-слоя (ingestion + retriever + Chroma) с track-метаданными
+## Task 31: Порт RAG-слоя (ingestion + retriever + Chroma, interim)
+
+> **Примечание (SPEC v0.7.3):** Chroma и `ingest_test_documents` — срез 2a / dev. **Task 41** убирает test-разборы из индекса и переносит embeddings в **pgvector** (prod). Сигнатура `Retriever.search()` не меняется.
 
 **Description:** Перенести `RAG_chemistry/app/services/rag/*` в `backend/app/services/rag/`. Индексировать `prepared_lectures` по обоим трекам; `track`, `topic`, `chunk_idx`, `chunk_title` в metadata. CLI индексации.
 
@@ -1120,11 +1159,11 @@ Task 3  Content SQLite repos                 ✅
 
 ## Task 37: Слияние конфигов/зависимостей + eval
 
-**Description:** Слить `RAG_chemistry/core/config.py` в `backend/app/core/config.py` (префиксы `LLM_*`, `RAG_*`, `CHROMA_*`); добавить зависимости в `requirements.txt` (Ask first); eval-набор recall@5.
+**Description:** Слить `RAG_chemistry/core/config.py` в `backend/app/core/config.py` (префиксы `LLM_*`, `RAG_*`, `CHROMA_*`); добавить зависимости в `requirements.txt` (Ask first). Eval-набор — **каркас**; целевая метрика recall@5 ≥ 0.8 — **Task 41.3** (заменяет interim top-3).
 
 **Acceptance criteria:**
 - [ ] `langgraph`, `langchain-*`, `chromadb` зафиксированы; конфликтов со стеком backend нет
-- [ ] Eval: 8/10 эталонных вопросов → ожидаемый чанк в top-3 (recall@5 ≥ 0.8)
+- [ ] Eval: каркас `tests/tutor/eval/`; полный набор и **recall@5 ≥ 0.8** — Task 41.3
 - [ ] `.env.example` дополнен `LLM_*`/`RAG_*`
 
 **Verification:**
@@ -1213,14 +1252,15 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 **Description:** Удобный конструктор ДЗ для преподавателя: выбор трека → добавление пунктов (лекция по теме / целый вариант / отдельные номера `type` из конкретного варианта) → список добавленных пунктов с удалением. Поддержка нескольких тестовых пунктов из **разных** вариантов в одном ДЗ.
 
 **Acceptance criteria:**
-- [ ] Можно добавить несколько items разных видов; тестовые — из разных вариантов
-- [ ] Для `test_partial` — выбор конкретных номеров `type` внутри варианта
-- [ ] Превью собранного ДЗ перед отправкой; удаление пункта
-- [ ] Трек фиксируется по ученику; задания вне трека недоступны для выбора
-- [ ] Ученик видит ДЗ как единый список пунктов с прогрессом по каждому
+- [x] Можно добавить несколько items разных видов; тестовые — из разных вариантов
+- [x] Для `test_partial` — выбор конкретных номеров `type` внутри варианта
+- [x] Превью собранного ДЗ перед отправкой; удаление пункта
+- [x] Трек фиксируется по ученику; задания вне трека недоступны для выбора
+- [x] Ученик видит ДЗ как единый список пунктов с прогрессом по каждому
+- [ ] **Gap (SPEC §1.3.1–1.3.2):** AC-3.8 «Продолжить тест» → **Task 55**
 
 **Verification:**
-- [ ] vitest: конструктор (добавление/удаление items, мульти-вариант)
+- [x] vitest: конструктор (добавление/удаление items, мульти-вариант)
 - [ ] Ручная проверка: ДЗ из лекции + 2 заданий из разных вариантов → ученик проходит → агрегированный результат у teacher
 
 **Dependencies:** Task 24, Task 39
@@ -1244,27 +1284,53 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 > Источник: `docs/specs/tutor-rag.md` §16 (roadmap) и §17 (детальный дизайн solve-pipeline).
 > **После** базового среза AI-советчика (Tasks 31–38). Каждая задача — отдельный
 > вертикальный срез за фичефлагом; реальный LLM в `pytest` не вызывается (mock).
-> Порядок приоритета (по §16.7): 41 → 42 → 43 → 44 → 45 → 46 → 47.
+>
+> **Приоритет (РЕШЕНО 2026-06-17 — «точность агента»):** **41 (точность RAG: cleanup + hybrid + eval)**
+> → 42 (solve-pipeline) → 43 → 44 → 45 → 47 (UX). **Task 46 (guards A2/A3) — отложен**: ставка на то,
+> что hybrid retrieval сам поднимает точность теории; вернуть guards, если eval покажет остаточные
+> галлюцинации. Корневая причина неточности (кейс «карбоновые кислоты») — слабый recall keyword-поиска
+> + индексация готовых разборов, поэтому Task 41 чинит причину и идёт первой.
 
-## Task 41: Анти-галлюцинации — порог retrieval + citation guard + логи (срез 16-1)
+## Task 41: Точность RAG — RAG-cleanup + hybrid retrieval (pgvector) + eval (срез 16-1) ⭐ ВЕДУЩАЯ
 
-> Источник: `tutor-rag.md` §16.1 (A3, A2), §16.4 (O1). **Быстрый, высокий эффект** — без нового графа.
+> Источник: `tutor-rag.md` §4 (целевой retrieval), §2 (RAG-cleanup), §16.1 (A4, A5), §16.4 (O1, O2).
+> **Корневая причина неточности агента** (кейс «химические свойства карбоновых кислот»): слабый
+> recall keyword-поиска + индексация готовых разборов. Чиним причину, а не симптом.
+> Реализовать **в три под-среза** (каждый — отдельный коммит/PR, проект остаётся рабочим):
 
-**Description:** Дешёвые проверки поверх текущего ReAct-графа. (A3) Retriever возвращает score; при пустом/слабом retrieval ответ — честный «не нашёл в учебнике». (A2) Узел/пост-проверка `citation_guard`: ответ по теории обязан содержать `topic`/`chunk_title` из реально вызванного `retrieve_theory`, иначе дисклеймер. (O1) `logging` INFO по tool-вызовам (имя, кол-во hits) и латентности.
+**Под-срез 41.1 — RAG-cleanup (быстрый, без LLM):**
+- Убрать `ingest_test_documents` из ingestion-пайплайна советчика: индекс строится **только** по
+  `lecture` + `lecture_qa` (`prepared_lectures`). `tests.hint`/`detailed_explanation` больше не в RAG.
+- Пересобрать индекс `python -m app.cli.index_rag --rebuild`; `search_theory` уже фильтрует
+  `source in {lecture, lecture_qa}`, поведение однородно.
+- AC: в `rag_index.json` нет документов `source == "test"`; прежние tutor-тесты зелёные.
+
+**Под-срез 41.2 — Hybrid retrieval на pgvector (A4 + A5):**
+- pgvector в существующем PostgreSQL: таблица `rag_embeddings(doc_id, source, metadata jsonb, embedding vector)` + Alembic-миграция (расширение `vector`).
+- CLI `python -m app.cli.index_rag --embeddings` — offline-эмбеддинг чанков (`text-embedding-3-small`); в рантайме эмбеддится только запрос.
+- `Retriever.search()`: keyword-кандидаты ∪ vector-кандидаты → **rerank top-10 → top-4** (напр. RRF/взвешенная сумма); дедуп по `topic`+`chunk_idx` (A5). Сигнатура `search()` не меняется.
+- Фичефлаг `rag_hybrid_enabled` в `Settings`; при отсутствии `OPENAI_API_KEY`/индекса — фолбэк на keyword-only. Chroma не используется в проде советчика.
+
+**Под-срез 41.3 — Eval-набор + логи (O2 + O1):**
+- `backend/tests/tutor/eval/` — 10–20 вопросов с эталонными `topic`/`chunk_idx` (включая «химические свойства карбоновых кислот» → ожидаемый `chunk_idx: 2`).
+- Метрика **recall@5** в `pytest` без реального LLM (эмбеддинги мокаются или фикстурный детерминированный провайдер).
+- O1: `logging` INFO по tool-вызовам (имя, кол-во hits, режим keyword/hybrid, латентность); без утечки `correct_ans`.
 
 **Acceptance criteria:**
-- [ ] AC-16.1: при retrieval ниже порога/пустом → «не нашёл в учебнике», без выдуманных фактов
-- [ ] AC-16.2: ответ по теории содержит ≥1 цитату из реально вызванного `retrieve_theory`
-- [ ] Порог релевантности конфигурируем в `Settings` (напр. `rag_min_score`)
-- [ ] O1: tool-вызовы и латентность логируются на INFO (без утечки `correct_ans` в логи)
+- [ ] 41.1: индекс без `source == "test"`; кейс «химические свойства карбоновых кислот» больше не ссылается на `test`-разбор
+- [ ] AC-16.5 (O2): eval recall@5 ≥ 0.8 на эталонном наборе; кейс карбоновых кислот находит чанк `[2]`
+- [ ] hybrid даёт recall ≥ keyword-only (сравнение задокументировано); фолбэк на keyword работает без ключа
+- [ ] ADR: pgvector vs Chroma зафиксирован (выбран pgvector)
+- [ ] O1: tool-вызовы и латентность логируются на INFO
 
 **Verification:**
-- [ ] `pytest backend/tests/tutor/test_guards.py` (mock): пустой retrieval → отказ; ответ без цитаты → дисклеймер
-- [ ] `pytest backend/tests/tutor/test_retriever.py`: score возвращается, порог отсекает слабые hits
+- [ ] `pytest backend/tests/tutor/test_retriever.py` + `tests/tutor/eval/`: recall@5 ≥ 0.8; дедуп; фолбэк
+- [ ] `alembic upgrade head` создаёт `rag_embeddings` (pgvector)
+- [ ] Сравнение recall keyword-only vs hybrid в `tests/tutor/eval/README` или ADR
 
-**Dependencies:** Task 32, Task 35
-**Files:** `backend/app/services/tutor/guards.py`, `backend/app/services/tutor/graph.py`, `backend/app/services/rag/{retriever,theory}.py`, `backend/app/core/config.py`, `backend/tests/tutor/test_guards.py`
-**Scope:** M
+**Dependencies:** Task 31 (RAG), Task 37 (deps/eval каркас)
+**Files:** `backend/app/services/rag/{ingestion,retriever,theory,embeddings}.py`, новый `backend/app/services/rag/pgvector_store.py`, `backend/app/cli/index_rag.py`, `backend/app/core/config.py`, `backend/alembic/versions/*_rag_embeddings.py`, `backend/tests/tutor/{test_retriever,eval/*}`, `docs/decisions/ADR-*-rag-store.md`
+**Scope:** L
 
 ---
 
@@ -1291,7 +1357,7 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 - [ ] `pytest backend/tests/tutor/test_validation.py`: ключ/цитата/формат (вкл. соответствия, число с «хвостом»)
 - [ ] AC-17.6: прежние tutor-тесты зелёные (нет регрессий общего чата)
 
-**Dependencies:** Task 41 (citation/score переиспользуются), Task 32, Task 33, Task 14
+**Dependencies:** Task 41 (hybrid `theory_hits` + score/цитаты переиспользуются в `prepare_context`/`critic`), Task 32, Task 33, Task 14
 **Files:** `backend/app/services/tutor/solve/{__init__,state,task_flow,planner,solver,critic}.py`, `backend/app/services/tutor/validation.py`, `backend/app/services/tutor/graph.py`, `backend/app/schemas/tutor.py`, `backend/tests/tutor/{test_solve,test_validation}.py`
 **Scope:** L
 
@@ -1360,28 +1426,30 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ---
 
-## Task 46: Hybrid retrieval 2b + eval-набор (срез 16-6)
+## Task 46: Анти-галлюцинации — citation guard + порог retrieval (срез 16-отложено) ⏸️ DEFERRED
 
-> Источник: `tutor-rag.md` §16.1 (A4), §16.4 (O2), §4 (срез 2b). `vectorstore.py` уже есть как заготовка.
+> Источник: `tutor-rag.md` §16.1 (A2, A3). **Отложено (решение 2026-06-17):** ставка на то, что
+> hybrid retrieval (Task 41) сам поднимает точность теории. Вернуть **только если** eval после
+> hybrid покажет остаточные галлюцинации/слабый retrieval. Hybrid + eval перенесены в **Task 41**.
 
-**Description:** Гибридный retrieval: keyword ∪ embeddings, rerank top-10 → top-4. Хранилище — pgvector или Chroma (ADR при старте). Eval-набор `tests/tutor/eval/`: 10–20 вопросов с эталонными `topic`/`chunk_idx`, метрика recall@5.
+**Description:** Дешёвые пост-проверки поверх ReAct-графа теории. (A3) Порог релевантности: при пустом/слабом retrieval — честный «не нашёл в учебнике», без генерации. (A2) `citation_guard`: ответ по теории обязан содержать `topic`/`chunk_title` из реально вызванного `retrieve_theory`, иначе дисклеймер.
 
-**Acceptance criteria:**
-- [ ] `Retriever.search()` сигнатура не меняется; гибрид за фичефлагом/настройкой
-- [ ] AC-16.5: eval recall@5 ≥ 0.8 на эталонном наборе, прогон в `pytest` **без** реального LLM (только retrieval/embeddings mock или локальная модель)
-- [ ] ADR: pgvector vs Chroma зафиксирован
+**Acceptance criteria (когда разморозим):**
+- [ ] AC-16.1 (A3): retrieval ниже порога/пустой → «не нашёл в учебнике», без выдуманных фактов
+- [ ] AC-16.2 (A2): ответ по теории содержит ≥1 цитату из реально вызванного `retrieve_theory`
+- [ ] Порог `rag_min_score` конфигурируем в `Settings`
 
 **Verification:**
-- [ ] `pytest backend/tests/tutor/test_retriever.py` + `tests/tutor/eval/`: recall@5 ≥ 0.8
-- [ ] Сравнение recall keyword-only vs hybrid задокументировано
+- [ ] `pytest backend/tests/tutor/test_guards.py` (mock): пустой/слабый retrieval → отказ; ответ без цитаты → дисклеймер
 
-**Dependencies:** Task 31 (RAG), Task 37 (deps/eval каркас)
-**Files:** `backend/app/services/rag/{retriever,vectorstore,embeddings}.py`, `backend/tests/tutor/eval/*`, `docs/decisions/ADR-*-rag-store.md`
-**Scope:** L
+**Trigger разморозки:** eval-набор (Task 41.3) после hybrid показывает recall < 0.8 **или** долю выдуманных ответов выше порога на ручной проверке.
+**Dependencies:** Task 41 (score/citation хелперы и eval переиспользуются)
+**Files:** `backend/app/services/tutor/guards.py`, `backend/app/services/tutor/graph.py`, `backend/app/services/rag/{retriever,theory}.py`, `backend/app/core/config.py`, `backend/tests/tutor/test_guards.py`
+**Scope:** M
 
 ---
 
-## Task 47: UX (streaming + markdown) + профиль в PostgreSQL (срез 16-7)
+## Task 47: UX (streaming + markdown) + профиль в PostgreSQL (срез 16-6)
 
 > Источник: `tutor-rag.md` §16.1 (A7), §16.3 (U1, U2), §15 (отложенный S2).
 
@@ -1404,13 +1472,13 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ---
 
-### Checkpoint: Надёжность агента (после Tasks 41–47)
+### Checkpoint: Надёжность агента (после Tasks 41–47, Task 46 — по триггеру)
 
-- [ ] Анти-галлюцинации: пустой retrieval → отказ; ответ по теории всегда с цитатой (AC-16.1, 16.2)
-- [ ] Solve-pipeline: ключ сверяется с `correct_ans` кодом; gating на тесте (AC-17.x)
-- [ ] Персональный тьютор: ДЗ, анализ ошибок, рекомендации тем — только свои данные (AC-16.4)
-- [ ] Hybrid retrieval recall@5 ≥ 0.8 на eval (AC-16.5)
-- [ ] UX: streaming + markdown; профиль в PostgreSQL
+- [ ] RAG-cleanup: индекс без `source == "test"`; hybrid recall@5 ≥ 0.8 (Task 41)
+- [ ] Solve-pipeline: ключ сверяется с `correct_ans` кодом; gating на тесте (AC-17.x, Task 42)
+- [ ] Персональный тьютор: ДЗ, анализ ошибок, рекомендации тем — только свои данные (AC-16.4, Tasks 43–44)
+- [ ] UX: streaming + markdown; профиль в PostgreSQL (Task 47)
+- [ ] _(опционально, Task 46)_ Анти-галлюцинации: пустой retrieval → отказ; цитата обязательна — только если eval покажет остаточные проблемы
 - [ ] Прежние tutor-тесты (Tasks 31–38) и MVP без регрессий
 
 ---
@@ -1484,29 +1552,33 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ---
 
-## Task 51: Редизайн тестов (Stepik) + test-modal + итог
+## Task 51: Редизайн тестов (Stepik) + StepProgressDots + итог
 
-**Description:** Применить стиль к пошаговым тестам (SPEC §14.2/14.5): card-header strip, прогресс (pill «N%»/«Шаг N из M»), formula chips в вопросах, кнопки «Проверить/Подсказка/Разбор» в новом стиле, decorative blobs на экране итога. Адаптив: крупные тач-таргеты, sticky-кнопки на мобилке.
+**Description:** Применить стиль к пошаговым тестам (SPEC §14.2/14.5 + §1.3.1): card-header strip, **StepProgressDots** («Шаг N из M» + кружки по статусу, без progress bar и без `%`), formula chips в вопросах, кнопки «Проверить/Подсказка/Разбор» в новом стиле, decorative blobs на экране итога. Адаптив: горизонтальный скролл кружков при 28 шагах, крупные тач-таргеты, sticky-кнопки на мобилке.
+
+> **Зависимость:** логика кружков и resume UX — **Task 54** (можно сделать до или вместе с визуальным polish).
 
 **Acceptance criteria:**
-- [ ] StepView и SessionSummary в новом стиле; прогресс читаемо; verdict (верно/неверно) с цветовым кодированием
+- [ ] StepView и SessionSummary в новом стиле; **StepProgressDots** по §1.3.1 (AC-2.10)
 - [ ] Formula chips в тексте задания; изображения inline без переполнения на мобилке
-- [ ] **Mobile:** одно задание на экран, sticky-кнопки, ≥44px тач-таргеты (360–414px)
+- [ ] **Mobile:** одно задание на экран, sticky-кнопки, ≥44px тач-таргеты (360–414px); скролл кружков
 - [ ] Decorative blobs на итоговом экране (`aria-hidden`)
 
 **Verification:**
-- [ ] `vitest`: StepView/ProgressBar/SessionSummary рендер и интеракции (без регрессий)
+- [ ] `vitest`: StepView/StepProgressDots/SessionSummary рендер и интеракции (без регрессий)
 - [ ] Ручная проверка прохождения 3+ шагов на desktop и mobile
 
-**Dependencies:** Task 48 (Task 50 опц. для chip-утилит)
-**Files:** `frontend/components/tests/{StepView,ProgressBar,QuestionContent,VariantPicker,SessionSummary}.tsx`, `frontend/app/student/tests/**`, соответствующие `*.test.tsx`
+**Dependencies:** Task 48, Task 54 (рекомендуется)
+**Files:** `frontend/components/tests/{StepView,StepProgressDots,QuestionContent,VariantPicker,SessionSummary}.tsx`, `frontend/app/student/tests/**`, соответствующие `*.test.tsx`
 **Scope:** M → L
 
 ---
 
 ## Task 52: Редизайн ДЗ / дашборд / login + mobile & a11y pass
 
-**Description:** Привести к новому стилю оставшиеся экраны ученика: список/детали ДЗ, дашборд (`/student`), login. Decorative blobs на login/дашборде. Финальный проход по адаптивности (карточки в одну колонку, таблицы → карточный режим) и доступности (focus-visible везде, контраст, `aria-live` на статусах, AI-overlay не перекрывает кнопки и на мобилке — полноэкранный sheet).
+**Description:** Привести к новому стилю оставшиеся экраны ученика: список/детали ДЗ, дашборд (`/student`), login. Decorative blobs на login/дашборде. Финальный проход по адаптивности (карточки в одну колонку) и доступности (focus-visible везде, контраст, `aria-live` на статусах, AI-overlay не перекрывает кнопки).
+
+> **Зависимость:** кнопка «Продолжить тест» на экране ДЗ — **Task 55** (функционально P0; стилизация — здесь).
 
 **Acceptance criteria:**
 - [ ] ДЗ-списки/детали, дашборд, login — в новом стиле; одноколоночны на мобилке
@@ -1518,7 +1590,7 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 - [ ] `vitest` на затронутых компонентах зелёный
 - [ ] Ручная проверка всех экранов ученика на desktop + mobile; быстрый прогон чеклиста `references/accessibility-checklist.md`
 
-**Dependencies:** Task 48, Task 49, Task 51
+**Dependencies:** Task 48, Task 49, Task 51, Task 55 (рекомендуется для ДЗ)
 **Files:** `frontend/app/student/**`, `frontend/components/homework/**`, `frontend/components/auth/LoginForm.tsx`, `frontend/components/tutor/TutorChatOverlay.tsx`
 **Scope:** M
 
@@ -1528,10 +1600,89 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 - [ ] Единая палитра (teal), логотип, decorative blobs; токены в `globals.css`
 - [ ] Учебник, тесты, ДЗ, дашборд, login — в новом «учебном» стиле
+- [ ] Тесты (Stepik): **StepProgressDots**; возобновление сессии (Tasks 53–55)
 - [ ] **Мобилка работает** на всех экранах ученика (360–414px), без горизонтального скролла
 - [ ] a11y: контраст, focus-visible, клавиатура плеера, `aria-live`
 - [ ] `vitest` зелёный; нет console errors; прежние тесты без регрессий
 - [ ] Кабинет преподавателя — вынесен в отдельную задачу (вне scope Phase 11)
+
+---
+
+## Phase 12: StepProgressDots + возобновление сессии (SPEC §1.3.1–1.3.2)
+
+> Источник: `SPEC.md` §1.3.1–1.3.2, AC-2.10–2.12, AC-3.8, §8 API.
+> **Приоритет P0** — закрывает UX-gap: ученик не может продолжить прерванный тест; progress bar вместо кружков.
+> Можно вести **до** Phase 11 (не требует design tokens) или параллельно с Task 48.
+
+## Task 53: Active session API + `active_test_session_id`
+
+**Description:** Backend для возобновления незавершённых тест-сессий. `GET /api/tests/sessions/active` с query `variant_ref` (свободная практика) или `homework_assignment_id` (ДЗ) → `{ session_id: uuid } | null` (последняя `in_progress` сессия ученика). Поле `active_test_session_id` в `HomeworkRead` (вычисляемое, не колонка БД) — для student при `GET /api/homework/{id}`.
+
+**Acceptance criteria:**
+- [ ] `GET /api/tests/sessions/active?variant_ref=001.txt` → id или `null`
+- [ ] `GET /api/tests/sessions/active?homework_assignment_id={uuid}` → id или `null`
+- [ ] `HomeworkRead.active_test_session_id` заполняется для student; teacher — `null` или не отдаётся
+- [ ] RBAC: только свои сессии; чужой `homework_assignment_id` → 403
+- [ ] `completed` сессии не возвращаются; при нескольких `in_progress` — latest по `created_at`
+
+**Verification:**
+- [ ] `pytest backend/tests/test_test_sessions_active.py` (новый)
+- [ ] `pytest backend/tests/test_homework_api.py` — assert `active_test_session_id` после частичного прохождения
+
+**Dependencies:** Task 15, Task 21
+**Files:** `backend/app/repositories/app/test_session_repo.py`, `backend/app/services/test_session_service.py`, `backend/app/services/homework_mapper.py`, `backend/app/schemas/{homework,test_session}.py`, `backend/app/api/routers/test_sessions.py`, `backend/tests/test_test_sessions_active.py`
+**Scope:** S
+
+---
+
+## Task 54: StepProgressDots + resume UX в StepView
+
+**Description:** Заменить `ProgressBar` на `StepProgressDots` (§1.3.1): кружки по статусу шага (unseen / answered / checked+верно / checked+неверно), текущий — teal-кольцо. Клик по открытым шагам (`status != unseen`). При входе в сессию — **первый непроверенный** шаг (`status != checked`). Восстановление UI: hint при `hint_used`, разбор на проверенных шагах без повторной проверки (§1.3.2). Горизонтальный scroll при ≥15 шагах.
+
+**Acceptance criteria:**
+- [ ] AC-2.3, AC-2.10, AC-2.11
+- [ ] Цвета: `--chem-teal-soft` / `--chem-green` / `--chem-crimson` по §1.3.1
+- [ ] `aria-current="step"` на текущем; `aria-label` на проверенных
+- [ ] Удалить или deprecate `ProgressBar`; `StepView` использует `StepProgressDots`
+- [ ] При reload сессии: ответ, вердикт, hint, разбор восстановлены
+
+**Verification:**
+- [ ] `vitest`: `StepProgressDots.test.tsx` (цвета, клик, disabled для unseen)
+- [ ] `vitest`: `StepView.test.tsx` — открытие на первом непроверенном шаге
+- [ ] Ручная проверка: прервать на шаге 5 → вернуться по URL → шаг 5, кружки корректны
+
+**Dependencies:** Task 18
+**Files:** `frontend/components/tests/StepProgressDots.tsx`, `frontend/components/tests/StepView.tsx`, `frontend/app/globals.css` (`.chem-step-dot-*`), `frontend/components/tests/{StepProgressDots,StepView}.test.tsx`
+**Scope:** M
+
+---
+
+## Task 55: «Продолжить» — VariantPicker + TestHomeworkActions
+
+**Description:** UI возобновления сессии (§1.3.2). **ДЗ:** `TestHomeworkActions` — при `homework.active_test_session_id` кнопка **«Продолжить тест»** (redirect на `/student/tests/sessions/{id}`), иначе **«Начать тест»**. **Свободная практика:** `VariantPicker` — per-variant «Продолжить» / «Начать» через `GET /api/tests/sessions/active?variant_ref=...` (или batch на странице). Не показывать обе кнопки как primary одновременно.
+
+**Acceptance criteria:**
+- [ ] AC-2.12, AC-3.8
+- [ ] ДЗ: после частичного прохождения → «Продолжить тест» видна на экране ДЗ
+- [ ] Варианты: при active session для `001.txt` → «Продолжить» в строке варианта
+- [ ] «Начать» создаёт новую сессию только когда active нет (UI не предлагает дубликат)
+
+**Verification:**
+- [ ] `vitest`: `TestHomeworkActions.test.tsx`, `VariantPicker.test.tsx` (continue vs start)
+- [ ] Ручная проверка: начать тест → уйти на главную → вернуться в ДЗ → «Продолжить тест»
+
+**Dependencies:** Task 53, Task 17, Task 40 (`HomeworkItemsPanel` / `TestHomeworkActions`)
+**Files:** `frontend/components/homework/TestHomeworkActions.tsx`, `frontend/components/tests/VariantPicker.tsx`, `frontend/lib/api/{tests,homework}.ts`, `frontend/lib/api/types.ts`, соответствующие `*.test.tsx`
+**Scope:** S
+
+---
+
+### Checkpoint: Step-dots + resume (после Tasks 53–55)
+
+- [ ] AC-2.10–2.12, AC-3.8 закрыты
+- [ ] Ученик прерывает тест на шаге N и продолжает через «Продолжить» (ДЗ и свободная практика)
+- [ ] Кружки отражают верно/неверно/не открыто; клик по открытым шагам работает
+- [ ] `pytest` + `vitest` зелёные; нет регрессий Tasks 17–19
 
 ---
 
@@ -1540,9 +1691,10 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 1. **E2E** — teacher → assign HW (лекция + тест) → student submit → notification + score у teacher.
 2. **Закоммитить** срез Tasks 20–27 (homework + notifications).
 3. ~~**Task 39** — мульти-item submit (SPEC §1.7)~~ ✅ сделано (одна `TestSession` `variant_ref=null`, `HomeworkItemProgress`, общий `homework_mapper`, новый эндпоинт `items/{index}/complete`).
-4. ~~**Task 40** — UI-конструктор выбора заданий (мульти-item форма, выбор `type` из разных вариантов; ученик видит per-item прогресс).~~ ✅ сделано.
-5. **Task 29** — coverage check (`pytest-cov` по auth, homework, test_sessions, notifications). **← следующий.**
-6. **Task 30** — Docker Compose + GitHub Actions.
-7. После MVP → Phase 9 (Tasks 31–38, AI-советчик).
-8. После базового советчика → Phase 10 (Tasks 41–47, надёжность и расширение агента). Начать с **Task 41** (анти-галлюцинации, срез 16-1) — дёшево и высокий эффект; затем **Task 42** (solve-pipeline, §17).
-9. **Phase 11 (UI redesign, SPEC §14)** — можно вести параллельно с backend-задачами. Начать с **Task 48** (design tokens + логотип + blobs, изоляция риска), затем **Task 49** (учебник + mobile nav). Стиль: гибрид, главный акцент teal; адаптив под мобилку обязателен.
+4. ~~**Task 40** — UI-конструктор выбора заданий.~~ ✅ сделано.
+5. **Phase 12 (Tasks 53–55)** — StepProgressDots + «Продолжить тест» (SPEC §1.3.1–1.3.2). **← рекомендуется следующим P0 UX срезом:** `53 (backend) → 54 + 55 (frontend)`.
+6. **Task 29** — coverage check (`pytest-cov` по auth, homework, test_sessions, notifications).
+7. **Task 30** — Docker Compose + GitHub Actions.
+8. После MVP → Phase 9 (Tasks 31–38, AI-советчик).
+9. После базового советчика → Phase 10 (Tasks 41–47). Начать с **Task 41**.
+10. **Phase 11 (UI redesign, SPEC §14)** — параллельно с Phase 12 или после. Начать с **Task 48** → **Task 49**. Task 51 опирается на Task 54 (кружки).
