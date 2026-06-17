@@ -46,7 +46,7 @@ export function LoginForm() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="chem-input rounded-md border border-zinc-300 px-3 py-2 text-zinc-900"
+          className="chem-input min-h-[44px] w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900"
         />
       </div>
 
@@ -62,20 +62,22 @@ export function LoginForm() {
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="chem-input rounded-md border border-zinc-300 px-3 py-2 text-zinc-900"
+          className="chem-input min-h-[44px] w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900"
         />
       </div>
 
-      {error ? (
-        <p role="alert" className="text-sm text-[var(--chem-crimson)]">
-          {error}
-        </p>
-      ) : null}
+      <div aria-live="polite">
+        {error ? (
+          <p role="alert" className="text-sm text-[var(--chem-crimson)]">
+            {error}
+          </p>
+        ) : null}
+      </div>
 
       <button
         type="submit"
         disabled={submitting}
-        className="chem-btn-primary mt-2 px-4 py-2 disabled:opacity-60"
+        className="chem-btn-primary mt-2 min-h-[44px] px-4 py-2.5 disabled:opacity-60"
       >
         {submitting ? "Вход…" : "Войти"}
       </button>

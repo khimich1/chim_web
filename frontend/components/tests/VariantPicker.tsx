@@ -44,11 +44,11 @@ export function VariantPicker({ variants }: { variants: TestVariant[] }) {
         </p>
       ) : null}
 
-      <ul className="chem-card divide-y divide-zinc-200 rounded-lg">
+      <ul className="chem-card divide-y divide-zinc-200 overflow-hidden rounded-xl">
         {variants.map((variant) => (
           <li
             key={variant.filename}
-            className="flex items-center justify-between px-4 py-3"
+            className="flex items-center justify-between gap-3 px-4 py-3.5 sm:px-5"
           >
             <span className="font-medium text-zinc-900">
               Вариант {variant.filename.replace(/\.txt$/, "")}
@@ -57,7 +57,7 @@ export function VariantPicker({ variants }: { variants: TestVariant[] }) {
               type="button"
               onClick={() => handleStart(variant.filename)}
               disabled={startingRef !== null}
-              className="chem-btn-primary px-4 py-1.5 text-sm disabled:opacity-60"
+              className="chem-btn-primary min-h-[44px] px-5 py-2 text-sm disabled:opacity-60"
             >
               {startingRef === variant.filename ? "Запуск…" : "Начать"}
             </button>

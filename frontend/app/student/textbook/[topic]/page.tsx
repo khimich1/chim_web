@@ -27,8 +27,8 @@ export default async function TextbookTopicPage({
     : summaries[0].chunk_idx;
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-12">
-      <div className="flex items-start justify-between gap-4">
+    <main className="mx-auto max-w-5xl px-4 py-8 pb-28 sm:px-6 sm:py-12 lg:pb-12">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="chem-kicker">Учебник</p>
           <h1 className="mt-1 text-2xl font-semibold text-zinc-900">
@@ -43,7 +43,7 @@ export default async function TextbookTopicPage({
         </div>
       </div>
 
-      <section className="mt-10">
+      <section className="mt-8 sm:mt-10">
         <ChunkViewer
           topic={decodedTopic}
           summaries={summaries}

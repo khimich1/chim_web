@@ -34,16 +34,18 @@ export function TestHomeworkActions({
 
   return (
     <div className="flex flex-col gap-3">
-      {error ? (
-        <p role="alert" className="text-sm text-[var(--chem-crimson)]">
-          {error}
-        </p>
-      ) : null}
+      <div aria-live="polite">
+        {error ? (
+          <p role="alert" className="text-sm text-[var(--chem-crimson)]">
+            {error}
+          </p>
+        ) : null}
+      </div>
       <button
         type="button"
         onClick={handleStart}
         disabled={starting}
-        className="chem-btn-primary w-fit px-4 py-2 text-sm disabled:opacity-60"
+        className="chem-btn-primary inline-flex min-h-[44px] w-fit items-center px-4 py-2 text-sm disabled:opacity-60"
       >
         {starting ? "Запуск…" : "Начать тест"}
       </button>

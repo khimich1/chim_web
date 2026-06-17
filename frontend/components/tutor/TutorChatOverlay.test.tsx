@@ -95,7 +95,7 @@ describe("TutorChatOverlay", () => {
       screen.getByPlaceholderText("Ваш вопрос…"),
       "Что такое алканы?",
     );
-    await userEvent.click(screen.getByRole("button", { name: "→" }));
+    await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
 
     expect(await screen.findByText("Что такое алканы?")).toBeInTheDocument();
     expect(
@@ -115,7 +115,7 @@ describe("TutorChatOverlay", () => {
 
     const input = screen.getByPlaceholderText("Ваш вопрос…");
     await userEvent.type(input, "Что такое алканы?");
-    await userEvent.click(screen.getByRole("button", { name: "→" }));
+    await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Агент недоступен",
@@ -139,11 +139,8 @@ describe("TutorChatOverlay", () => {
       expect(mockedCreate).toHaveBeenCalledWith({ topic: "Алканы" }),
     );
 
-    // Collapse (same toggle button — aria-label is its accessible name),
-    // navigate to a test page, reopen → fresh session with new context.
-    await userEvent.click(
-      screen.getByRole("button", { name: "AI-советчик по химии" }),
-    );
+    // Close chat, navigate to a test page, reopen → fresh session with new context.
+    await userEvent.click(screen.getByRole("button", { name: "Закрыть чат" }));
     pathname = "/student/tests/sessions/abc-123";
     rerender(<TutorChatOverlay />);
 
@@ -155,5 +152,22 @@ describe("TutorChatOverlay", () => {
         test_session_id: "abc-123",
       }),
     );
+  });
+
+  it("uses fullscreen dialog on mobile viewport classes", async () => {
+    primeHappyPath();
+    render(<TutorChatOverlay />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "AI-советчик по химии" }),
+    );
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Чат AI-советчика",
+    });
+    expect(dialog.className).toContain("inset-0");
+    expect(
+      screen.getByRole("button", { name: "Закрыть чат" }),
+    ).toBeInTheDocument();
   });
 });

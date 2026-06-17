@@ -38,7 +38,10 @@ export function HomeworkSubmitButton({
 
   if (done) {
     return (
-      <p className="text-sm text-chem-green">
+      <p
+        className="text-sm font-medium text-[var(--text-positive)]"
+        aria-live="polite"
+      >
         Домашнее задание сдано. Преподаватель получит уведомление.
       </p>
     );
@@ -46,16 +49,18 @@ export function HomeworkSubmitButton({
 
   return (
     <div className="flex flex-col gap-2">
-      {error ? (
-        <p role="alert" className="text-sm text-[var(--chem-crimson)]">
-          {error}
-        </p>
-      ) : null}
+      <div aria-live="polite">
+        {error ? (
+          <p role="alert" className="text-sm text-[var(--chem-crimson)]">
+            {error}
+          </p>
+        ) : null}
+      </div>
       <button
         type="button"
         onClick={handleSubmit}
         disabled={submitting}
-        className="chem-btn-primary w-fit px-4 py-2 text-sm disabled:opacity-60"
+        className="chem-btn-primary inline-flex min-h-[44px] w-fit items-center px-4 py-2 text-sm disabled:opacity-60"
       >
         {submitting ? "Отправка…" : "Сдать домашнее задание"}
       </button>

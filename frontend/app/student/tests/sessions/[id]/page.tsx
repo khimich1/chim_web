@@ -22,7 +22,7 @@ export default async function TestSessionPage({
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
+    <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="chem-kicker">Тест</p>

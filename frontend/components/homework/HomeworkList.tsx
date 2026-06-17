@@ -13,6 +13,16 @@ const STATUS_LABELS: Record<HomeworkAssignment["status"], string> = {
   reviewed: "Проверено",
 };
 
+const STATUS_BADGE: Record<HomeworkAssignment["status"], string> = {
+  assigned: "bg-chem-teal-soft text-chem-teal-dark",
+  in_progress:
+    "bg-[color-mix(in_srgb,var(--chem-gold)_28%,white)] text-[#5c4200]",
+  submitted:
+    "bg-[color-mix(in_srgb,var(--chem-green)_15%,white)] text-[var(--text-positive)]",
+  reviewed:
+    "bg-[color-mix(in_srgb,var(--chem-navy)_12%,white)] text-chem-navy",
+};
+
 export function HomeworkList({
   assignments,
   detailBasePath,
@@ -22,12 +32,14 @@ export function HomeworkList({
 }) {
   if (assignments.length === 0) {
     return (
-      <p className="text-sm text-zinc-500">Домашних заданий пока нет.</p>
+      <p className="text-sm text-zinc-500" aria-live="polite">
+        Домашних заданий пока нет.
+      </p>
     );
   }
 
   return (
-    <ul className="chem-card divide-y divide-zinc-200 rounded-lg">
+    <ul className="flex min-w-0 flex-col gap-4">
       {assignments.map((assignment) => {
         const completedCount = assignment.progress.filter(
           (row) => row.completed,
@@ -41,36 +53,41 @@ export function HomeworkList({
               : null;
 
         return (
-          <li key={assignment.id} className="px-4 py-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
+          <li key={assignment.id} className="chem-card min-w-0 overflow-hidden rounded-xl">
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-chem-teal px-4 py-3 sm:px-5">
+              <h2 className="min-w-0 text-base font-semibold">
                 <Link
                   href={`${detailBasePath}/${assignment.id}`}
-                  className="font-medium text-zinc-900 hover:text-chem-royal"
+                  className="text-white hover:underline focus-visible:underline"
                 >
                   {assignment.title}
                 </Link>
-                {assignment.student_email ? (
-                  <p className="mt-1 text-sm text-zinc-600">
-                    {assignment.student_email}
-                  </p>
-                ) : null}
-                <p className="mt-1 text-sm text-zinc-500">
-                  {homeworkItemsSummary(assignment.items)}
-                </p>
-                {progressLabel ? (
-                  <p className="mt-1 text-sm text-zinc-500">{progressLabel}</p>
-                ) : null}
-                {assignment.submission?.score != null ? (
-                  <p className="mt-1 text-sm text-chem-green">
-                    Балл: {assignment.submission.score} /{" "}
-                    {assignment.submission.max_score ?? "—"}
-                  </p>
-                ) : null}
-              </div>
-              <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700">
+              </h2>
+              <span
+                className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[assignment.status]}`}
+              >
                 {STATUS_LABELS[assignment.status]}
               </span>
+            </div>
+
+            <div className="space-y-1 px-4 py-4 sm:px-5">
+              {assignment.student_email ? (
+                <p className="text-sm text-zinc-600">{assignment.student_email}</p>
+              ) : null}
+              <p className="text-sm text-zinc-600">
+                {homeworkItemsSummary(assignment.items)}
+              </p>
+              {progressLabel ? (
+                <p className="text-sm text-zinc-500" aria-live="polite">
+                  {progressLabel}
+                </p>
+              ) : null}
+              {assignment.submission?.score != null ? (
+                <p className="text-sm font-medium text-[var(--text-positive)]">
+                  Балл: {assignment.submission.score} /{" "}
+                  {assignment.submission.max_score ?? "—"}
+                </p>
+              ) : null}
             </div>
           </li>
         );

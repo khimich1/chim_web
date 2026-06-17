@@ -3,7 +3,7 @@
 **Источник:** [SPEC.md](../SPEC.md) v0.6  
 **Дата плана:** 2026-06-09  
 **Обновлено:** 2026-06-17  
-**Статус:** MVP ~90% + AI-советчик v2 (Tasks 31–37) в working tree; Task 38 — tutor hardening (code review round 1+2); Task 39–40 — мульти-item ДЗ (SPEC §1.7) + hardening
+**Статус:** MVP ~90% + AI-советчик v2 (Tasks 31–37) в working tree; Task 38 — tutor hardening (code review round 1+2); Task 39–40 — мульти-item ДЗ (SPEC §1.7) + hardening; **Phase 11 (Tasks 48–52) — UI redesign (SPEC §14), визуальный язык по референсам, адаптив под мобилку — ⏳ pending**
 
 ---
 
@@ -60,8 +60,13 @@
 | 45 | Teacher-аналитика — tools (срез 16-5) | ⏳ pending | §16.2: `summarize_student`, `suggest_homework` (черновик), `class_overview` |
 | 46 | Hybrid retrieval 2b + eval (срез 16-6) | ⏳ pending | §16.1 A4 + §16.4 O2: keyword∪embeddings, recall@5 ≥ 0.8 |
 | 47 | UX + профиль в PostgreSQL (срез 16-7) | ⏳ pending | §16.1 A7 + §16.3 U1/U2: streaming SSE, markdown, профиль из JSON → PG |
+| 48 | Design tokens + базовая тема + логотип + blobs | ⏳ pending | SPEC §14.1/14.2: палитра (teal), `globals.css`, логотип-колба, `DecorativeBlobs` |
+| 49 | Редизайн страницы учебника + mobile nav | ⏳ pending | SPEC §14.2/14.5: карточка, section pill, callouts, formula chips, collapsible nav |
+| 50 | Кастомный аудиоплеер | ⏳ pending | SPEC §14.2: pill-плеер вместо нативного `<audio>`, a11y/клавиатура |
+| 51 | Редизайн тестов (Stepik) + test-modal + итог | ⏳ pending | SPEC §14.2/14.5: card strip, прогресс, blobs, адаптив |
+| 52 | Редизайн ДЗ/дашборд/login + mobile & a11y pass | ⏳ pending | SPEC §14.5/14.6: одноколоночные карточки, focus-visible, контраст |
 
-**Текущий этап:** Task 40 (UI-конструктор мульти-item ДЗ) — ✅ local; далее Task 29 (coverage), Task 30 (Docker/CI), Phase 10 (Tasks 41–47).
+**Текущий этап:** Task 40 (UI-конструктор мульти-item ДЗ) — ✅ local; далее Task 29 (coverage), Task 30 (Docker/CI), Phase 10 (Tasks 41–47), **Phase 11 (Tasks 48–52, UI redesign) — можно вести параллельно, начиная с Task 48→49**.
 
 ---
 
@@ -980,9 +985,10 @@ Task 3  Content SQLite repos                 ✅
 31 → 32 → 33 → 34 → 35 → 36 → 37 → 38 → [AI-советчик v2+]
 39 → 40 (мульти-item ДЗ; backend 39, затем UI 40; 39 можно параллельно с 38)
 41 → 42 → 43 → 44 → 45 → 46 → 47 (надёжность и расширение агента; §16/§17)
+48 → 49 → 50 → 51 → 52 (UI redesign §14; можно параллельно; начать с 48→49)
 ```
 
-**Оценка:** ~30 задач MVP + 8 задач AI-советчика (v2+, Tasks 31–38) + Tasks 39–40 (мульти-item ДЗ) + Tasks 41–47 (надёжность и расширение агента, v0.7).
+**Оценка:** ~30 задач MVP + 8 задач AI-советчика (v2+, Tasks 31–38) + Tasks 39–40 (мульти-item ДЗ) + Tasks 41–47 (надёжность и расширение агента, v0.7) + Tasks 48–52 (UI redesign §14, кабинет ученика, адаптив).
 
 **Прогресс на 2026-06-17:** Tasks 0–19 ✅ | Tasks 20–28 🟡 | Tasks 29–30 ⏳ | Tasks 31–37 🟡 (v2+, в working tree) | Task 38 ✅ local | Task 39 ✅ local | Task 40 ✅ local | Tasks 41–47 ⏳
 
@@ -1409,6 +1415,126 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ---
 
+## Phase 11: UI Redesign (SPEC §14) — визуальный язык по референсам
+
+> Источник: `SPEC.md` §14 (design tokens, компоненты, адаптив, a11y). Референсы — `assets/` (таблица Менделеева, конспекты по химии, логотип-колба, тест-модалка); черновик-макет — `assets/textbook-redesign-teal.png`.
+> **Стиль:** гибрид (чистый веб + лёгкие «бумажные» детали), **без** скевоморфизма. Главный акцент — **teal `#1d6f6b`**.
+> **Scope (допущение, поправь если иначе):** кабинет **ученика** (учебник, тесты, ДЗ, дашборд, login). Кабинет преподавателя — **вне этого среза** (отдельная задача позже).
+> **Адаптивность под мобилку — обязательна** (SPEC §14.5). Каждая задача — вертикальный срез, оставляет UI рабочим; `vitest` зелёный, нет console errors.
+
+## Task 48: Design tokens + базовая тема + логотип + decorative blobs
+
+**Description:** Завести палитру SPEC §14.1 в `frontend/app/globals.css` (teal как главный бренд, кремовый фон, blob-токены), обновить базовые `.chem-*` утилиты (primary-кнопка teal, focus-visible, section pill, callout, formula chip). Компонент `DecorativeBlobs` (SVG, `aria-hidden`). Логотип-колба (SVG из `assets/...f4cfd5c0...png`) как компонент `BrandLogo`. **Только токены/примитивы — без переверстки страниц** (срез изоляции риска).
+
+**Acceptance criteria:**
+- [ ] Токены §14.1 в `:root` + `@theme inline`; `--chem-teal` доступен как `text-chem-teal`/`bg-chem-teal`
+- [ ] `.chem-btn-primary` → teal; `.chem-nav-active` → teal-индикатор; `.chem-formula`, `.chem-callout-*`, `.chem-section-pill` добавлены
+- [ ] `:focus-visible` кольцо `--chem-teal` на интерактивных элементах
+- [ ] `BrandLogo` и `DecorativeBlobs` рендерятся; blobs `aria-hidden`, не под текстом
+- [ ] Контраст белого на `--chem-teal` ≥ 4.5:1 (проверено)
+
+**Verification:**
+- [ ] `npm run build` зелёный; `npm run test` без регрессий
+- [ ] Ручная проверка: существующие экраны не сломаны (токены обратносовместимы)
+
+**Dependencies:** —
+**Files:** `frontend/app/globals.css`, `frontend/components/ui/BrandLogo.tsx`, `frontend/components/ui/DecorativeBlobs.tsx`
+**Scope:** S
+
+---
+
+## Task 49: Редизайн страницы учебника + mobile nav
+
+**Description:** Применить визуальный язык к учебнику (SPEC §14.2/14.3/14.5). Карточка контента (`max-w-[70ch]`), teal card-header strip с бейджем чанка, section pill, callout-боксы (маппинг эмодзи 📌/💡 → `Важно`/`Пример`, SPEC §14.4), formula chips, активный пункт сайдбара с teal-индикатором. **Мобилка:** сайдбар чанков → сворачиваемая панель сверху; контент одной колонкой; sticky низ «Назад/Далее».
+
+**Acceptance criteria:**
+- [ ] Контент в карточке, ширина текста ограничена, типографика §14.3 (line-height ~1.75)
+- [ ] Section pill + callout-боксы (`Пример`/`Важно`) рендерятся; formula chips для формул
+- [ ] Сайдбар: активный пункт — teal-индикатор (полоска), focus-visible
+- [ ] **Mobile:** collapsible панель чанков сверху; одна колонка; sticky «Назад/Далее»; проверено на 360–414px
+- [ ] Маппинг эмодзи→callout вынесен в утилиту с sanitization (XSS-safe), решение по §14.4 зафиксировано в коде
+
+**Verification:**
+- [ ] `vitest`: рендер callout/chip из markdown; collapsible nav (open/close)
+- [ ] Ручная проверка в браузере (desktop + DevTools mobile 375px): нет горизонтального скролла, читаемо
+
+**Dependencies:** Task 48
+**Files:** `frontend/components/textbook/ChunkViewer.tsx`, `frontend/app/student/textbook/[topic]/page.tsx`, `frontend/components/textbook/{ChunkNav,Callout,Formula}.tsx`, `frontend/lib/textbook/markdown.ts`, `frontend/components/textbook/ChunkViewer.test.tsx`
+**Scope:** M
+
+---
+
+## Task 50: Кастомный аудиоплеер
+
+**Description:** Заменить нативный `<audio controls>` на кастомный pill-плеер (SPEC §14.2): круглая teal play/pause-кнопка, teal-прогресс (seek), тайминг, регулировка громкости. Доступность — клавиатура + ARIA. Источник — существующий audio-stream endpoint.
+
+**Acceptance criteria:**
+- [ ] Play/pause, seek по прогресс-бару, отображение `current / duration`
+- [ ] Клавиатура: Space/Enter play-pause, стрелки seek; `aria-label`, состояние объявляется
+- [ ] Стиль teal; работает с текущим `AudioPlayer`-источником (ogg stream)
+- [ ] Loading/ошибка обрабатываются (нет «битого» плеера)
+
+**Verification:**
+- [ ] `vitest`: play/pause toggle, формат времени, ARIA
+- [ ] Ручная проверка: воспроизведение чанка с аудио в браузере + с клавиатуры
+
+**Dependencies:** Task 48
+**Files:** `frontend/components/textbook/AudioPlayer.tsx`, `frontend/components/textbook/AudioPlayer.test.tsx`
+**Scope:** M
+
+---
+
+## Task 51: Редизайн тестов (Stepik) + test-modal + итог
+
+**Description:** Применить стиль к пошаговым тестам (SPEC §14.2/14.5): card-header strip, прогресс (pill «N%»/«Шаг N из M»), formula chips в вопросах, кнопки «Проверить/Подсказка/Разбор» в новом стиле, decorative blobs на экране итога. Адаптив: крупные тач-таргеты, sticky-кнопки на мобилке.
+
+**Acceptance criteria:**
+- [ ] StepView и SessionSummary в новом стиле; прогресс читаемо; verdict (верно/неверно) с цветовым кодированием
+- [ ] Formula chips в тексте задания; изображения inline без переполнения на мобилке
+- [ ] **Mobile:** одно задание на экран, sticky-кнопки, ≥44px тач-таргеты (360–414px)
+- [ ] Decorative blobs на итоговом экране (`aria-hidden`)
+
+**Verification:**
+- [ ] `vitest`: StepView/ProgressBar/SessionSummary рендер и интеракции (без регрессий)
+- [ ] Ручная проверка прохождения 3+ шагов на desktop и mobile
+
+**Dependencies:** Task 48 (Task 50 опц. для chip-утилит)
+**Files:** `frontend/components/tests/{StepView,ProgressBar,QuestionContent,VariantPicker,SessionSummary}.tsx`, `frontend/app/student/tests/**`, соответствующие `*.test.tsx`
+**Scope:** M → L
+
+---
+
+## Task 52: Редизайн ДЗ / дашборд / login + mobile & a11y pass
+
+**Description:** Привести к новому стилю оставшиеся экраны ученика: список/детали ДЗ, дашборд (`/student`), login. Decorative blobs на login/дашборде. Финальный проход по адаптивности (карточки в одну колонку, таблицы → карточный режим) и доступности (focus-visible везде, контраст, `aria-live` на статусах, AI-overlay не перекрывает кнопки и на мобилке — полноэкранный sheet).
+
+**Acceptance criteria:**
+- [ ] ДЗ-списки/детали, дашборд, login — в новом стиле; одноколоночны на мобилке
+- [ ] AI-overlay: на мобилке полноэкранный sheet, не перекрывает «Далее»
+- [ ] a11y: focus-visible на всех интерактивных, контраст ≥4.5:1, заголовки иерархичны
+- [ ] Нет console errors; нет горизонтального скролла на 360–414px
+
+**Verification:**
+- [ ] `vitest` на затронутых компонентах зелёный
+- [ ] Ручная проверка всех экранов ученика на desktop + mobile; быстрый прогон чеклиста `references/accessibility-checklist.md`
+
+**Dependencies:** Task 48, Task 49, Task 51
+**Files:** `frontend/app/student/**`, `frontend/components/homework/**`, `frontend/components/auth/LoginForm.tsx`, `frontend/components/tutor/TutorChatOverlay.tsx`
+**Scope:** M
+
+---
+
+### Checkpoint: UI Redesign (после Tasks 48–52)
+
+- [ ] Единая палитра (teal), логотип, decorative blobs; токены в `globals.css`
+- [ ] Учебник, тесты, ДЗ, дашборд, login — в новом «учебном» стиле
+- [ ] **Мобилка работает** на всех экранах ученика (360–414px), без горизонтального скролла
+- [ ] a11y: контраст, focus-visible, клавиатура плеера, `aria-live`
+- [ ] `vitest` зелёный; нет console errors; прежние тесты без регрессий
+- [ ] Кабинет преподавателя — вынесен в отдельную задачу (вне scope Phase 11)
+
+---
+
 ## Следующий шаг
 
 1. **E2E** — teacher → assign HW (лекция + тест) → student submit → notification + score у teacher.
@@ -1419,3 +1545,4 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 6. **Task 30** — Docker Compose + GitHub Actions.
 7. После MVP → Phase 9 (Tasks 31–38, AI-советчик).
 8. После базового советчика → Phase 10 (Tasks 41–47, надёжность и расширение агента). Начать с **Task 41** (анти-галлюцинации, срез 16-1) — дёшево и высокий эффект; затем **Task 42** (solve-pipeline, §17).
+9. **Phase 11 (UI redesign, SPEC §14)** — можно вести параллельно с backend-задачами. Начать с **Task 48** (design tokens + логотип + blobs, изоляция риска), затем **Task 49** (учебник + mobile nav). Стиль: гибрид, главный акцент teal; адаптив под мобилку обязателен.

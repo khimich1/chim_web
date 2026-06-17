@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+
+import { DecorativeBlobs } from "@/components/ui/DecorativeBlobs";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -27,7 +29,10 @@ export default function RootLayout({
       lang="ru"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="chem-surface min-h-full flex flex-col">{children}</body>
+      <body className="chem-surface relative min-h-full flex flex-col">
+        <DecorativeBlobs />
+        {children}
+      </body>
     </html>
   );
 }

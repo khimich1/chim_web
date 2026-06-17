@@ -22,6 +22,9 @@ export function StepView({ session }: { session: TestSession }) {
   const [explanations, setExplanations] = useState<Record<number, string | null>>(
     {},
   );
+  const [showExplanation, setShowExplanation] = useState<Record<number, boolean>>(
+    {},
+  );
   const [checking, setChecking] = useState(false);
   const [hintLoading, setHintLoading] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -31,6 +34,7 @@ export function StepView({ session }: { session: TestSession }) {
   const isLast = current === steps.length - 1;
   const hintShown = current in hints;
   const explanation = explanations[current];
+  const explanationVisible = showExplanation[current] ?? false;
 
   const checkedCount = useMemo(
     () => steps.filter((s) => s.status === "checked").length,
@@ -62,6 +66,7 @@ export function StepView({ session }: { session: TestSession }) {
         ...prev,
         [current]: result.detailed_explanation,
       }));
+      setShowExplanation((prev) => ({ ...prev, [current]: true }));
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -96,6 +101,13 @@ export function StepView({ session }: { session: TestSession }) {
     }
   }
 
+  function handleToggleExplanation() {
+    setShowExplanation((prev) => ({
+      ...prev,
+      [current]: !explanationVisible,
+    }));
+  }
+
   async function handleComplete() {
     setError(null);
     setCompleting(true);
@@ -119,119 +131,154 @@ export function StepView({ session }: { session: TestSession }) {
   const isChecked = step.status === "checked";
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-4">
       <ProgressBar current={current + 1} total={steps.length} />
 
-      <article className="chem-card rounded-lg p-6">
-        <p className="chem-kicker text-sm normal-case tracking-normal">
-          Задание {step.type}
-        </p>
+      <article className="chem-card overflow-hidden rounded-xl pb-36 sm:pb-6">
+        <header className="flex items-center gap-4 bg-chem-teal px-4 py-4 text-white sm:px-5">
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 text-sm font-bold"
+            aria-label={`Задание ${current + 1}`}
+          >
+            {current + 1}
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-wide text-white/75">
+              Задание
+            </p>
+            <h2 className="truncate text-lg font-semibold">Тип {step.type}</h2>
+          </div>
+        </header>
 
-        <div className="mt-3">
+        <div className="min-w-0 px-4 py-6 sm:px-5">
           <QuestionContent text={step.question} />
-        </div>
 
-        <div className="mt-5 flex flex-col gap-2">
-          <label
-            htmlFor="answer-input"
-            className="text-sm font-medium text-zinc-700"
-          >
-            Ваш ответ
-          </label>
-          <input
-            id="answer-input"
-            type="text"
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            className="chem-input rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
-          />
-        </div>
-
-        {isChecked ? (
-          <p
-            role="status"
-            className={`mt-4 text-sm font-semibold ${
-              step.is_correct
-                ? "text-[var(--chem-green)]"
-                : "text-[var(--chem-crimson)]"
-            }`}
-          >
-            {step.is_correct ? "✓ Верно" : "✗ Неверно"}
-          </p>
-        ) : null}
-
-        {hintShown ? (
-          <div className="mt-4 rounded-md border border-chem-peach/50 bg-chem-peach/10 p-3 text-sm text-zinc-800">
-            <span className="font-medium">Подсказка: </span>
-            {hints[current] ?? "Подсказка отсутствует."}
+          <div className="mt-5 flex flex-col gap-2">
+            <label
+              htmlFor="answer-input"
+              className="text-sm font-medium text-zinc-700"
+            >
+              Ваш ответ
+            </label>
+            <input
+              id="answer-input"
+              type="text"
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              className="chem-input min-h-[44px] w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
+            />
           </div>
-        ) : null}
 
-        {isChecked && explanation ? (
-          <div className="mt-4 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-800">
-            <span className="font-medium">Разбор: </span>
-            <span className="whitespace-pre-wrap">{explanation}</span>
-          </div>
-        ) : null}
+          {isChecked ? (
+            <p
+              role="status"
+              aria-live="polite"
+              className={`mt-4 px-3 py-2 text-sm ${
+                step.is_correct ? "chem-verdict-correct" : "chem-verdict-incorrect"
+              }`}
+            >
+              {step.is_correct ? "✓ Верно" : "✗ Неверно"}
+            </p>
+          ) : null}
 
-        {error ? (
-          <p role="alert" className="mt-4 text-sm text-[var(--chem-crimson)]">
-            {error}
-          </p>
-        ) : null}
+          {hintShown ? (
+            <div className="chem-callout chem-callout-important mt-4">
+              <span className="font-semibold text-chem-teal-dark">Подсказка: </span>
+              {hints[current] ?? "Подсказка отсутствует."}
+            </div>
+          ) : null}
 
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={handleCheck}
-            disabled={checking || answer.trim() === ""}
-            className="chem-btn-primary px-4 py-2 text-sm disabled:opacity-60"
-          >
-            {checking ? "Проверка…" : "Проверить"}
-          </button>
-          <button
-            type="button"
-            onClick={handleHint}
-            disabled={hintLoading || hintShown}
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
-          >
-            {hintLoading ? "Загрузка…" : "Подсказка"}
-          </button>
+          {isChecked && explanation && explanationVisible ? (
+            <div
+              id="step-explanation"
+              className="chem-callout chem-callout-example mt-4"
+            >
+              <span className="font-semibold text-chem-teal-dark">Разбор: </span>
+              <span className="whitespace-pre-wrap">{explanation}</span>
+            </div>
+          ) : null}
+
+          {error ? (
+            <p role="alert" className="mt-4 text-sm text-[var(--chem-crimson)]">
+              {error}
+            </p>
+          ) : null}
         </div>
       </article>
 
-      <div className="flex items-center justify-between gap-4">
-        <button
-          type="button"
-          onClick={() => goTo(current - 1)}
-          disabled={current === 0}
-          className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-40"
+      <div
+        className="fixed bottom-0 left-0 right-0 z-10 border-t border-zinc-200 bg-white/95 backdrop-blur-sm sm:static sm:border-t-0 sm:bg-transparent sm:backdrop-blur-none"
+        aria-label="Действия с заданием"
+      >
+        <div className="mx-auto flex max-w-3xl flex-col gap-2 px-4 py-3 sm:px-0">
+          <div className="flex gap-2 sm:mt-2">
+            <button
+              type="button"
+              onClick={handleCheck}
+              disabled={checking || answer.trim() === "" || isChecked}
+              className="chem-btn-primary min-h-[44px] flex-1 px-4 py-2.5 text-sm disabled:opacity-60 sm:flex-none sm:px-5"
+            >
+              {checking ? "Проверка…" : "Проверить"}
+            </button>
+            <button
+              type="button"
+              onClick={handleHint}
+              disabled={hintLoading || hintShown}
+              className="chem-btn-secondary min-h-[44px] flex-1 px-4 py-2.5 text-sm disabled:opacity-55 sm:flex-none sm:px-5"
+            >
+              {hintLoading ? "Загрузка…" : "Подсказка"}
+            </button>
+            <button
+              type="button"
+              onClick={handleToggleExplanation}
+              disabled={!isChecked || !explanation}
+              className="chem-btn-secondary min-h-[44px] flex-1 px-4 py-2.5 text-sm disabled:opacity-55 sm:flex-none sm:px-5"
+              aria-expanded={explanationVisible}
+              aria-controls="step-explanation"
+            >
+              {explanationVisible ? "Скрыть разбор" : "Разбор"}
+            </button>
+          </div>
+        </div>
+
+        <nav
+          aria-label="Навигация по заданиям"
+          className="border-t border-zinc-200 px-4 py-3 sm:mt-2 sm:border-t sm:border-zinc-200 sm:px-0"
         >
-          ← Назад
-        </button>
+          <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => goTo(current - 1)}
+              disabled={current === 0}
+              className="chem-btn-ghost min-h-[44px] min-w-[44px] px-4 py-2 text-sm disabled:opacity-40"
+            >
+              ← Назад
+            </button>
 
-        <span className="text-sm text-zinc-500">
-          Проверено {checkedCount} из {steps.length}
-        </span>
+            <span className="text-center text-sm text-zinc-500">
+              Проверено {checkedCount} из {steps.length}
+            </span>
 
-        {isLast ? (
-          <button
-            type="button"
-            onClick={handleComplete}
-            disabled={completing}
-            className="chem-btn-primary px-4 py-2 text-sm disabled:opacity-60"
-          >
-            {completing ? "Завершение…" : "Завершить тест"}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => goTo(current + 1)}
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
-          >
-            Далее →
-          </button>
-        )}
+            {isLast ? (
+              <button
+                type="button"
+                onClick={handleComplete}
+                disabled={completing}
+                className="chem-btn-primary min-h-[44px] min-w-[44px] px-4 py-2 text-sm disabled:opacity-60"
+              >
+                {completing ? "…" : "Завершить"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => goTo(current + 1)}
+                className="chem-btn-ghost min-h-[44px] min-w-[44px] px-4 py-2 text-sm"
+              >
+                Далее →
+              </button>
+            )}
+          </div>
+        </nav>
       </div>
     </div>
   );

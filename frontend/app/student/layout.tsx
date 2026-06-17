@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { StudentNav } from "@/components/layout/StudentNav";
 import { TutorChatOverlay } from "@/components/tutor/TutorChatOverlay";
 import { getCurrentUser } from "@/lib/api/server";
 
@@ -17,6 +18,7 @@ export default async function StudentLayout({
   }
   return (
     <>
+      <StudentNav />
       {children}
       <TutorChatOverlay />
     </>

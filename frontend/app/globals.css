@@ -1,27 +1,65 @@
 @import "tailwindcss";
 
-/* Periodic-table palette — use sparingly as accents */
+/* SPEC §14.1 — design tokens (teal primary, warm paper surfaces) */
 :root {
+  /* Surfaces */
+  --chem-bg: #fbf5ea;
+  --chem-card: #ffffff;
+  --chem-surface-muted: #f4eddd;
+  --chem-band: #f3c98a;
+
+  /* Brand — teal is the primary accent */
+  --chem-teal: #1d6f6b;
+  --chem-teal-dark: #16524f;
+  --chem-teal-soft: #cfe3e0;
+
+  /* Periodic-table palette — secondary accents */
   --chem-peach: #ffc878;
   --chem-sky: #00adef;
   --chem-royal: #1b4f9b;
-  --chem-green: #009640;
-  --chem-gold: #ffb800;
+  --chem-green: #3da85a;
+  --chem-gold: #f5a623;
+  --chem-blue: #1c7fc0;
+  --chem-navy: #1b3a6b;
   --chem-crimson: #c1272d;
 
-  --background: #fffdf9;
+  /* Text accents */
+  --text-positive: #2e8b6f;
+  --text-negative: #c1272d;
+  --text-accent: #7b4fa0;
+
+  /* Decorative blobs */
+  --blob-teal: #2e7d76;
+  --blob-slate: #4d5b86;
+  --blob-amber: #e8a13c;
+  --blob-peach: #f0c89a;
+  --blob-sage: #7fa88f;
+
+  --background: var(--chem-bg);
   --foreground: #1a1a1a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-chem-bg: var(--chem-bg);
+  --color-chem-card: var(--chem-card);
+  --color-chem-surface-muted: var(--chem-surface-muted);
+  --color-chem-band: var(--chem-band);
+  --color-chem-teal: var(--chem-teal);
+  --color-chem-teal-dark: var(--chem-teal-dark);
+  --color-chem-teal-soft: var(--chem-teal-soft);
   --color-chem-peach: var(--chem-peach);
   --color-chem-sky: var(--chem-sky);
   --color-chem-royal: var(--chem-royal);
   --color-chem-green: var(--chem-green);
   --color-chem-gold: var(--chem-gold);
+  --color-chem-blue: var(--chem-blue);
+  --color-chem-navy: var(--chem-navy);
   --color-chem-crimson: var(--chem-crimson);
+  --color-text-positive: var(--text-positive);
+  --color-text-negative: var(--text-negative);
+  --color-text-accent: var(--text-accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -32,24 +70,30 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
+/* Focus ring — SPEC §14.6 */
+:focus-visible {
+  outline: 2px solid var(--chem-teal);
+  outline-offset: 2px;
+}
+
 /* Surfaces */
 .chem-surface {
   background: linear-gradient(
     165deg,
-    color-mix(in srgb, var(--chem-peach) 22%, white) 0%,
-    white 45%
+    color-mix(in srgb, var(--chem-band) 28%, var(--chem-bg)) 0%,
+    var(--chem-bg) 55%
   );
 }
 
 .chem-card {
-  border: 1px solid color-mix(in srgb, var(--chem-royal) 12%, #e4e4e7);
-  background: white;
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--chem-royal) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--chem-teal) 14%, #e4e4e7);
+  background: var(--chem-card);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--chem-teal) 8%, transparent);
 }
 
 /* Typography accents */
 .chem-kicker {
-  color: var(--chem-royal);
+  color: var(--chem-teal-dark);
   font-size: 0.875rem;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -57,40 +101,155 @@ body {
 }
 
 .chem-link {
-  color: var(--chem-royal);
+  color: var(--chem-teal);
   font-weight: 500;
   text-underline-offset: 2px;
 }
 
 .chem-link:hover {
-  color: var(--chem-sky);
+  color: var(--chem-teal-dark);
   text-decoration: underline;
+}
+
+.chem-section-pill {
+  display: inline-block;
+  border-radius: 9999px;
+  background: var(--chem-teal-soft);
+  color: var(--chem-teal-dark);
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.375rem 1rem;
+}
+
+/* Callout boxes — SPEC §14.2 */
+.chem-callout {
+  border-radius: 0.5rem;
+  padding: 0.875rem 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.chem-callout-example {
+  background: color-mix(in srgb, var(--chem-blue) 12%, white);
+  border-left: 4px solid var(--chem-blue);
+}
+
+.chem-callout-important {
+  background: color-mix(in srgb, var(--chem-band) 45%, white);
+  border-left: 4px solid var(--chem-gold);
+}
+
+.chem-callout-remember {
+  background: color-mix(in srgb, var(--chem-teal-soft) 70%, white);
+  border-left: 4px solid var(--chem-teal);
+}
+
+/* Formula chips — inline code styled as chemistry notation */
+.chem-formula,
+.chem-formula code {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.9em;
+  background: color-mix(in srgb, var(--chem-blue) 10%, white);
+  border-radius: 0.25rem;
+  padding: 0.1em 0.35em;
 }
 
 /* Controls */
 .chem-btn-primary {
   border-radius: 0.375rem;
-  background: var(--chem-royal);
+  background: var(--chem-teal);
   color: white;
   font-weight: 500;
-  transition: filter 0.15s ease;
+  transition: background-color 0.15s ease;
 }
 
 .chem-btn-primary:hover:not(:disabled) {
-  filter: brightness(1.08);
+  background: var(--chem-teal-dark);
 }
 
 .chem-btn-primary:disabled {
   opacity: 0.6;
 }
 
-.chem-input:focus {
-  border-color: var(--chem-sky);
-  outline: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chem-sky) 25%, transparent);
+.chem-btn-secondary {
+  border-radius: 0.375rem;
+  border: 1px solid color-mix(in srgb, var(--chem-teal) 35%, #e4e4e7);
+  background: color-mix(in srgb, var(--chem-teal-soft) 35%, white);
+  color: var(--chem-teal-dark);
+  font-weight: 500;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
 }
 
-/* Track badges (ЕГЭ = gold alkali, ОГЭ = green transition) */
+.chem-btn-secondary:hover:not(:disabled) {
+  background: var(--chem-teal-soft);
+  border-color: var(--chem-teal);
+}
+
+.chem-btn-secondary:disabled {
+  opacity: 0.55;
+}
+
+.chem-btn-ghost {
+  border-radius: 0.375rem;
+  border: 1px solid #d4d4d8;
+  background: white;
+  color: #3f3f46;
+  font-weight: 500;
+  transition: background-color 0.15s ease;
+}
+
+.chem-btn-ghost:hover:not(:disabled) {
+  background: #fafafa;
+}
+
+.chem-btn-ghost:disabled {
+  opacity: 0.4;
+}
+
+/* Test modal — progress pill (SPEC §14.2) */
+.chem-progress-pill {
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--chem-teal) 18%, #e4e4e7);
+  background: var(--chem-card);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--chem-teal) 8%, transparent);
+}
+
+.chem-progress-pill__percent {
+  border-radius: 9999px;
+  background: var(--chem-teal);
+  color: white;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 0.25rem 0.75rem;
+}
+
+/* Verdict blocks — tests (SPEC §14.2) */
+.chem-verdict-correct {
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--chem-green) 35%, white);
+  background: color-mix(in srgb, var(--chem-green) 12%, white);
+  color: var(--text-positive);
+  font-weight: 600;
+}
+
+.chem-verdict-incorrect {
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--chem-crimson) 35%, white);
+  background: color-mix(in srgb, var(--chem-crimson) 10%, white);
+  color: var(--text-negative);
+  font-weight: 600;
+}
+
+.chem-input:focus {
+  border-color: var(--chem-teal);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chem-teal) 25%, transparent);
+}
+
+/* Track badges (ЕГЭ = gold, ОГЭ = green) */
 .chem-badge-ege {
   border-radius: 9999px;
   background: color-mix(in srgb, var(--chem-gold) 88%, white);
@@ -110,11 +269,142 @@ body {
 }
 
 .chem-nav-active {
-  background: var(--chem-royal);
+  background: var(--chem-teal);
   color: white;
+  box-shadow: inset 3px 0 0 var(--chem-teal-dark);
+}
+
+/* Lecture typography — SPEC §14.3 */
+.chem-lecture-prose {
+  max-width: 70ch;
+  font-size: 1.0625rem;
+  line-height: 1.75;
+}
+
+.chem-lecture-prose .chem-callout {
+  margin-block: 1rem;
 }
 
 .chem-table-head {
-  background: color-mix(in srgb, var(--chem-peach) 35%, white);
-  color: var(--chem-royal);
+  background: color-mix(in srgb, var(--chem-teal-soft) 55%, white);
+  color: var(--chem-teal-dark);
+}
+
+/* Custom audio player — SPEC §14.2 */
+.chem-audio-player {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 0.875rem 0.5rem 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--chem-teal) 18%, #e4e4e7);
+  background: var(--chem-card);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--chem-teal) 8%, transparent);
+}
+
+.chem-audio-player:focus-visible {
+  outline: 2px solid var(--chem-teal);
+  outline-offset: 2px;
+}
+
+.chem-audio-player__play {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  border: none;
+  background: var(--chem-teal);
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.chem-audio-player__play:hover:not(:disabled) {
+  background: var(--chem-teal-dark);
+}
+
+.chem-audio-player__play:focus-visible {
+  outline: 2px solid var(--chem-teal-dark);
+  outline-offset: 2px;
+}
+
+.chem-audio-player__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.chem-audio-player__progress,
+.chem-audio-player__volume {
+  width: 100%;
+  height: 0.375rem;
+  margin: 0;
+  appearance: none;
+  border-radius: 9999px;
+  background: var(--chem-teal-soft);
+  cursor: pointer;
+}
+
+.chem-audio-player__progress:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.chem-audio-player__progress::-webkit-slider-thumb,
+.chem-audio-player__volume::-webkit-slider-thumb {
+  appearance: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 9999px;
+  border: 2px solid white;
+  background: var(--chem-teal);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--chem-teal) 35%, transparent);
+}
+
+.chem-audio-player__progress::-moz-range-thumb,
+.chem-audio-player__volume::-moz-range-thumb {
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 9999px;
+  border: 2px solid white;
+  background: var(--chem-teal);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--chem-teal) 35%, transparent);
+}
+
+.chem-audio-player__progress::-webkit-slider-runnable-track,
+.chem-audio-player__volume::-webkit-slider-runnable-track {
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--chem-teal) 0%,
+    var(--chem-teal) var(--progress, 0%),
+    var(--chem-teal-soft) var(--progress, 0%),
+    var(--chem-teal-soft) 100%
+  );
+}
+
+.chem-audio-player__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.chem-audio-player__time {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--chem-teal-dark);
+  white-space: nowrap;
+}
+
+.chem-audio-player__volume {
+  max-width: 5.5rem;
 }

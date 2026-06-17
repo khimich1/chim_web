@@ -44,7 +44,10 @@ export function LectureHomeworkSubmit({
 
   if (done) {
     return (
-      <p className="text-sm text-chem-green">
+      <p
+        className="text-sm font-medium text-[var(--text-positive)]"
+        aria-live="polite"
+      >
         Пункт по теме «{topic}» отмечен как прочитанный.
       </p>
     );
@@ -52,16 +55,18 @@ export function LectureHomeworkSubmit({
 
   return (
     <div className="flex flex-col gap-3">
-      {error ? (
-        <p role="alert" className="text-sm text-[var(--chem-crimson)]">
-          {error}
-        </p>
-      ) : null}
+      <div aria-live="polite">
+        {error ? (
+          <p role="alert" className="text-sm text-[var(--chem-crimson)]">
+            {error}
+          </p>
+        ) : null}
+      </div>
       <button
         type="button"
         onClick={handleSubmit}
         disabled={submitting}
-        className="inline-flex w-fit rounded-md border border-chem-royal px-4 py-2 text-sm font-medium text-chem-royal transition hover:bg-chem-royal/5 disabled:opacity-60"
+        className="chem-btn-secondary inline-flex min-h-[44px] w-fit items-center px-4 py-2 text-sm disabled:opacity-60"
       >
         {submitting ? "Отправка…" : "Прочитано"}
       </button>

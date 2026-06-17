@@ -66,6 +66,13 @@ beforeEach(() => {
 });
 
 describe("StepView", () => {
+  it("renders progress pill with current step", () => {
+    render(<StepView session={session} />);
+
+    expect(screen.getByText("Шаг 1 из 2")).toBeInTheDocument();
+    expect(screen.getByText("50%")).toBeInTheDocument();
+  });
+
   it("checks an answer and shows instant feedback", async () => {
     mockedCheck.mockResolvedValue({
       position: 0,
@@ -104,7 +111,7 @@ describe("StepView", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Далее →" }));
     await userEvent.click(
-      screen.getByRole("button", { name: "Завершить тест" }),
+      screen.getByRole("button", { name: "Завершить" }),
     );
 
     await waitFor(() => {
