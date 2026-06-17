@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api/client";
 import type {
+  ActiveSessionResult,
   HintResult,
   StepCheckResult,
   TestSession,

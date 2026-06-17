@@ -372,6 +372,7 @@ class TestSessionService:
         steps: list[StepRead] = []
         for step in test_session.steps:
             question = self._require_question(repo, step.test_id)
+            hint = question.hint if step.hint_used else None
             explanation = None
             if step.status == StepStatus.CHECKED:
                 explanation = question.detailed_explanation
@@ -386,6 +387,7 @@ class TestSessionService:
                     answer=step.answer,
                     is_correct=step.is_correct,
                     hint_used=step.hint_used,
+                    hint=hint,
                     detailed_explanation=explanation,
                 )
             )

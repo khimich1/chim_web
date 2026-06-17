@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ApiError } from "@/lib/api/client";
@@ -30,6 +30,16 @@ function buildInitialExplanations(
   return map;
 }
 
+function buildInitialHints(steps: TestStep[]): Record<number, string | null> {
+  const map: Record<number, string | null> = {};
+  steps.forEach((step, index) => {
+    if (step.hint_used) {
+      map[index] = step.hint ?? null;
+    }
+  });
+  return map;
+}
+
 function buildInitialExplanationVisibility(
   steps: TestStep[],
 ): Record<number, boolean> {
@@ -50,7 +60,9 @@ export function StepView({ session }: { session: TestSession }) {
   const [answer, setAnswer] = useState(
     session.steps[initialIndex]?.answer ?? "",
   );
-  const [hints, setHints] = useState<Record<number, string | null>>({});
+  const [hints, setHints] = useState<Record<number, string | null>>(() =>
+    buildInitialHints(session.steps),
+  );
   const [explanations, setExplanations] = useState<Record<number, string | null>>(
     () => buildInitialExplanations(session.steps),
   );
@@ -72,32 +84,6 @@ export function StepView({ session }: { session: TestSession }) {
     () => steps.filter((s) => s.status === "checked").length,
     [steps],
   );
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function restoreHints() {
-      for (let index = 0; index < session.steps.length; index += 1) {
-        const sessionStep = session.steps[index];
-        if (!sessionStep.hint_used) {
-          continue;
-        }
-        try {
-          const result = await getHint(session.id, sessionStep.position);
-          if (!cancelled) {
-            setHints((prev) => ({ ...prev, [index]: result.hint }));
-          }
-        } catch {
-          // Resume should not block the session if hint restore fails.
-        }
-      }
-    }
-
-    void restoreHints();
-    return () => {
-      cancelled = true;
-    };
-  }, [session.id, session.steps]);
 
   function goTo(index: number) {
     setCurrent(index);
@@ -154,7 +140,12 @@ export function StepView({ session }: { session: TestSession }) {
       setSteps((prev) =>
         prev.map((s) =>
           s.position === step.position
-            ? { ...s, hint_used: true, status: s.status === "unseen" ? "answered" : s.status }
+            ? {
+                ...s,
+                hint_used: true,
+                hint: result.hint,
+                status: s.status === "unseen" ? "answered" : s.status,
+              }
             : s,
         ),
       );

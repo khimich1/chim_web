@@ -55,6 +55,7 @@ export interface TestStep {
   answer: string | null;
   is_correct: boolean | null;
   hint_used: boolean;
+  hint?: string | null;
   detailed_explanation?: string | null;
 }
 

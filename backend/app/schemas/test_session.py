@@ -1,7 +1,8 @@
 """Schemas for Stepik-style test sessions.
 
-Step views never expose `correct_ans`. Hint and detailed explanation are
-returned only by their dedicated endpoints / after an explicit check.
+Step views never expose `correct_ans`. Hint text is included in ``StepRead``
+only when ``hint_used`` is true (resume, SPEC §1.3.2). Detailed explanation
+is included for checked steps.
 """
 
 from __future__ import annotations
@@ -41,6 +42,8 @@ class StepRead(BaseModel):
     answer: str | None = None
     is_correct: bool | None = None
     hint_used: bool
+    # Populated on resume when hint_used (SPEC §1.3.2).
+    hint: str | None = None
     # Populated on resume for checked steps (SPEC §1.3.2).
     detailed_explanation: str | None = None
 

@@ -160,7 +160,7 @@ describe("StepView", () => {
     expect(await screen.findByText(/Смотри валентность/)).toBeInTheDocument();
   });
 
-  it("restores hints for steps with hint_used on mount", async () => {
+  it("restores hints from session data without refetching", async () => {
     const hintedSession: TestSession = {
       ...session,
       steps: [
@@ -168,17 +168,17 @@ describe("StepView", () => {
           ...session.steps[0],
           status: "answered",
           hint_used: true,
+          hint: "Сохранённая подсказка",
         },
         session.steps[1],
       ],
     };
 
-    mockedHint.mockResolvedValue({ hint: "Сохранённая подсказка" });
-
     render(<StepView session={hintedSession} />);
 
     await userEvent.click(screen.getAllByRole("tab")[0]);
     expect(await screen.findByText(/Сохранённая подсказка/)).toBeInTheDocument();
+    expect(mockedHint).not.toHaveBeenCalled();
   });
 
   it("completes the test on the last step and navigates to summary", async () => {

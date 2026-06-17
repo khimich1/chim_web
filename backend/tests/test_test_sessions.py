@@ -193,19 +193,21 @@ def test_check_step_wrong_answer_then_recheck(client: TestClient) -> None:
     assert step0["status"] == "checked"
 
 
-def test_hint_returned_only_on_request(client: TestClient) -> None:
+def test_hint_returned_only_after_use(client: TestClient) -> None:
     _login(client)
     body = _create_session(client)
     session_id = body["id"]
 
-    # Step view does not include hint text.
-    assert "hint" not in body["steps"][0]
+    assert body["steps"][0]["hint_used"] is False
+    assert body["steps"][0]["hint"] is None
 
     response = client.get(f"/api/tests/sessions/{session_id}/steps/0/hint")
     assert response.status_code == 200
+    hint_text = response.json()["hint"]
 
     state = client.get(f"/api/tests/sessions/{session_id}").json()
     assert state["steps"][0]["hint_used"] is True
+    assert state["steps"][0]["hint"] == hint_text
 
 
 def test_complete_session_computes_score(client: TestClient) -> None:
