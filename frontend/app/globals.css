@@ -226,6 +226,65 @@ body {
   padding: 0.25rem 0.75rem;
 }
 
+.chem-step-dots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chem-step-dots--scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 0.25rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chem-step-dot {
+  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  padding: 0;
+  scroll-snap-align: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.chem-step-dot:disabled {
+  cursor: default;
+}
+
+.chem-step-dot:not(:disabled) {
+  cursor: pointer;
+}
+
+.chem-step-dot--unseen {
+  background: white;
+  border-color: var(--chem-teal-soft);
+}
+
+.chem-step-dot--answered {
+  background: var(--chem-teal-soft);
+  border-color: var(--chem-teal);
+}
+
+.chem-step-dot--correct {
+  background: var(--chem-green);
+  border-color: transparent;
+}
+
+.chem-step-dot--incorrect {
+  background: var(--chem-crimson);
+  border-color: transparent;
+}
+
+.chem-step-dot--current {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 2px var(--chem-teal);
+}
+
 /* Verdict blocks — tests (SPEC §14.2) */
 .chem-verdict-correct {
   border-radius: 0.5rem;

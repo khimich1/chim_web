@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { createHomeworkTestSession } from "@/lib/api/tests";
 import { ApiError } from "@/lib/api/client";
 
 export function TestHomeworkActions({
   homeworkId,
+  activeTestSessionId = null,
 }: {
   homeworkId: string;
+  activeTestSessionId?: string | null;
 }) {
   const router = useRouter();
   const [starting, setStarting] = useState(false);
@@ -32,6 +34,13 @@ export function TestHomeworkActions({
     }
   }
 
+  function handleContinue() {
+    if (!activeTestSessionId) {
+      return;
+    }
+    router.push(`/student/tests/sessions/${activeTestSessionId}`);
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div aria-live="polite">
@@ -41,14 +50,24 @@ export function TestHomeworkActions({
           </p>
         ) : null}
       </div>
-      <button
-        type="button"
-        onClick={handleStart}
-        disabled={starting}
-        className="chem-btn-primary inline-flex min-h-[44px] w-fit items-center px-4 py-2 text-sm disabled:opacity-60"
-      >
-        {starting ? "Запуск…" : "Начать тест"}
-      </button>
+      {activeTestSessionId ? (
+        <button
+          type="button"
+          onClick={handleContinue}
+          className="chem-btn-primary inline-flex min-h-[44px] w-fit items-center px-4 py-2 text-sm"
+        >
+          Продолжить тест
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={handleStart}
+          disabled={starting}
+          className="chem-btn-primary inline-flex min-h-[44px] w-fit items-center px-4 py-2 text-sm disabled:opacity-60"
+        >
+          {starting ? "Запуск…" : "Начать тест"}
+        </button>
+      )}
       <p className="text-xs text-zinc-500">
         После завершения теста вернитесь сюда или сдайте задание на экране итогов.
       </p>

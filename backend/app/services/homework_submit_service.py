@@ -104,7 +104,8 @@ class HomeworkSubmitService:
 
         reloaded = await self._homework.get_by_id(assignment_id)
         assert reloaded is not None
-        return to_homework_read(reloaded)
+        active_id = await self._active_session_id(student.id, assignment_id)
+        return to_homework_read(reloaded, active_test_session_id=active_id)
 
     async def complete_item(
         self,
@@ -145,7 +146,8 @@ class HomeworkSubmitService:
 
         reloaded = await self._homework.get_by_id(assignment_id)
         assert reloaded is not None
-        return to_homework_read(reloaded)
+        active_id = await self._active_session_id(student.id, assignment_id)
+        return to_homework_read(reloaded, active_test_session_id=active_id)
 
     async def mark_in_progress(
         self,
@@ -156,6 +158,17 @@ class HomeworkSubmitService:
         if assignment.status == HomeworkStatus.ASSIGNED:
             await self._homework.update_status(assignment, HomeworkStatus.IN_PROGRESS)
             await self._session.commit()
+
+    async def _active_session_id(
+        self,
+        student_id: uuid.UUID,
+        homework_assignment_id: uuid.UUID,
+    ) -> uuid.UUID | None:
+        active = await self._sessions.find_latest_active(
+            student_id,
+            homework_assignment_id=homework_assignment_id,
+        )
+        return active.id if active is not None else None
 
     async def _resolve_completed_test_session(
         self,

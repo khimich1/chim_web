@@ -124,6 +124,90 @@ def test_login_unknown_email_returns_401(client: TestClient) -> None:
     assert _login(client, "nobody@example.com", "x").status_code == 401
 
 
+def test_login_inactive_user_returns_401(tmp_path: Path) -> None:
+    db_file = tmp_path / "auth_inactive.db"
+    db_url = f"sqlite+aiosqlite:///{db_file.as_posix()}"
+    inactive_email = "inactive@example.com"
+
+    async def _setup() -> None:
+        engine = create_async_engine(db_url)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        session_maker = async_sessionmaker(engine, expire_on_commit=False)
+        async with session_maker() as session:
+            session.add(
+                User(
+                    email=inactive_email,
+                    password_hash=hash_password(TEACHER_PASS),
+                    role=UserRole.TEACHER,
+                    is_active=False,
+                )
+            )
+            await session.commit()
+        await engine.dispose()
+
+    asyncio.run(_setup())
+
+    request_engine = create_async_engine(db_url, poolclass=NullPool)
+    request_sessions = async_sessionmaker(request_engine, expire_on_commit=False)
+
+    async def _override_get_db():
+        async with request_sessions() as session:
+            yield session
+
+    get_settings.cache_clear()
+    app = create_app(settings=Settings())
+    app.dependency_overrides[get_db] = _override_get_db
+
+    with TestClient(app) as test_client:
+        assert _login(test_client, inactive_email, TEACHER_PASS).status_code == 401
+
+    asyncio.run(request_engine.dispose())
+
+
+def test_student_without_profile_has_null_track(tmp_path: Path) -> None:
+    db_file = tmp_path / "auth_no_profile.db"
+    db_url = f"sqlite+aiosqlite:///{db_file.as_posix()}"
+    orphan_email = "orphan@example.com"
+
+    async def _setup() -> None:
+        engine = create_async_engine(db_url)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        session_maker = async_sessionmaker(engine, expire_on_commit=False)
+        async with session_maker() as session:
+            session.add(
+                User(
+                    email=orphan_email,
+                    password_hash=hash_password(STUDENT_PASS),
+                    role=UserRole.STUDENT,
+                )
+            )
+            await session.commit()
+        await engine.dispose()
+
+    asyncio.run(_setup())
+
+    request_engine = create_async_engine(db_url, poolclass=NullPool)
+    request_sessions = async_sessionmaker(request_engine, expire_on_commit=False)
+
+    async def _override_get_db():
+        async with request_sessions() as session:
+            yield session
+
+    get_settings.cache_clear()
+    app = create_app(settings=Settings())
+    app.dependency_overrides[get_db] = _override_get_db
+
+    with TestClient(app) as test_client:
+        login = _login(test_client, orphan_email, STUDENT_PASS)
+        assert login.status_code == 200
+        assert login.json()["track"] is None
+        assert test_client.get("/api/auth/me").json()["track"] is None
+
+    asyncio.run(request_engine.dispose())
+
+
 def test_me_returns_track_for_student(client: TestClient) -> None:
     assert _login(client, STUDENT_EMAIL, STUDENT_PASS).status_code == 200
 

@@ -41,6 +41,8 @@ class StepRead(BaseModel):
     answer: str | None = None
     is_correct: bool | None = None
     hint_used: bool
+    # Populated on resume for checked steps (SPEC §1.3.2).
+    detailed_explanation: str | None = None
 
 
 class SessionRead(BaseModel):
@@ -78,6 +80,10 @@ class SessionSummaryStep(BaseModel):
     type: int
     is_correct: bool | None = None
     hint_used: bool
+
+
+class ActiveSessionResponse(BaseModel):
+    session_id: uuid.UUID | None = None
 
 
 class SessionSummary(BaseModel):

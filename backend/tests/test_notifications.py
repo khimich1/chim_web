@@ -128,3 +128,71 @@ def test_homework_submit_creates_notification(client: TestClient) -> None:
 def test_student_cannot_list_notifications(client: TestClient) -> None:
     assert _login(client, STUDENT_EMAIL, STUDENT_PASS).status_code == 200
     assert client.get("/api/notifications").status_code == 403
+
+
+def test_student_cannot_get_unread_count(client: TestClient) -> None:
+    assert _login(client, STUDENT_EMAIL, STUDENT_PASS).status_code == 200
+    assert client.get("/api/notifications/unread-count").status_code == 403
+
+
+def test_mark_read_unknown_notification_returns_404(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+    missing_id = uuid.uuid4()
+    assert client.patch(f"/api/notifications/{missing_id}/read").status_code == 404
+
+
+def test_teacher_cannot_mark_other_teachers_notification(
+    client: TestClient, tmp_path: Path
+) -> None:
+    other_teacher_id = uuid.uuid4()
+    other_email = "other-teacher@example.com"
+
+    db_url = str(tmp_path / "notifications.db")
+    if not db_url.startswith("sqlite"):
+        db_url = f"sqlite+aiosqlite:///{(tmp_path / 'notifications_extra.db').as_posix()}"
+
+    async def _add_teacher() -> None:
+        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+
+        engine = create_async_engine(
+            f"sqlite+aiosqlite:///{(tmp_path / 'notifications.db').as_posix()}"
+        )
+        session_maker = async_sessionmaker(engine, expire_on_commit=False)
+        async with session_maker() as session:
+            session.add(
+                User(
+                    id=other_teacher_id,
+                    email=other_email,
+                    password_hash=hash_password(TEACHER_PASS),
+                    role=UserRole.TEACHER,
+                )
+            )
+            await session.commit()
+        await engine.dispose()
+
+    asyncio.run(_add_teacher())
+
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+    student_id = client.get("/api/students").json()[0]["id"]
+    assignment_id = client.post(
+        "/api/homework",
+        json={
+            "student_id": student_id,
+            "title": "ДЗ",
+            "items": [{"kind": "lecture", "topic": "Алканы"}],
+        },
+    ).json()["id"]
+
+    client.post("/api/auth/logout")
+    assert _login(client, STUDENT_EMAIL, STUDENT_PASS).status_code == 200
+    client.post(f"/api/homework/{assignment_id}/submit", json={})
+
+    client.post("/api/auth/logout")
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+    notification_id = client.get("/api/notifications").json()[0]["id"]
+
+    client.post("/api/auth/logout")
+    assert _login(client, other_email, TEACHER_PASS).status_code == 200
+    assert (
+        client.patch(f"/api/notifications/{notification_id}/read").status_code == 403
+    )

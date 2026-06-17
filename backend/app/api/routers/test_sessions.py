@@ -3,6 +3,7 @@
 | Method | Path                                          | Role    | Response          |
 |--------|-----------------------------------------------|---------|-------------------|
 | POST   | /api/tests/sessions                           | student | SessionRead (201) |
+| GET    | /api/tests/sessions/active                    | student | ActiveSessionResponse |
 | GET    | /api/tests/sessions/{id}                      | student | SessionRead       |
 | POST   | /api/tests/sessions/{id}/steps/{n}/check      | student | StepCheckResponse |
 | GET    | /api/tests/sessions/{id}/steps/{n}/hint       | student | HintResponse      |
@@ -21,6 +22,7 @@ from app.api.deps import StudentUser, get_app_settings
 from app.core.config import Settings
 from app.db.session import get_db
 from app.schemas.test_session import (
+    ActiveSessionResponse,
     HintResponse,
     SessionCreate,
     SessionRead,
@@ -47,6 +49,20 @@ async def create_session(
     service: Annotated[TestSessionService, Depends(get_test_session_service)],
 ) -> SessionRead:
     return await service.create_session(student, payload)
+
+
+@router.get("/active", response_model=ActiveSessionResponse)
+async def get_active_session(
+    student: StudentUser,
+    service: Annotated[TestSessionService, Depends(get_test_session_service)],
+    variant_ref: str | None = None,
+    homework_assignment_id: uuid.UUID | None = None,
+) -> ActiveSessionResponse:
+    return await service.get_active_session(
+        student,
+        variant_ref=variant_ref,
+        homework_assignment_id=homework_assignment_id,
+    )
 
 
 @router.get("/{session_id}", response_model=SessionRead)

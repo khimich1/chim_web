@@ -148,6 +148,7 @@ def test_student_lists_own_homework(client: TestClient) -> None:
 
     detail = client.get(f"/api/homework/{assignment_id}")
     assert detail.status_code == 200
+    assert detail.json()["active_test_session_id"] is None
 
 
 def test_student_submits_lecture_homework(client: TestClient) -> None:

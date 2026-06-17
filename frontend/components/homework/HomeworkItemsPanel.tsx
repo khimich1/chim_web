@@ -120,7 +120,10 @@ export function HomeworkItemsPanel({
               </p>
             ) : (
               <div className="mt-4 border-t border-zinc-100 pt-4">
-                <TestHomeworkActions homeworkId={homework.id} />
+                <TestHomeworkActions
+                  homeworkId={homework.id}
+                  activeTestSessionId={homework.active_test_session_id}
+                />
               </div>
             )}
           </div>

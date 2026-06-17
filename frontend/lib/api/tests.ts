@@ -38,6 +38,23 @@ export function getSession(sessionId: string): Promise<TestSession> {
   return apiFetch<TestSession>(`/api/tests/sessions/${sessionId}`);
 }
 
+export function getActiveSession(
+  params:
+    | { variantRef: string; homeworkAssignmentId?: undefined }
+    | { homeworkAssignmentId: string; variantRef?: undefined },
+): Promise<ActiveSessionResult> {
+  const search = new URLSearchParams();
+  if ("variantRef" in params && params.variantRef) {
+    search.set("variant_ref", params.variantRef);
+  }
+  if ("homeworkAssignmentId" in params && params.homeworkAssignmentId) {
+    search.set("homework_assignment_id", params.homeworkAssignmentId);
+  }
+  return apiFetch<ActiveSessionResult>(
+    `/api/tests/sessions/active?${search.toString()}`,
+  );
+}
+
 export function checkStep(
   sessionId: string,
   position: number,

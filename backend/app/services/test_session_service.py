@@ -31,6 +31,7 @@ from app.repositories.app.test_session_repo import TestSessionRepository
 from app.repositories.content.base import ContentDbError
 from app.repositories.content.tests import ExamContentRepo, TestQuestion
 from app.schemas.test_session import (
+    ActiveSessionResponse,
     HintResponse,
     SessionCreate,
     SessionRead,
@@ -101,6 +102,7 @@ class TestSessionService:
             variant_ref=variant_ref,
             homework_assignment_id=data.homework_assignment_id,
             status=TestSessionStatus.IN_PROGRESS,
+            created_at=datetime.now(timezone.utc),
             steps=[
                 TestSessionStep(
                     position=index,
@@ -190,6 +192,45 @@ class TestSessionService:
                 detail="Homework assignment has no test items",
             )
         return sources
+
+    async def get_active_session(
+        self,
+        student: User,
+        *,
+        variant_ref: str | None = None,
+        homework_assignment_id: uuid.UUID | None = None,
+    ) -> ActiveSessionResponse:
+        has_variant = bool((variant_ref or "").strip())
+        has_homework = homework_assignment_id is not None
+        if has_variant == has_homework:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Provide exactly one of variant_ref or homework_assignment_id",
+            )
+
+        if homework_assignment_id is not None:
+            assignment = await HomeworkRepository(self._session).get_by_id(
+                homework_assignment_id
+            )
+            if assignment is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Homework not found",
+                )
+            if assignment.student_id != student.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Not your homework assignment",
+                )
+
+        active = await self._repo.find_latest_active(
+            student.id,
+            variant_ref=variant_ref.strip() if has_variant else None,
+            homework_assignment_id=homework_assignment_id,
+        )
+        return ActiveSessionResponse(
+            session_id=active.id if active is not None else None,
+        )
 
     async def get_session(
         self, student: User, session_id: uuid.UUID
@@ -331,6 +372,9 @@ class TestSessionService:
         steps: list[StepRead] = []
         for step in test_session.steps:
             question = self._require_question(repo, step.test_id)
+            explanation = None
+            if step.status == StepStatus.CHECKED:
+                explanation = question.detailed_explanation
             steps.append(
                 StepRead(
                     position=step.position,
@@ -342,6 +386,7 @@ class TestSessionService:
                     answer=step.answer,
                     is_correct=step.is_correct,
                     hint_used=step.hint_used,
+                    detailed_explanation=explanation,
                 )
             )
         return SessionRead(

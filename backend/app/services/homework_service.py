@@ -18,6 +18,7 @@ from app.models.enums import HomeworkItemKind
 from app.core.config import get_settings
 from app.repositories.app.homework_repo import HomeworkRepository
 from app.repositories.app.student_repo import StudentRepository
+from app.repositories.app.test_session_repo import TestSessionRepository
 from app.schemas.homework import HomeworkCreate, HomeworkRead
 from app.services.homework_mapper import to_homework_read
 from app.services.homework_validation import validate_homework_items
@@ -28,6 +29,7 @@ class HomeworkService:
         self._session = session
         self._homework = HomeworkRepository(session)
         self._students = StudentRepository(session)
+        self._test_sessions = TestSessionRepository(session)
 
     async def create_assignment(
         self,
@@ -82,7 +84,24 @@ class HomeworkService:
                 for assignment in assignments
             ]
         assignments = await self._homework.list_by_student(user.id)
-        return [to_homework_read(assignment) for assignment in assignments]
+        result: list[HomeworkRead] = []
+        for assignment in assignments:
+            active_id = await self._active_session_id(user.id, assignment.id)
+            result.append(
+                to_homework_read(assignment, active_test_session_id=active_id)
+            )
+        return result
+
+    async def _active_session_id(
+        self,
+        student_id: uuid.UUID,
+        homework_assignment_id: uuid.UUID,
+    ) -> uuid.UUID | None:
+        active = await self._test_sessions.find_latest_active(
+            student_id,
+            homework_assignment_id=homework_assignment_id,
+        )
+        return active.id if active is not None else None
 
     async def get_assignment(self, user: User, assignment_id: uuid.UUID) -> HomeworkRead:
         assignment = await self._homework.get_by_id(assignment_id)
@@ -97,10 +116,15 @@ class HomeworkService:
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Not your homework assignment",
                 )
-            return to_homework_read(assignment, include_student_email=True)
+            return to_homework_read(
+                assignment,
+                include_student_email=True,
+                active_test_session_id=None,
+            )
         if assignment.student_id != user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not your homework assignment",
             )
-        return to_homework_read(assignment)
+        active_id = await self._active_session_id(user.id, assignment.id)
+        return to_homework_read(assignment, active_test_session_id=active_id)

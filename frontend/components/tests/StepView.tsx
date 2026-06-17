@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ApiError } from "@/lib/api/client";
@@ -10,20 +10,52 @@ import {
   getHint,
 } from "@/lib/api/tests";
 import type { TestSession, TestStep } from "@/lib/api/types";
-import { ProgressBar } from "@/components/tests/ProgressBar";
 import { QuestionContent } from "@/components/tests/QuestionContent";
+import { StepProgressDots } from "@/components/tests/StepProgressDots";
+
+function findFirstUnchecked(steps: TestStep[]): number {
+  const index = steps.findIndex((step) => step.status !== "checked");
+  return index === -1 ? 0 : index;
+}
+
+function buildInitialExplanations(
+  steps: TestStep[],
+): Record<number, string | null> {
+  const map: Record<number, string | null> = {};
+  steps.forEach((step, index) => {
+    if (step.status === "checked" && step.detailed_explanation) {
+      map[index] = step.detailed_explanation;
+    }
+  });
+  return map;
+}
+
+function buildInitialExplanationVisibility(
+  steps: TestStep[],
+): Record<number, boolean> {
+  const map: Record<number, boolean> = {};
+  steps.forEach((step, index) => {
+    if (step.status === "checked" && step.detailed_explanation) {
+      map[index] = true;
+    }
+  });
+  return map;
+}
 
 export function StepView({ session }: { session: TestSession }) {
   const router = useRouter();
+  const initialIndex = findFirstUnchecked(session.steps);
   const [steps, setSteps] = useState<TestStep[]>(session.steps);
-  const [current, setCurrent] = useState(0);
-  const [answer, setAnswer] = useState(session.steps[0]?.answer ?? "");
+  const [current, setCurrent] = useState(initialIndex);
+  const [answer, setAnswer] = useState(
+    session.steps[initialIndex]?.answer ?? "",
+  );
   const [hints, setHints] = useState<Record<number, string | null>>({});
   const [explanations, setExplanations] = useState<Record<number, string | null>>(
-    {},
+    () => buildInitialExplanations(session.steps),
   );
   const [showExplanation, setShowExplanation] = useState<Record<number, boolean>>(
-    {},
+    () => buildInitialExplanationVisibility(session.steps),
   );
   const [checking, setChecking] = useState(false);
   const [hintLoading, setHintLoading] = useState(false);
@@ -40,6 +72,32 @@ export function StepView({ session }: { session: TestSession }) {
     () => steps.filter((s) => s.status === "checked").length,
     [steps],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restoreHints() {
+      for (let index = 0; index < session.steps.length; index += 1) {
+        const sessionStep = session.steps[index];
+        if (!sessionStep.hint_used) {
+          continue;
+        }
+        try {
+          const result = await getHint(session.id, sessionStep.position);
+          if (!cancelled) {
+            setHints((prev) => ({ ...prev, [index]: result.hint }));
+          }
+        } catch {
+          // Resume should not block the session if hint restore fails.
+        }
+      }
+    }
+
+    void restoreHints();
+    return () => {
+      cancelled = true;
+    };
+  }, [session.id, session.steps]);
 
   function goTo(index: number) {
     setCurrent(index);
@@ -58,7 +116,13 @@ export function StepView({ session }: { session: TestSession }) {
       setSteps((prev) =>
         prev.map((s) =>
           s.position === step.position
-            ? { ...s, answer, is_correct: result.is_correct, status: "checked" }
+            ? {
+                ...s,
+                answer,
+                is_correct: result.is_correct,
+                status: "checked",
+                detailed_explanation: result.detailed_explanation,
+              }
             : s,
         ),
       );
@@ -89,7 +153,9 @@ export function StepView({ session }: { session: TestSession }) {
       setHints((prev) => ({ ...prev, [current]: result.hint }));
       setSteps((prev) =>
         prev.map((s) =>
-          s.position === step.position ? { ...s, hint_used: true } : s,
+          s.position === step.position
+            ? { ...s, hint_used: true, status: s.status === "unseen" ? "answered" : s.status }
+            : s,
         ),
       );
     } catch (err) {
@@ -132,7 +198,11 @@ export function StepView({ session }: { session: TestSession }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <ProgressBar current={current + 1} total={steps.length} />
+      <StepProgressDots
+        steps={steps}
+        current={current}
+        onSelect={goTo}
+      />
 
       <article className="chem-card overflow-hidden rounded-xl pb-36 sm:pb-6">
         <header className="flex items-center gap-4 bg-chem-teal px-4 py-4 text-white sm:px-5">

@@ -7,6 +7,8 @@ private helper across service boundaries.
 
 from __future__ import annotations
 
+import uuid
+
 from app.models import HomeworkAssignment
 from app.schemas.homework import (
     HomeworkItemProgressRead,
@@ -19,6 +21,7 @@ def to_homework_read(
     assignment: HomeworkAssignment,
     *,
     include_student_email: bool = False,
+    active_test_session_id: uuid.UUID | None = None,
 ) -> HomeworkRead:
     submission = None
     if assignment.submission is not None:
@@ -41,4 +44,5 @@ def to_homework_read(
         created_at=assignment.created_at,
         submission=submission,
         progress=progress,
+        active_test_session_id=active_test_session_id,
     )

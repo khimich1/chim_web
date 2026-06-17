@@ -18,7 +18,6 @@ vi.mock("@/lib/api/tests", () => ({
   completeSession: vi.fn(),
 }));
 
-// QuestionContent fetches image blobs; stub it to keep the test focused on flow.
 vi.mock("@/components/tests/QuestionContent", () => ({
   QuestionContent: ({ text }: { text: string }) => <p>{text}</p>,
 }));
@@ -31,6 +30,7 @@ const session: TestSession = {
   id: "sess-1",
   track: "ege",
   variant_ref: "001.txt",
+  homework_assignment_id: null,
   status: "in_progress",
   score: null,
   max_score: null,
@@ -42,10 +42,11 @@ const session: TestSession = {
       type: 1,
       question: "Вопрос 1",
       options: null,
-      status: "unseen",
-      answer: null,
-      is_correct: null,
+      status: "checked",
+      answer: "23",
+      is_correct: true,
       hint_used: false,
+      detailed_explanation: "Разбор шага 1",
     },
     {
       position: 1,
@@ -63,17 +64,54 @@ const session: TestSession = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockedHint.mockResolvedValue({ hint: "Подсказка" });
 });
 
 describe("StepView", () => {
-  it("renders progress pill with current step", () => {
+  it("renders step dots with current step label", () => {
     render(<StepView session={session} />);
 
-    expect(screen.getByText("Шаг 1 из 2")).toBeInTheDocument();
-    expect(screen.getByText("50%")).toBeInTheDocument();
+    expect(screen.getByText("Шаг 2 из 2")).toBeInTheDocument();
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+  });
+
+  it("opens the first unchecked step on entry", () => {
+    render(<StepView session={session} />);
+
+    expect(screen.getByText("Вопрос 2")).toBeInTheDocument();
+    expect(screen.getByLabelText("Ваш ответ")).toHaveValue("");
+  });
+
+  it("restores explanation for checked steps without rechecking", async () => {
+    render(<StepView session={session} />);
+
+    expect(screen.queryByText(/Разбор шага 1/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getAllByRole("tab")[0]);
+
+    expect(screen.getByText(/Разбор шага 1/)).toBeInTheDocument();
+    expect(mockedCheck).not.toHaveBeenCalled();
   });
 
   it("checks an answer and shows instant feedback", async () => {
+    const freshSession: TestSession = {
+      ...session,
+      steps: [
+        {
+          position: 0,
+          test_id: 11,
+          type: 1,
+          question: "Вопрос 1",
+          options: null,
+          status: "unseen",
+          answer: null,
+          is_correct: null,
+          hint_used: false,
+        },
+        session.steps[1],
+      ],
+    };
+
     mockedCheck.mockResolvedValue({
       position: 0,
       is_correct: true,
@@ -81,7 +119,7 @@ describe("StepView", () => {
       detailed_explanation: "Разбор задания",
     });
 
-    render(<StepView session={session} />);
+    render(<StepView session={freshSession} />);
 
     await userEvent.type(screen.getByLabelText("Ваш ответ"), "23");
     await userEvent.click(screen.getByRole("button", { name: "Проверить" }));
@@ -92,9 +130,27 @@ describe("StepView", () => {
   });
 
   it("loads a hint only when requested", async () => {
+    const freshSession: TestSession = {
+      ...session,
+      steps: [
+        {
+          position: 0,
+          test_id: 11,
+          type: 1,
+          question: "Вопрос 1",
+          options: null,
+          status: "unseen",
+          answer: null,
+          is_correct: null,
+          hint_used: false,
+        },
+        session.steps[1],
+      ],
+    };
+
     mockedHint.mockResolvedValue({ hint: "Смотри валентность" });
 
-    render(<StepView session={session} />);
+    render(<StepView session={freshSession} />);
 
     expect(screen.queryByText(/Смотри валентность/)).not.toBeInTheDocument();
 
@@ -104,15 +160,33 @@ describe("StepView", () => {
     expect(await screen.findByText(/Смотри валентность/)).toBeInTheDocument();
   });
 
+  it("restores hints for steps with hint_used on mount", async () => {
+    const hintedSession: TestSession = {
+      ...session,
+      steps: [
+        {
+          ...session.steps[0],
+          status: "answered",
+          hint_used: true,
+        },
+        session.steps[1],
+      ],
+    };
+
+    mockedHint.mockResolvedValue({ hint: "Сохранённая подсказка" });
+
+    render(<StepView session={hintedSession} />);
+
+    await userEvent.click(screen.getAllByRole("tab")[0]);
+    expect(await screen.findByText(/Сохранённая подсказка/)).toBeInTheDocument();
+  });
+
   it("completes the test on the last step and navigates to summary", async () => {
     mockedComplete.mockResolvedValue({});
 
     render(<StepView session={session} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Далее →" }));
-    await userEvent.click(
-      screen.getByRole("button", { name: "Завершить" }),
-    );
+    await userEvent.click(screen.getByRole("button", { name: "Завершить" }));
 
     await waitFor(() => {
       expect(mockedComplete).toHaveBeenCalledWith("sess-1");

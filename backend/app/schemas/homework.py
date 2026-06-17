@@ -97,6 +97,7 @@ class HomeworkRead(BaseModel):
     created_at: datetime
     submission: HomeworkSubmissionRead | None = None
     progress: list[HomeworkItemProgressRead] = Field(default_factory=list)
+    active_test_session_id: uuid.UUID | None = None
 
 
 class HomeworkSubmitRequest(BaseModel):

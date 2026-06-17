@@ -55,6 +55,7 @@ export interface TestStep {
   answer: string | null;
   is_correct: boolean | null;
   hint_used: boolean;
+  detailed_explanation?: string | null;
 }
 
 export interface TestSession {
@@ -78,6 +79,10 @@ export interface StepCheckResult {
 
 export interface HintResult {
   hint: string | null;
+}
+
+export interface ActiveSessionResult {
+  session_id: string | null;
 }
 
 export interface LectureHomeworkItem {
@@ -134,6 +139,7 @@ export interface HomeworkAssignment {
   created_at: string;
   submission: HomeworkSubmission | null;
   progress: HomeworkItemProgress[];
+  active_test_session_id: string | null;
 }
 
 export interface CreateHomeworkInput {
