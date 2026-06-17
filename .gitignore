@@ -9,16 +9,24 @@ __pycache__/
 dist/
 build/
 
-# Env & secrets
+# Env & secrets (keep *.example tracked)
 .env
-.env.local
+.env.*
+!.env.example
 backend/.env
+backend/.env.*
+!backend/.env.example
 frontend/.env.local
+frontend/.env*.local
 
-# SQLite databases (local dev app DB + read-only content sources)
+# SQLite databases (local dev + read-only content — see SPEC.md)
 *.db
 *.db-shm
 *.db-wal
+/prepared_lectures.db
+/test_ege.db
+/test_oge.db
+/backend/app.db
 
 # Generated RAG index (v2+)
 backend/data/rag_index.json
@@ -29,7 +37,17 @@ backend/data/tutor_profiles/
 node_modules/
 frontend/.next/
 frontend/out/
+frontend/coverage/
 npm-debug.log*
+*.tsbuildinfo
+
+# Test / E2E artifacts
+htmlcov/
+.coverage
+coverage/
+test-results/
+playwright-report/
+blob-report/
 
 # IDE
 .idea/
