@@ -1,6 +1,12 @@
-# Dev stack: PostgreSQL for backend migrations and runtime.
-# Usage: docker compose up -d postgres
-# Then: cd backend && alembic upgrade head && uvicorn app.main:app --reload
+# chim_web stack: nginx → Next.js + FastAPI + PostgreSQL
+#
+# Quick start:
+#   cp .env.example .env
+#   # Place content SQLite files at repo root (see SPEC.md) or skip for API-only smoke test
+#   docker compose up --build
+#
+# App URL: http://localhost:${NGINX_PORT:-8080}
+# Postgres only (local dev): docker compose up -d postgres
 
 services:
   postgres:
@@ -21,5 +27,76 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: chim-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://user:pass@postgres:5432/chemistry
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
+      COOKIE_NAME: ${COOKIE_NAME:-access_token}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CONTENT_EGE_DB_PATH: /app/test_ege.db
+      CONTENT_OGE_DB_PATH: /app/test_oge.db
+      CONTENT_LECTURES_DB_PATH: /app/prepared_lectures.db
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - backend_data:/app/backend/data
+      # Optional: bind-mount read-only content SQLite from host (files must exist as files):
+      # - ./test_ege.db:/app/test_ege.db:ro
+      # - ./test_oge.db:/app/test_oge.db:ro
+      # - ./prepared_lectures.db:/app/prepared_lectures.db:ro
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    container_name: chim-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    expose:
+      - "3000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: chim-nginx
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
 volumes:
   chim_postgres_data:
+  backend_data:

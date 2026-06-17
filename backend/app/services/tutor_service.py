@@ -31,7 +31,6 @@ from app.schemas.tutor import (
     TutorMessageCreate,
     TutorMessageRead,
     TutorMessageResponse,
-    TutorPageContext,
     TutorSessionCreate,
     TutorSessionDetail,
     TutorSessionSummary,
