@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { AudioPlayer, formatAudioTime } from "@/components/textbook/AudioPlayer";
@@ -120,17 +120,25 @@ describe("AudioPlayer", () => {
     render(<AudioPlayer topic="Соли" chunkIdx={1} hasAudio />);
 
     const player = await screen.findByRole("group", { name: "Аудиоплеер" });
-    const audio = document.querySelector("audio") as HTMLAudioElement;
 
-    Object.defineProperty(audio, "duration", {
-      configurable: true,
-      value: 120,
+    const audio = await waitFor(() => {
+      const element = document.querySelector("audio") as HTMLAudioElement | null;
+      if (!element) {
+        throw new Error("audio element not mounted");
+      }
+      return element;
     });
-    audio.currentTime = 30;
-    fireEvent.loadedMetadata(audio);
-    fireEvent.timeUpdate(audio);
 
-    await waitFor(() => {
+    await waitFor(async () => {
+      await act(async () => {
+        Object.defineProperty(audio, "duration", {
+          configurable: true,
+          value: 120,
+        });
+        audio.currentTime = 30;
+        fireEvent.loadedMetadata(audio);
+        fireEvent.timeUpdate(audio);
+      });
       expect(screen.getByText("0:30 / 2:00")).toBeInTheDocument();
     });
 
