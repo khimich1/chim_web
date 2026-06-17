@@ -8,7 +8,7 @@ from typing import Any
 
 from app.core.config import Settings
 from app.repositories.content.base import open_readonly
-from app.services.rag.documents import ExamTrack, RagDocument, RagSource, TestField
+from app.services.rag.documents import RagDocument, RagSource
 
 
 def _parse_qa_pairs(
@@ -44,19 +44,12 @@ def _lecture_qa_doc_id(topic: str, chunk_idx: int, qa_idx: int) -> str:
     return f"lecture_qa:{topic}:{chunk_idx}:{qa_idx}"
 
 
-def _test_doc_id(track: ExamTrack, variant: str, test_type: int, field: TestField) -> str:
-    return f"test:{track}:{variant}:{test_type}:{field}"
-
-
 def _meta(
     *,
     source: RagSource,
-    track: ExamTrack | None = None,
     **extra: Any,
 ) -> dict[str, Any]:
     metadata: dict[str, Any] = {"source": source}
-    if track is not None:
-        metadata["track"] = track
     metadata.update(extra)
     return metadata
 
@@ -114,74 +107,14 @@ def ingest_lecture_documents(lectures_db_path: Path) -> list[RagDocument]:
     return documents
 
 
-def ingest_test_documents(
-    tests_db_path: Path,
-    *,
-    track: ExamTrack,
-) -> list[RagDocument]:
-    """Index hint and detailed_explanation fields; skip problematic tests."""
-    documents: list[RagDocument] = []
-    with open_readonly(tests_db_path) as conn:
-        rows = conn.execute(
-            """
-            SELECT t.filename, t.type, t.hint, t.detailed_explanation
-            FROM tests t
-            WHERE COALESCE(t.has_issue, 0) = 0
-              AND t.filename NOT IN (SELECT filename FROM tests_bug)
-            ORDER BY t.filename, t.type
-            """
-        ).fetchall()
-
-    for row in rows:
-        variant = row["filename"]
-        test_type = int(row["type"])
-        for field_name, value in (
-            ("hint", row["hint"]),
-            ("detailed_explanation", row["detailed_explanation"]),
-        ):
-            if not value or not str(value).strip():
-                continue
-            field: TestField = field_name  # type: ignore[assignment]
-            documents.append(
-                RagDocument(
-                    doc_id=_test_doc_id(track, variant, test_type, field),
-                    title=f"{track.upper()} {variant} — задание {test_type} ({field})",
-                    body=str(value).strip(),
-                    metadata=_meta(
-                        source="test",
-                        track=track,
-                        variant=variant,
-                        test_type=test_type,
-                        field=field,
-                    ),
-                )
-            )
-
-    return documents
-
-
 def ingest_all_documents(settings: Settings) -> list[RagDocument]:
-    """Collect all RAG documents from configured content databases."""
-    documents: list[RagDocument] = []
-    documents.extend(ingest_lecture_documents(settings.content_lectures_db_path))
-    documents.extend(
-        ingest_test_documents(settings.content_ege_db_path, track="ege")
-    )
-    documents.extend(
-        ingest_test_documents(settings.content_oge_db_path, track="oge")
-    )
-    return documents
+    """Collect RAG documents from prepared_lectures (lecture + lecture_qa only)."""
+    return ingest_lecture_documents(settings.content_lectures_db_path)
 
 
 def ingest_all_documents_from_paths(
     *,
     lectures_db_path: Path,
-    ege_db_path: Path,
-    oge_db_path: Path,
 ) -> list[RagDocument]:
-    """Test helper: ingest without loading full Settings."""
-    documents: list[RagDocument] = []
-    documents.extend(ingest_lecture_documents(lectures_db_path))
-    documents.extend(ingest_test_documents(ege_db_path, track="ege"))
-    documents.extend(ingest_test_documents(oge_db_path, track="oge"))
-    return documents
+    """Test helper: ingest lectures without loading full Settings."""
+    return ingest_lecture_documents(lectures_db_path)

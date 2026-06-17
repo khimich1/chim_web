@@ -20,7 +20,7 @@ class TutorSessionCreate(BaseModel):
 
 
 class TutorSourceCitation(BaseModel):
-    source: Literal["lecture", "lecture_qa", "test"] | None = None
+    source: Literal["lecture", "lecture_qa"] | None = None
     topic: str | None = None
     chunk_idx: int | None = None
     chunk_title: str | None = None

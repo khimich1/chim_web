@@ -125,7 +125,5 @@ def rag_content_dbs(tmp_path: Path) -> dict[str, Path]:
 def rag_retriever(rag_content_dbs: dict[str, Path]) -> Retriever:
     documents = ingest_all_documents_from_paths(
         lectures_db_path=rag_content_dbs["lectures"],
-        ege_db_path=rag_content_dbs["ege"],
-        oge_db_path=rag_content_dbs["oge"],
     )
     return Retriever(documents)

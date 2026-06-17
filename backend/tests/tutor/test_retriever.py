@@ -9,22 +9,20 @@ from app.services.rag.retriever import Retriever
 from app.services.rag.store import load_index, save_index
 
 
-def test_ingestion_indexes_lectures_and_tests_without_correct_ans(
+def test_ingestion_indexes_only_lectures_without_correct_ans(
     rag_content_dbs: dict[str, Path],
 ) -> None:
     documents = ingest_all_documents_from_paths(
         lectures_db_path=rag_content_dbs["lectures"],
-        ege_db_path=rag_content_dbs["ege"],
-        oge_db_path=rag_content_dbs["oge"],
     )
 
     bodies = "\n".join(document.body for document in documents)
     assert "secret-answer" not in bodies
     assert any(document.metadata.get("source") == "lecture" for document in documents)
     assert any(document.metadata.get("source") == "lecture_qa" for document in documents)
-    assert any(
-        document.metadata.get("source") == "test"
-        and document.metadata.get("track") == "ege"
+    assert not any(document.metadata.get("source") == "test" for document in documents)
+    assert all(
+        document.metadata.get("source") in {"lecture", "lecture_qa"}
         for document in documents
     )
 
@@ -42,14 +40,12 @@ def test_search_finds_relevant_lecture_in_top_three(rag_retriever: Retriever) ->
     assert hits[0].metadata.get("source") in {"lecture", "lecture_qa"}
 
 
-def test_track_filter_excludes_other_exam_tests(rag_retriever: Retriever) -> None:
-    ege_hits = rag_retriever.search("разбор задания", track="ege", source="test")
-    oge_hits = rag_retriever.search("разбор задания", track="oge", source="test")
-
-    assert all(hit.metadata.get("track") == "ege" for hit in ege_hits)
-    assert all(hit.metadata.get("track") == "oge" for hit in oge_hits)
-    assert any("EGE" in hit.body for hit in ege_hits)
-    assert any("OGE" in hit.body for hit in oge_hits)
+def test_index_has_no_test_source_documents(rag_retriever: Retriever) -> None:
+    assert not any(
+        document.metadata.get("source") == "test"
+        for document in rag_retriever._documents  # noqa: SLF001 — assert index contents
+    )
+    assert rag_retriever.search("разбор задания", track="ege", source="test") == []
 
 
 def test_lecture_documents_visible_for_both_tracks(rag_retriever: Retriever) -> None:
@@ -95,7 +91,7 @@ def test_rebuild_index_persists_documents(
     retriever = Retriever([])
     count = retriever.rebuild_index(settings)
 
-    assert count >= 4
+    assert count >= 3
     assert settings.rag_index_path.is_file()
     reloaded = load_index(settings.rag_index_path)
     assert len(reloaded) == count
