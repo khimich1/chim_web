@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.models.enums import ExamTrack
 from app.repositories.content.base import open_readonly
 
 
@@ -36,6 +37,55 @@ class ExamContentRepo:
                 """
             ).fetchall()
         return [row["filename"] for row in rows]
+
+    def expand_types_across_variants(
+        self,
+        types: list[int],
+        *,
+        track: ExamTrack,
+    ) -> list[tuple[str, list[int] | None]]:
+        """Expand homework ``test_by_type`` items into (variant, types) sources.
+
+        EGE: one question per variant for each requested ``type``.
+        OGE: full file ``{type:03d}.txt`` (all variants of that task type).
+        """
+        if track == ExamTrack.OGE:
+            sources: list[tuple[str, list[int] | None]] = []
+            known_variants = set(self.list_variants())
+            for type_num in sorted(types):
+                filename = f"{type_num:03d}.txt"
+                if filename in known_variants:
+                    sources.append((filename, None))
+            return sources
+
+        sources = []
+        variants = self.list_variants()
+        for type_num in sorted(types):
+            for variant in variants:
+                if self._variant_has_type(variant, type_num):
+                    sources.append((variant, [type_num]))
+        return sources
+
+    def count_expanded_questions(
+        self,
+        types: list[int],
+        *,
+        track: ExamTrack,
+    ) -> int:
+        """Count questions that ``test_by_type`` would include (for validation)."""
+        total = 0
+        for variant, type_filter in self.expand_types_across_variants(
+            types, track=track
+        ):
+            questions = self.list_questions(variant)
+            if type_filter is not None:
+                wanted = set(type_filter)
+                questions = [question for question in questions if question.type in wanted]
+            total += len(questions)
+        return total
+
+    def _variant_has_type(self, variant: str, type_num: int) -> bool:
+        return any(question.type == type_num for question in self.list_questions(variant))
 
     def list_questions(self, filename: str) -> list[TestQuestion]:
         with open_readonly(self._db_path) as conn:
@@ -102,3 +152,51 @@ class ExamContentRepo:
         if row is None:
             return None
         return row["data"]
+
+    def search_questions(
+        self,
+        *,
+        query: str | None = None,
+        task_type: int | None = None,
+        limit: int = 5,
+    ) -> list[TestQuestion]:
+        """Search questions by substring and/or task type (excludes has_issue)."""
+        clauses = [
+            "COALESCE(t.has_issue, 0) = 0",
+            "t.filename NOT IN (SELECT filename FROM tests_bug)",
+        ]
+        params: list[object] = []
+
+        if task_type is not None:
+            clauses.append("t.type = ?")
+            params.append(task_type)
+        if query:
+            clauses.append("t.question LIKE ?")
+            params.append(f"%{query}%")
+
+        sql = f"""
+            SELECT t.rowid AS id, t.filename, t.type, t.question, t.options,
+                   t.correct_ans, t.hint, t.detailed_explanation
+            FROM tests t
+            WHERE {" AND ".join(clauses)}
+            ORDER BY t.rowid
+            LIMIT ?
+        """
+        params.append(max(1, limit))
+
+        with open_readonly(self._db_path) as conn:
+            rows = conn.execute(sql, params).fetchall()
+
+        return [
+            TestQuestion(
+                id=row["id"],
+                filename=row["filename"],
+                type=row["type"],
+                question=row["question"],
+                options=row["options"],
+                correct_ans=row["correct_ans"],
+                hint=row["hint"],
+                detailed_explanation=row["detailed_explanation"],
+            )
+            for row in rows
+        ]

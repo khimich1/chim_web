@@ -1,3 +1,4 @@
+from app.models.enums import ExamTrack
 from app.repositories.content.tests import ExamContentRepo
 
 
@@ -28,3 +29,22 @@ def test_oge_repo_uses_separate_db(oge_tests_db, ege_tests_db) -> None:
 
     assert oge_variants == ["001.txt", "019.txt"]
     assert ege_variants == ["001.txt"]
+
+
+def test_expand_types_across_variants_ege(ege_tests_db) -> None:
+    repo = ExamContentRepo(ege_tests_db)
+    sources = repo.expand_types_across_variants([1, 2], track=ExamTrack.EGE)
+
+    assert sources == [
+        ("001.txt", [1]),
+        ("001.txt", [2]),
+    ]
+    assert repo.count_expanded_questions([1], track=ExamTrack.EGE) == 1
+
+
+def test_expand_types_across_variants_oge(oge_tests_db) -> None:
+    repo = ExamContentRepo(oge_tests_db)
+    sources = repo.expand_types_across_variants([1], track=ExamTrack.OGE)
+
+    assert sources == [("001.txt", None)]
+    assert repo.count_expanded_questions([1], track=ExamTrack.OGE) == 1

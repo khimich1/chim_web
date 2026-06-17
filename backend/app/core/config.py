@@ -29,6 +29,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        populate_by_name=True,
     )
 
     database_url: str = Field(alias="DATABASE_URL")
@@ -68,6 +69,44 @@ class Settings(BaseSettings):
         alias="CONTENT_LECTURES_DB_PATH",
     )
 
+    rag_index_path: Path = Field(
+        default=_MONOREPO_ROOT / "backend" / "data" / "rag_index.json",
+        alias="RAG_INDEX_PATH",
+    )
+
+    # Tutor / RAG (v2+, ported from RAG_chemistry)
+    openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
+    embedding_model: str = Field(
+        default="text-embedding-3-small",
+        alias="EMBEDDING_MODEL",
+    )
+    rag_top_k: int = Field(default=5, ge=1, le=20, alias="RAG_TOP_K")
+    # Max seconds to wait for a single tutor agent (LangGraph) invocation before
+    # returning 504. Guards the worker thread pool against a hung LLM call.
+    tutor_invoke_timeout: float = Field(
+        default=60.0,
+        gt=0,
+        alias="TUTOR_INVOKE_TIMEOUT",
+    )
+    chroma_dir: Path = Field(
+        default=_MONOREPO_ROOT / "backend" / "data" / "chroma",
+        alias="CHROMA_DIR",
+    )
+    chroma_lectures_collection: str = Field(
+        default="lectures",
+        alias="CHROMA_LECTURES_COLLECTION",
+    )
+    tutor_profile_dir: Path = Field(
+        default=_MONOREPO_ROOT / "backend" / "data" / "tutor_profiles",
+        alias="TUTOR_PROFILE_DIR",
+    )
+
+    def tests_db_path_for_track(self, track: str) -> Path:
+        if track == "oge":
+            return self.content_oge_db_path
+        return self.content_ege_db_path
+
     @field_validator(
         "content_ege_db_path",
         "content_oge_db_path",
@@ -75,10 +114,30 @@ class Settings(BaseSettings):
         mode="before",
     )
     @classmethod
-    def resolve_content_path(cls, value: object) -> Path:
-        path = Path(value) if not isinstance(value, Path) else value
+    def resolve_content_path(cls, value: str | Path) -> Path:
+        path = value if isinstance(value, Path) else Path(value)
         if not path.is_absolute():
             path = (_MONOREPO_ROOT / "backend" / path).resolve()
+        return path.resolve()
+
+    @field_validator("rag_index_path", mode="before")
+    @classmethod
+    def resolve_rag_index_path(cls, value: str | Path) -> Path:
+        path = value if isinstance(value, Path) else Path(value)
+        if not path.is_absolute():
+            return (_MONOREPO_ROOT / path).resolve()
+        return path.resolve()
+
+    @field_validator(
+        "chroma_dir",
+        "tutor_profile_dir",
+        mode="before",
+    )
+    @classmethod
+    def resolve_data_path(cls, value: str | Path) -> Path:
+        path = value if isinstance(value, Path) else Path(value)
+        if not path.is_absolute():
+            return (_MONOREPO_ROOT / path).resolve()
         return path.resolve()
 
     def content_db_paths(self) -> dict[str, Path]:

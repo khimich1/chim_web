@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { StepView } from "@/components/tests/StepView";
+import { formatSessionTitle } from "@/components/tests/session-utils";
 import { getTestSession } from "@/lib/api/server";
 
 export default async function TestSessionPage({
@@ -26,7 +27,7 @@ export default async function TestSessionPage({
         <div>
           <p className="chem-kicker">Тест</p>
           <h1 className="mt-1 text-2xl font-semibold text-zinc-900">
-            Вариант {session.variant_ref.replace(/\.txt$/, "")}
+            {formatSessionTitle(session)}
           </h1>
         </div>
         <div className="flex items-center gap-3">

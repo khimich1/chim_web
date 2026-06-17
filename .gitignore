@@ -20,6 +20,11 @@ frontend/.env.local
 *.db-shm
 *.db-wal
 
+# Generated RAG index (v2+)
+backend/data/rag_index.json
+backend/data/chroma/
+backend/data/tutor_profiles/
+
 # Node / Next.js
 node_modules/
 frontend/.next/

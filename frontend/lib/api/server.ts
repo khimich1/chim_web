@@ -5,10 +5,13 @@ import { cookies } from "next/headers";
 import { API_URL } from "@/lib/api/client";
 import type {
   ChunkSummary,
+  HomeworkAssignment,
+  Notification,
   Student,
   TestSession,
   TestVariant,
   TextbookTopic,
+  Track,
   User,
 } from "@/lib/api/types";
 
@@ -82,12 +85,71 @@ export async function getTextbookChunks(topic: string): Promise<ChunkSummary[]> 
   );
 }
 
-export async function getTestVariants(): Promise<TestVariant[]> {
-  return (await fetchWithCookies<TestVariant[]>("/api/tests/variants")) ?? [];
+export async function getTestVariants(track?: Track): Promise<TestVariant[]> {
+  const query = track ? `?track=${track}` : "";
+  return (await fetchWithCookies<TestVariant[]>(`/api/tests/variants${query}`)) ?? [];
 }
 
 export async function getTestSession(
   sessionId: string,
 ): Promise<TestSession | null> {
   return fetchWithCookies<TestSession>(`/api/tests/sessions/${sessionId}`);
+}
+
+export async function getHomeworkList(): Promise<HomeworkAssignment[]> {
+  return (await fetchWithCookies<HomeworkAssignment[]>("/api/homework")) ?? [];
+}
+
+export async function getHomework(
+  id: string,
+): Promise<HomeworkAssignment | null> {
+  return fetchWithCookies<HomeworkAssignment>(`/api/homework/${id}`);
+}
+
+export async function getNotifications(): Promise<Notification[]> {
+  return (await fetchWithCookies<Notification[]>("/api/notifications")) ?? [];
+}
+
+export async function getNotificationUnreadCount(): Promise<number> {
+  const result = await fetchWithCookies<{ count: number }>(
+    "/api/notifications/unread-count",
+  );
+  return result?.count ?? 0;
+}
+
+export interface TutorSessionSummaryServer {
+  id: string;
+  role_context: "student" | "teacher";
+  page_context: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
+export interface TutorSessionDetailServer extends TutorSessionSummaryServer {
+  messages: Array<{
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    sources?: Array<Record<string, unknown>> | null;
+    created_at: string;
+  }>;
+}
+
+export async function listStudentTutorSessions(
+  studentId: string,
+): Promise<TutorSessionSummaryServer[]> {
+  return (
+    (await fetchWithCookies<TutorSessionSummaryServer[]>(
+      `/api/tutor/students/${studentId}/sessions`,
+    )) ?? []
+  );
+}
+
+export async function getTutorSessionDetail(
+  sessionId: string,
+): Promise<TutorSessionDetailServer | null> {
+  return fetchWithCookies<TutorSessionDetailServer>(
+    `/api/tutor/sessions/${sessionId}`,
+  );
 }

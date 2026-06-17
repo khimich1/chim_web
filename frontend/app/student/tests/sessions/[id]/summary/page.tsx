@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { HomeworkSubmitButton } from "@/components/homework/HomeworkSubmitButton";
 import { SessionSummary } from "@/components/tests/SessionSummary";
 import { getTestSession } from "@/lib/api/server";
 
@@ -35,6 +36,15 @@ export default async function TestSessionSummaryPage({
       <section className="mt-10">
         <SessionSummary session={session} />
       </section>
+
+      {session.homework_assignment_id && session.status === "completed" ? (
+        <section className="chem-card mt-8 rounded-lg p-6">
+          <HomeworkSubmitButton
+            homeworkId={session.homework_assignment_id}
+            sessionId={session.id}
+          />
+        </section>
+      ) : null}
     </main>
   );
 }

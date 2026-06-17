@@ -33,6 +33,13 @@ export interface TextbookChunk extends ChunkSummary {
 
 export type TestSessionStatus = "in_progress" | "completed";
 export type StepStatus = "unseen" | "answered" | "checked";
+export type HomeworkStatus = "assigned" | "in_progress" | "submitted" | "reviewed";
+export type HomeworkItemKind =
+  | "lecture"
+  | "test_variant"
+  | "test_partial"
+  | "test_by_type";
+export type NotificationType = "homework_submitted";
 
 export interface TestVariant {
   filename: string;
@@ -53,7 +60,8 @@ export interface TestStep {
 export interface TestSession {
   id: string;
   track: Track;
-  variant_ref: string;
+  variant_ref: string | null;
+  homework_assignment_id: string | null;
   status: TestSessionStatus;
   score: number | null;
   max_score: number | null;
@@ -70,4 +78,85 @@ export interface StepCheckResult {
 
 export interface HintResult {
   hint: string | null;
+}
+
+export interface LectureHomeworkItem {
+  kind: "lecture";
+  topic: string;
+  chunk_idxs?: number[] | null;
+}
+
+export interface TestVariantHomeworkItem {
+  kind: "test_variant";
+  variant: string;
+}
+
+export interface TestPartialHomeworkItem {
+  kind: "test_partial";
+  variant: string;
+  types: number[];
+}
+
+export interface TestByTypeHomeworkItem {
+  kind: "test_by_type";
+  types: number[];
+}
+
+export type HomeworkItem =
+  | LectureHomeworkItem
+  | TestVariantHomeworkItem
+  | TestPartialHomeworkItem
+  | TestByTypeHomeworkItem;
+
+export interface HomeworkSubmission {
+  id: string;
+  submitted_at: string;
+  test_session_id: string | null;
+  score: number | null;
+  max_score: number | null;
+}
+
+export interface HomeworkItemProgress {
+  item_index: number;
+  kind: HomeworkItemKind;
+  completed: boolean;
+}
+
+export interface HomeworkAssignment {
+  id: string;
+  student_id: string;
+  student_email: string | null;
+  title: string;
+  description: string | null;
+  due_at: string | null;
+  items: HomeworkItem[];
+  status: HomeworkStatus;
+  created_at: string;
+  submission: HomeworkSubmission | null;
+  progress: HomeworkItemProgress[];
+}
+
+export interface CreateHomeworkInput {
+  student_id: string;
+  title: string;
+  description?: string | null;
+  due_at?: string | null;
+  items: HomeworkItem[];
+}
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  payload: {
+    homework_id: string;
+    homework_title: string;
+    student_id: string;
+    student_email: string;
+  };
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface UnreadCount {
+  count: number;
 }

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { TutorChatOverlay } from "@/components/tutor/TutorChatOverlay";
 import { getCurrentUser } from "@/lib/api/server";
 
 export default async function StudentLayout({
@@ -14,5 +15,10 @@ export default async function StudentLayout({
   if (user.role !== "student") {
     redirect("/teacher");
   }
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <TutorChatOverlay />
+    </>
+  );
 }

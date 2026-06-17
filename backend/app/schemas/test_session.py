@@ -9,15 +9,24 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.enums import ExamTrack, StepStatus, TestSessionStatus
 
 
 class SessionCreate(BaseModel):
-    variant_ref: str = Field(min_length=1, max_length=64)
+    # Required for free practice; ignored for homework sessions, where the server
+    # aggregates test items from the assignment (possibly several variants).
+    variant_ref: str | None = Field(default=None, max_length=64)
     # Optional subset of `type` numbers for partial homework; None = full variant.
     types: list[int] | None = None
+    homework_assignment_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def _require_variant_for_free_practice(self) -> SessionCreate:
+        if self.homework_assignment_id is None and not (self.variant_ref or "").strip():
+            raise ValueError("variant_ref is required when no homework_assignment_id")
+        return self
 
 
 class StepRead(BaseModel):
@@ -39,7 +48,8 @@ class SessionRead(BaseModel):
 
     id: uuid.UUID
     track: ExamTrack
-    variant_ref: str
+    variant_ref: str | None = None
+    homework_assignment_id: uuid.UUID | None = None
     status: TestSessionStatus
     score: int | None = None
     max_score: int | None = None

@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings
 from app.models import (
     ExamTrack,
+    HomeworkStatus,
     StepStatus,
     StudentProfile,
     TestSession,
@@ -24,6 +25,8 @@ from app.models import (
     TestSessionStep,
     User,
 )
+from app.models.enums import HomeworkItemKind
+from app.repositories.app.homework_repo import HomeworkRepository
 from app.repositories.app.test_session_repo import TestSessionRepository
 from app.repositories.content.base import ContentDbError
 from app.repositories.content.tests import ExamContentRepo, TestQuestion
@@ -69,28 +72,34 @@ class TestSessionService:
     ) -> SessionRead:
         track = await self._resolve_track(student)
         repo = self._content_repo(track)
-        try:
-            questions = repo.list_questions(data.variant_ref)
-        except ContentDbError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Test content database unavailable",
-            ) from exc
 
-        if data.types is not None:
-            wanted = set(data.types)
-            questions = [q for q in questions if q.type in wanted]
+        if data.homework_assignment_id is not None:
+            # Server is the source of truth for homework test scope: aggregate
+            # every test item (possibly across variants) into one session.
+            sources = await self._resolve_homework_sources(
+                student, data.homework_assignment_id
+            )
+        else:
+            assert data.variant_ref is not None  # enforced by SessionCreate validator
+            sources = [(data.variant_ref, data.types)]
 
+        questions = self._collect_questions(repo, sources)
         if not questions:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No questions found for the requested variant",
             )
 
+        distinct_variants = {variant for variant, _ in sources}
+        variant_ref = (
+            next(iter(distinct_variants)) if len(distinct_variants) == 1 else None
+        )
+
         test_session = TestSession(
             student_id=student.id,
             track=track,
-            variant_ref=data.variant_ref,
+            variant_ref=variant_ref,
+            homework_assignment_id=data.homework_assignment_id,
             status=TestSessionStatus.IN_PROGRESS,
             steps=[
                 TestSessionStep(
@@ -107,6 +116,80 @@ class TestSessionService:
         reloaded = await self._repo.get_with_steps(test_session.id)
         assert reloaded is not None
         return self._to_session_read(reloaded, repo)
+
+    def _collect_questions(
+        self,
+        repo: ExamContentRepo,
+        sources: list[tuple[str, list[int] | None]],
+    ) -> list[TestQuestion]:
+        """Gather (deduplicated) questions for one or more (variant, types) specs."""
+        questions: list[TestQuestion] = []
+        seen_ids: set[int] = set()
+        for variant, types in sources:
+            try:
+                variant_questions = repo.list_questions(variant)
+            except ContentDbError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Test content database unavailable",
+                ) from exc
+            if types is not None:
+                wanted = set(types)
+                variant_questions = [q for q in variant_questions if q.type in wanted]
+            for question in variant_questions:
+                if question.id in seen_ids:
+                    continue
+                seen_ids.add(question.id)
+                questions.append(question)
+        return questions
+
+    async def _resolve_homework_sources(
+        self,
+        student: User,
+        homework_assignment_id: uuid.UUID,
+    ) -> list[tuple[str, list[int] | None]]:
+        assignment = await HomeworkRepository(self._session).get_by_id(
+            homework_assignment_id
+        )
+        if assignment is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Homework not found",
+            )
+        if assignment.student_id != student.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not your homework assignment",
+            )
+        if assignment.status == HomeworkStatus.SUBMITTED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Homework already submitted",
+            )
+
+        track = await self._resolve_track(student)
+        repo = self._content_repo(track)
+        sources: list[tuple[str, list[int] | None]] = []
+        for item in assignment.items:
+            kind = item.get("kind")
+            if kind == HomeworkItemKind.TEST_VARIANT.value:
+                sources.append((item["variant"], None))
+            elif kind == HomeworkItemKind.TEST_PARTIAL.value:
+                sources.append((item["variant"], list(item["types"])))
+            elif kind == HomeworkItemKind.TEST_BY_TYPE.value:
+                sources.extend(
+                    repo.expand_types_across_variants(
+                        list(item["types"]),
+                        track=track,
+                    )
+                )
+
+        if not sources:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Homework assignment has no test items",
+            )
+        return sources
 
     async def get_session(
         self, student: User, session_id: uuid.UUID
@@ -265,6 +348,7 @@ class TestSessionService:
             id=test_session.id,
             track=test_session.track,
             variant_ref=test_session.variant_ref,
+            homework_assignment_id=test_session.homework_assignment_id,
             status=test_session.status,
             score=test_session.score,
             max_score=test_session.max_score,

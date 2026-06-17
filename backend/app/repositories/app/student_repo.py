@@ -53,3 +53,20 @@ class StudentRepository:
         await self._session.flush()
         await self._session.refresh(user, attribute_names=["student_profile", "created_at"])
         return user
+
+    async def get_student_for_teacher(
+        self,
+        student_id: uuid.UUID,
+        teacher_id: uuid.UUID,
+    ) -> User | None:
+        """Return a student user if owned by the given teacher."""
+        stmt = (
+            select(User)
+            .join(StudentProfile, StudentProfile.user_id == User.id)
+            .where(
+                User.id == student_id,
+                StudentProfile.teacher_id == teacher_id,
+            )
+            .options(joinedload(User.student_profile))
+        )
+        return await self._session.scalar(stmt)

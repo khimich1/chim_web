@@ -12,11 +12,25 @@ export function listVariants(): Promise<TestVariant[]> {
 
 export function createSession(
   variantRef: string,
-  types?: number[],
+  options?: { types?: number[]; homeworkAssignmentId?: string },
 ): Promise<TestSession> {
   return apiFetch<TestSession>("/api/tests/sessions", {
     method: "POST",
-    body: JSON.stringify({ variant_ref: variantRef, types: types ?? null }),
+    body: JSON.stringify({
+      variant_ref: variantRef,
+      types: options?.types ?? null,
+      homework_assignment_id: options?.homeworkAssignmentId ?? null,
+    }),
+  });
+}
+
+/** Aggregated test session for a multi-item homework assignment (SPEC §1.7). */
+export function createHomeworkTestSession(
+  homeworkAssignmentId: string,
+): Promise<TestSession> {
+  return apiFetch<TestSession>("/api/tests/sessions", {
+    method: "POST",
+    body: JSON.stringify({ homework_assignment_id: homeworkAssignmentId }),
   });
 }
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { formatSessionTitle } from "@/components/tests/session-utils";
 import type { TestSession } from "@/lib/api/types";
 
 export function SessionSummary({ session }: { session: TestSession }) {
@@ -14,7 +15,7 @@ export function SessionSummary({ session }: { session: TestSession }) {
           {score} / {maxScore}
         </p>
         <p className="mt-1 text-sm text-zinc-600">
-          Вариант {session.variant_ref.replace(/\.txt$/, "")}
+          {formatSessionTitle(session)}
         </p>
       </div>
 

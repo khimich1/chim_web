@@ -16,7 +16,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
-from app.api.deps import StudentUser, get_app_settings
+from app.api.deps import CurrentUser, StudentUser, get_app_settings
 from app.core.config import Settings
 from app.repositories.content.lectures import LectureContentRepo
 from app.schemas.textbook import ChunkRead, ChunkSummaryRead, TopicRead
@@ -41,9 +41,10 @@ def get_textbook_service(
 
 @router.get("/topics", response_model=list[TopicRead])
 def list_topics(
-    _student: StudentUser,
+    _user: CurrentUser,
     service: Annotated[TextbookService, Depends(get_textbook_service)],
 ) -> list[TopicRead]:
+    """Topic catalog for students and teachers (e.g. homework assignment)."""
     return service.list_topics()
 
 

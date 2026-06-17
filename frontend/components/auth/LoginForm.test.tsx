@@ -69,5 +69,19 @@ describe("LoginForm", () => {
       "Неверный email или пароль",
     );
     expect(replace).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Войти" })).toBeEnabled();
+  });
+
+  it("shows backend hint on network failure and re-enables the button", async () => {
+    mockedLogin.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    render(<LoginForm />);
+    await fillAndSubmit("teacher@example.com", "pw");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Запустите backend на порту 8000",
+    );
+    expect(replace).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Войти" })).toBeEnabled();
   });
 });

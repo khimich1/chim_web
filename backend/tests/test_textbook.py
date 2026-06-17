@@ -151,10 +151,18 @@ def test_audio_returns_404_when_missing(client: TestClient) -> None:
     assert client.get("/api/textbook/topics/Соли/chunks/0/audio").status_code == 404
 
 
-def test_teacher_cannot_access_textbook(client: TestClient) -> None:
+def test_teacher_can_list_topics(client: TestClient) -> None:
     assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
 
-    assert client.get("/api/textbook/topics").status_code == 403
+    response = client.get("/api/textbook/topics")
+    assert response.status_code == 200
+    assert len(response.json()) >= 1
+
+
+def test_teacher_cannot_access_textbook_chunks(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+
+    assert client.get("/api/textbook/topics/Соли/chunks").status_code == 403
 
 
 def test_unauthenticated_returns_401(client: TestClient) -> None:

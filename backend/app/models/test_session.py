@@ -49,7 +49,9 @@ class TestSession(Base):
         Enum(ExamTrack, name="exam_track", native_enum=False, length=10),
         nullable=False,
     )
-    variant_ref: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Null when the session aggregates test items from several variants
+    # (multi-item homework, SPEC §1.7).
+    variant_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
     homework_assignment_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         nullable=True,

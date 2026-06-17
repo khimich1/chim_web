@@ -2,3 +2,36 @@
 pythonpath = ["."]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.10"
+files = ["app"]
+explicit_package_bases = true
+namespace_packages = true
+plugins = ["pydantic.mypy"]
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "langchain_openai.*",
+    "langchain_openai",
+    "langchain_core.*",
+]
+ignore_missing_imports = true
+
+# LangChain constructors are not fully typed; pydantic plugin false-positives on call-arg.
+[[tool.mypy.overrides]]
+module = [
+    "app.services.tutor.graph",
+    "app.services.rag.embeddings",
+]
+disable_error_code = ["call-arg"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = false
+warn_required_dynamic_aliases = true

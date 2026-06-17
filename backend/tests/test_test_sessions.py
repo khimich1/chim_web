@@ -95,7 +95,7 @@ def client(tmp_path: Path) -> TestClient:
     app = create_app(
         settings=Settings(
             DATABASE_URL=db_url,
-            JWT_SECRET="test-jwt-secret-for-sessions",
+            JWT_SECRET="test-jwt-secret-for-sessions-32-bytes",
             CONTENT_EGE_DB_PATH=str(ege_db),
         )
     )

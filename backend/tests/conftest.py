@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 # Defaults for tests — no live PostgreSQL required (sqlite+aiosqlite in-memory).
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
-os.environ.setdefault("JWT_SECRET", "test-jwt-secret")
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret-at-least-32-bytes-long")
 os.environ.setdefault("CORS_ORIGINS", "http://localhost:3000")
 
 from app.core.config import Settings, get_settings  # noqa: E402

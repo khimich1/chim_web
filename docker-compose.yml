@@ -1,0 +1,25 @@
+# Dev stack: PostgreSQL for backend migrations and runtime.
+# Usage: docker compose up -d postgres
+# Then: cd backend && alembic upgrade head && uvicorn app.main:app --reload
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: chim-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: chemistry
+    volumes:
+      - chim_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d chemistry"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  chim_postgres_data:

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { login } from "@/lib/api/auth";
-import { ApiError } from "@/lib/api/client";
+import { ApiError, formatFetchError } from "@/lib/api/client";
 
 export function LoginForm() {
   const router = useRouter();
@@ -25,8 +25,9 @@ export function LoginForm() {
       if (err instanceof ApiError && err.status === 401) {
         setError("Неверный email или пароль");
       } else {
-        setError("Не удалось войти. Попробуйте позже.");
+        setError(formatFetchError(err, "Не удалось войти. Попробуйте позже."));
       }
+    } finally {
       setSubmitting(false);
     }
   }

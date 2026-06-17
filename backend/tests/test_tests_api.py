@@ -122,7 +122,7 @@ def client(tmp_path: Path) -> TestClient:
     app = create_app(
         settings=Settings(
             DATABASE_URL=db_url,
-            JWT_SECRET="test-jwt-secret-for-tests-api",
+            JWT_SECRET="test-jwt-secret-for-tests-api-32-bytes",
             CONTENT_EGE_DB_PATH=str(ege_db),
             CONTENT_OGE_DB_PATH=str(oge_db),
         )
@@ -190,10 +190,18 @@ def test_has_issue_questions_excluded(client: TestClient) -> None:
     assert response.status_code == 404
 
 
-def test_teacher_cannot_access_tests_catalog(client: TestClient) -> None:
+def test_teacher_lists_variants_with_track(client: TestClient) -> None:
     assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
 
-    assert client.get("/api/tests/variants").status_code == 403
+    response = client.get("/api/tests/variants", params={"track": "ege"})
+    assert response.status_code == 200
+    assert response.json() == [{"filename": "001.txt"}]
+
+
+def test_teacher_variants_requires_track(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+
+    assert client.get("/api/tests/variants").status_code == 422
 
 
 def test_unauthenticated_returns_401(client: TestClient) -> None:

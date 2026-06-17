@@ -12,7 +12,7 @@ from app.db.session import dispose_engine, get_db, init_engine
 
 def test_settings_loads_required_fields(test_settings: Settings) -> None:
     assert test_settings.database_url.startswith("sqlite+aiosqlite:")
-    assert test_settings.jwt_secret == "test-jwt-secret"
+    assert test_settings.jwt_secret == "test-jwt-secret-at-least-32-bytes-long"
     assert test_settings.cors_origins == ["http://localhost:3000"]
 
 
