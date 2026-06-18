@@ -10,6 +10,7 @@ import {
   sendTutorMessage,
 } from "@/lib/api/tutor";
 import { ApiError } from "@/lib/api/client";
+import { TutorChatProvider } from "@/lib/tutor/TutorChatContext";
 
 let pathname = "/student/textbook/Алканы";
 
@@ -58,10 +59,18 @@ beforeEach(() => {
   pathname = "/student/textbook/Алканы";
 });
 
+function renderOverlay() {
+  return render(
+    <TutorChatProvider>
+      <TutorChatOverlay />
+    </TutorChatProvider>,
+  );
+}
+
 describe("TutorChatOverlay", () => {
   it("opens the chat with the current page context", async () => {
     primeHappyPath();
-    render(<TutorChatOverlay />);
+    renderOverlay();
 
     await userEvent.click(
       screen.getByRole("button", { name: "AI-советчик по химии" }),
@@ -84,7 +93,7 @@ describe("TutorChatOverlay", () => {
       content: "Алканы малореакционны.",
       sources: [],
     });
-    render(<TutorChatOverlay />);
+    renderOverlay();
 
     await userEvent.click(
       screen.getByRole("button", { name: "AI-советчик по химии" }),
@@ -106,7 +115,7 @@ describe("TutorChatOverlay", () => {
   it("rolls back the optimistic message and restores input on error", async () => {
     primeHappyPath();
     mockedSend.mockRejectedValue(new ApiError(503, "Агент недоступен"));
-    render(<TutorChatOverlay />);
+    renderOverlay();
 
     await userEvent.click(
       screen.getByRole("button", { name: "AI-советчик по химии" }),
@@ -130,7 +139,7 @@ describe("TutorChatOverlay", () => {
 
   it("creates a new session after navigation (I1: no stale page_context)", async () => {
     primeHappyPath();
-    const { rerender } = render(<TutorChatOverlay />);
+    const { rerender } = renderOverlay();
 
     await userEvent.click(
       screen.getByRole("button", { name: "AI-советчик по химии" }),
@@ -142,7 +151,11 @@ describe("TutorChatOverlay", () => {
     // Close chat, navigate to a test page, reopen → fresh session with new context.
     await userEvent.click(screen.getByRole("button", { name: "Закрыть чат" }));
     pathname = "/student/tests/sessions/abc-123";
-    rerender(<TutorChatOverlay />);
+    rerender(
+      <TutorChatProvider>
+        <TutorChatOverlay />
+      </TutorChatProvider>,
+    );
 
     await userEvent.click(
       screen.getByRole("button", { name: "AI-советчик по химии" }),
@@ -154,9 +167,25 @@ describe("TutorChatOverlay", () => {
     );
   });
 
+  it("renders suggested prompts for the current page context", async () => {
+    primeHappyPath();
+    renderOverlay();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "AI-советчик по химии" }),
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Объясни кратко" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Проверь меня" }),
+    ).toBeInTheDocument();
+  });
+
   it("uses fullscreen dialog on mobile viewport classes", async () => {
     primeHappyPath();
-    render(<TutorChatOverlay />);
+    renderOverlay();
 
     await userEvent.click(
       screen.getByRole("button", { name: "AI-советчик по химии" }),

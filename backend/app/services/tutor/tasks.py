@@ -35,6 +35,13 @@ class TaskCard:
     question_preview: str
 
 
+@dataclass(frozen=True, slots=True)
+class PracticeTaskCard:
+    id: int
+    type: int
+    question: str
+
+
 def _repo_for_track(track: ExamTrack) -> ExamContentRepo:
     settings = get_settings()
     return ExamContentRepo(settings.tests_db_path_for_track(track))
@@ -61,6 +68,29 @@ def search_tasks(
             id=item.id,
             type=item.type,
             question_preview=(item.question or "")[:_PREVIEW_LEN],
+        )
+        for item in questions
+    ]
+
+
+def search_practice_tasks(
+    *,
+    track: ExamTrack,
+    query: str | None = None,
+    task_type: int | None = None,
+    top_k: int = 5,
+) -> list[PracticeTaskCard]:
+    """Search tasks for practice — full question text, no correct_ans in payload."""
+    questions = _repo_for_track(track).search_questions(
+        query=query,
+        task_type=task_type,
+        limit=top_k,
+    )
+    return [
+        PracticeTaskCard(
+            id=item.id,
+            type=item.type,
+            question=item.question or "",
         )
         for item in questions
     ]

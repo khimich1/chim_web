@@ -9,7 +9,6 @@ from langchain_core.tools import BaseTool, tool
 from app.services.rag.theory import search_theory
 from app.services.tutor.context import TutorRunContext
 from app.services.tutor.memory import update_profile
-from app.services.tutor.student_tools import StudentTutorToolsService
 from app.services.tutor.tasks import (
     get_task as repo_get_task,
     question_requires_image,
@@ -155,6 +154,44 @@ def build_tools(ctx: TutorRunContext) -> list[BaseTool]:
             payload = [item.model_dump(mode="json") for item in topics]
             return json.dumps(payload, ensure_ascii=False)
 
-        tools.extend([get_my_homework, analyze_my_mistakes, recommend_topics])
+        @tool
+        def generate_practice(
+            topic: str | None = None,
+            task_type: int | None = None,
+            n: int = 5,
+        ) -> str:
+            """Подобрать задания для тренировки (id и текст вопроса, без ответов)."""
+            if ctx.active_test_session_id is not None:
+                return json.dumps(
+                    {
+                        "error": (
+                            "Подбор заданий для тренировки недоступен во время "
+                            "активной тест-сессии. Задайте вопрос по теории."
+                        )
+                    },
+                    ensure_ascii=False,
+                )
+            items = run(
+                service.generate_practice(topic=topic, task_type=task_type, n=n)
+            )
+            payload = [item.model_dump(mode="json") for item in items]
+            return json.dumps(payload, ensure_ascii=False)
+
+        @tool
+        def get_selfcheck(topic: str) -> str:
+            """Вопросы самопроверки из учебника по теме (Q/A из lecture_qa)."""
+            items = run(service.get_selfcheck(topic))
+            payload = [item.model_dump(mode="json") for item in items]
+            return json.dumps(payload, ensure_ascii=False)
+
+        tools.extend(
+            [
+                get_my_homework,
+                analyze_my_mistakes,
+                recommend_topics,
+                generate_practice,
+                get_selfcheck,
+            ]
+        )
 
     return tools

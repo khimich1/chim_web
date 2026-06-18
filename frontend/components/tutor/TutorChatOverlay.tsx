@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { MessageBubble } from "@/components/tutor/MessageBubble";
 import {
@@ -13,6 +13,8 @@ import {
   type TutorPageContext,
 } from "@/lib/api/tutor";
 import { formatFetchError } from "@/lib/api/client";
+import { getSuggestedPrompts } from "@/lib/tutor/suggestedPrompts";
+import { useTutorChatOptional } from "@/lib/tutor/TutorChatContext";
 
 function buildPageContext(pathname: string): TutorPageContext {
   const textbookMatch = pathname.match(/^\/student\/textbook\/([^/]+)/);
@@ -36,10 +38,33 @@ function isActiveTestSession(pathname: string): boolean {
 
 export function TutorChatOverlay() {
   const pathname = usePathname();
-  const pageContext = useMemo(() => buildPageContext(pathname), [pathname]);
+  const tutorChat = useTutorChatOptional();
+  const routePageContext = useMemo(() => buildPageContext(pathname), [pathname]);
+  const pageContext = useMemo(
+    () => ({
+      ...routePageContext,
+      ...(tutorChat?.pageContextOverride ?? {}),
+    }),
+    [routePageContext, tutorChat?.pageContextOverride],
+  );
+  const suggestedPrompts = useMemo(
+    () => getSuggestedPrompts(pageContext),
+    [pageContext],
+  );
   const onTestSession = isActiveTestSession(pathname);
 
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = tutorChat?.open ?? localOpen;
+  const setOpen = tutorChat
+    ? (value: boolean) => {
+        if (value) {
+          tutorChat.openTutor();
+        } else {
+          tutorChat.closeTutor();
+        }
+      }
+    : setLocalOpen;
+
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<TutorMessage[]>([]);
   const [input, setInput] = useState("");
@@ -53,6 +78,7 @@ export function TutorChatOverlay() {
     setTrackedPathname(pathname);
     setSessionId(null);
     setMessages([]);
+    tutorChat?.clearPageContextOverride();
   }
 
   const ensureSession = useCallback(async () => {
@@ -62,9 +88,7 @@ export function TutorChatOverlay() {
     return session.id;
   }, [pageContext, sessionId]);
 
-  const handleOpen = async () => {
-    if (opening) return;
-    setOpen(true);
+  const bootstrapChat = useCallback(async () => {
     setError(null);
     setHealthWarning(null);
     setOpening(true);
@@ -91,7 +115,29 @@ export function TutorChatOverlay() {
     } finally {
       setOpening(false);
     }
+  }, [ensureSession]);
+
+  const handleOpen = () => {
+    if (opening) return;
+    setOpen(true);
   };
+
+  useEffect(() => {
+    if (!open || opening || sessionId) {
+      return;
+    }
+    void bootstrapChat();
+  }, [open, opening, sessionId, bootstrapChat]);
+
+  useEffect(() => {
+    if (!open || opening) {
+      return;
+    }
+    const pending = tutorChat?.consumeInitialMessage();
+    if (pending) {
+      setInput(pending);
+    }
+  }, [open, opening, tutorChat]);
 
   const handleSend = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -128,6 +174,10 @@ export function TutorChatOverlay() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSuggestedPrompt = (message: string) => {
+    setInput(message);
   };
 
   const fabPositionClass = onTestSession
@@ -175,9 +225,25 @@ export function TutorChatOverlay() {
 
           <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
             {messages.length === 0 && !opening ? (
-              <p className="text-sm text-zinc-500">
-                Задайте вопрос по теории или попросите разобрать задание.
-              </p>
+              <div className="space-y-3">
+                <p className="text-sm text-zinc-500">
+                  Задайте вопрос по теории или попросите разобрать задание.
+                </p>
+                {suggestedPrompts.length > 0 ? (
+                  <div className="flex flex-wrap gap-2" aria-label="Подсказки">
+                    {suggestedPrompts.map((prompt) => (
+                      <button
+                        key={prompt.label}
+                        type="button"
+                        onClick={() => handleSuggestedPrompt(prompt.message)}
+                        className="rounded-full border border-chem-teal/30 bg-chem-teal/5 px-3 py-1.5 text-xs font-medium text-chem-teal transition hover:bg-chem-teal/10"
+                      >
+                        {prompt.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             ) : (
               messages.map((message) => (
                 <MessageBubble key={message.id} message={message} />
@@ -226,4 +292,3 @@ export function TutorChatOverlay() {
     </>
   );
 }
-

@@ -7,9 +7,14 @@ import { checkStep, completeSession } from "@/lib/api/tests";
 import type { TestSession } from "@/lib/api/types";
 
 const push = vi.fn();
+const openTutor = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
+}));
+
+vi.mock("@/lib/tutor/TutorChatContext", () => ({
+  useTutorChat: () => ({ openTutor }),
 }));
 
 vi.mock("@/lib/api/tests", () => ({
@@ -135,5 +140,19 @@ describe("StepView", () => {
     expect(push).toHaveBeenCalledWith(
       "/student/tests/sessions/sess-1/summary",
     );
+  });
+
+  it("opens the tutor overlay with test session context", async () => {
+    render(<StepView session={session} />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Спросить советчика" }),
+    );
+
+    expect(openTutor).toHaveBeenCalledWith({
+      pageContext: { test_session_id: "sess-1" },
+      initialMessage:
+        "Подскажи теорию из учебника, которая поможет решить это задание.",
+    });
   });
 });

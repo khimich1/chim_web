@@ -38,3 +38,20 @@ class TopicRecommendation(BaseModel):
     mistake_count: int
     related_task_types: list[int] = Field(default_factory=list)
     reason: str
+
+
+class PracticeTask(BaseModel):
+    """Practice item without correct_ans (Task 44)."""
+
+    id: int
+    type: int
+    question: str
+
+
+class SelfCheckItem(BaseModel):
+    """Self-check Q/A from lecture_qa chunks (Task 44)."""
+
+    question: str
+    answer: str
+    chunk_idx: int
+    chunk_title: str | None = None

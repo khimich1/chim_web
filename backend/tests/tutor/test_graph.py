@@ -63,6 +63,7 @@ def test_build_tools_include_student_tools_when_wired() -> None:
     )
     names = {tool.name for tool in build_tools(ctx)}
     assert {"get_my_homework", "analyze_my_mistakes", "recommend_topics"} <= names
+    assert {"generate_practice", "get_selfcheck"} <= names
 
 
 def test_save_user_info_persists(tmp_path, monkeypatch) -> None:

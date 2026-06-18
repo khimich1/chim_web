@@ -86,3 +86,28 @@ def resolve_topic_for_type(
         if topic in available_topics:
             return topic
     return None
+
+
+def _normalize_topic_name(topic: str, available_topics: set[str]) -> str:
+    """Match topic case-insensitively against textbook topic names."""
+    clean = topic.strip()
+    if clean in available_topics:
+        return clean
+    lower_map = {name.lower(): name for name in available_topics}
+    return lower_map.get(clean.lower(), clean)
+
+
+def task_types_for_topic(
+    track: ExamTrack,
+    topic: str,
+    *,
+    available_topics: set[str],
+) -> list[int]:
+    """Return exam task types mapped to a textbook topic (reverse of resolve_topic_for_type)."""
+    resolved = _normalize_topic_name(topic, available_topics)
+    table = _EGE_TYPE_TOPICS if track == "ege" else _OGE_TYPE_TOPICS
+    return sorted(
+        task_type
+        for task_type, topics in table.items()
+        if resolved in topics
+    )

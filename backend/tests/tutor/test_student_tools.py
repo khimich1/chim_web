@@ -58,6 +58,7 @@ def test_student_tools_registered_only_for_student_with_backend() -> None:
     teacher_names = {tool.name for tool in build_tools(teacher_ctx)}
 
     assert {"get_my_homework", "analyze_my_mistakes", "recommend_topics"} <= student_names
+    assert {"generate_practice", "get_selfcheck"} <= student_names
     assert "get_my_homework" not in teacher_names
 
 

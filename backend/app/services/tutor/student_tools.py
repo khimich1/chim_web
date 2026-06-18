@@ -5,23 +5,30 @@ from __future__ import annotations
 import uuid
 from collections import defaultdict
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models import User, UserRole
-from app.models.enums import HomeworkStatus, StepStatus
+from app.models.enums import HomeworkStatus
+from app.models.student_profile import StudentProfile
 from app.repositories.app.test_session_repo import TestSessionRepository
 from app.repositories.content.lectures import LectureContentRepo
 from app.schemas.tutor_student_tools import (
     HomeworkToolItem,
     MistakeAnalysis,
     MistakeByType,
+    PracticeTask,
+    SelfCheckItem,
     TopicRecommendation,
 )
 from app.services.homework_service import HomeworkService
 from app.services.rag.documents import ExamTrack
-from app.services.tutor.tasks import get_task
-from app.services.tutor.type_topic_map import resolve_topic_for_type
+from app.services.tutor.tasks import get_task, search_practice_tasks
+from app.services.tutor.type_topic_map import (
+    resolve_topic_for_type,
+    task_types_for_topic,
+)
 
 _ACTIVE_HOMEWORK_STATUSES = frozenset(
     {HomeworkStatus.ASSIGNED, HomeworkStatus.IN_PROGRESS}
@@ -175,6 +182,103 @@ class StudentTutorToolsService:
                 )
             )
         return recommendations
+
+    async def generate_practice(
+        self,
+        *,
+        topic: str | None = None,
+        task_type: int | None = None,
+        n: int = 5,
+    ) -> list[PracticeTask]:
+        """Pick practice tasks from the student's exam track without answer keys."""
+        if self._user.role != UserRole.STUDENT:
+            return []
+
+        track = await self._student_track()
+        if track is None:
+            return []
+
+        n = max(1, min(n, 20))
+        clean_topic = topic.strip() if topic else None
+        if clean_topic == "":
+            clean_topic = None
+
+        results: list[PracticeTask] = []
+        seen_ids: set[int] = set()
+
+        def _append_from_search(
+            *,
+            query: str | None = None,
+            search_type: int | None = None,
+        ) -> None:
+            nonlocal results
+            cards = search_practice_tasks(
+                track=track.value,
+                query=query,
+                task_type=search_type,
+                top_k=n,
+            )
+            for card in cards:
+                if card.id in seen_ids:
+                    continue
+                seen_ids.add(card.id)
+                results.append(
+                    PracticeTask(
+                        id=card.id,
+                        type=card.type,
+                        question=card.question,
+                    )
+                )
+                if len(results) >= n:
+                    return
+
+        if task_type is not None:
+            _append_from_search(search_type=task_type)
+            return results[:n]
+
+        if clean_topic:
+            available_topics = self._textbook_topics()
+            for mapped_type in task_types_for_topic(
+                track.value,
+                clean_topic,
+                available_topics=available_topics,
+            ):
+                _append_from_search(search_type=mapped_type)
+                if len(results) >= n:
+                    return results[:n]
+            _append_from_search(query=clean_topic)
+            return results[:n]
+
+        _append_from_search()
+        return results[:n]
+
+    async def get_selfcheck(self, topic: str) -> list[SelfCheckItem]:
+        """Return textbook self-check Q/A pairs for a topic (lecture_qa source)."""
+        if self._user.role != UserRole.STUDENT:
+            return []
+
+        settings = get_settings()
+        repo = LectureContentRepo(settings.content_lectures_db_path)
+        rows = repo.get_selfcheck_for_topic(topic)
+        return [
+            SelfCheckItem(
+                question=row.question,
+                answer=row.answer,
+                chunk_idx=row.chunk_idx,
+                chunk_title=row.chunk_title,
+            )
+            for row in rows
+        ]
+
+    async def _student_track(self) -> ExamTrack | None:
+        if self._user.role != UserRole.STUDENT:
+            return None
+        profile = await self._session.scalar(
+            select(StudentProfile).where(StudentProfile.user_id == self._user.id)
+        )
+        if profile is None:
+            return ExamTrack.EGE
+        return profile.track
 
     def _textbook_topics(self) -> set[str]:
         settings = get_settings()

@@ -8,6 +8,7 @@ import { checkStep, completeSession } from "@/lib/api/tests";
 import type { TestSession, TestStep } from "@/lib/api/types";
 import { QuestionContent } from "@/components/tests/QuestionContent";
 import { StepProgressDots } from "@/components/tests/StepProgressDots";
+import { useTutorChat } from "@/lib/tutor/TutorChatContext";
 
 function findFirstUnchecked(steps: TestStep[]): number {
   const index = steps.findIndex((step) => step.status !== "checked");
@@ -16,6 +17,7 @@ function findFirstUnchecked(steps: TestStep[]): number {
 
 export function StepView({ session }: { session: TestSession }) {
   const router = useRouter();
+  const { openTutor } = useTutorChat();
   const initialIndex = findFirstUnchecked(session.steps);
   const [steps, setSteps] = useState<TestStep[]>(session.steps);
   const [current, setCurrent] = useState(initialIndex);
@@ -134,6 +136,22 @@ export function StepView({ session }: { session: TestSession }) {
               onChange={(e) => setAnswer(e.target.value)}
               className="chem-input min-h-[44px] w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
             />
+          </div>
+
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() =>
+                openTutor({
+                  pageContext: { test_session_id: session.id },
+                  initialMessage:
+                    "Подскажи теорию из учебника, которая поможет решить это задание.",
+                })
+              }
+              className="chem-btn-ghost min-h-[44px] px-3 py-2 text-sm text-chem-teal"
+            >
+              Спросить советчика
+            </button>
           </div>
 
           {isChecked ? (
