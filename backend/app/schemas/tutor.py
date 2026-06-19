@@ -13,6 +13,9 @@ class TutorPageContext(BaseModel):
     topic: str | None = None
     test_session_id: uuid.UUID | None = None
     homework_id: uuid.UUID | None = None
+    step_position: int | None = Field(default=None, ge=0)
+    test_id: int | None = Field(default=None, ge=1)
+    solve_mode: Literal["explain_incorrect_step"] | None = None
 
 
 class TutorSessionCreate(BaseModel):

@@ -1,9 +1,12 @@
 import Link from "next/link";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { OnboardingChecklist } from "@/components/student/OnboardingChecklist";
+import { ProgressWidget } from "@/components/student/ProgressWidget";
+import { ResumeSessionCards } from "@/components/student/ResumeSessionCards";
 import { TrackBadge } from "@/components/ui/TrackBadge";
 import { DecorativeBlobs } from "@/components/ui/DecorativeBlobs";
-import { getCurrentUser, getHomeworkList } from "@/lib/api/server";
+import { getCurrentUser, getHomeworkList, getOnboardingStatus, getTestVariants } from "@/lib/api/server";
 
 const QUICK_LINKS = [
   {
@@ -24,12 +27,20 @@ const QUICK_LINKS = [
     description: "Пошаговое прохождение вариантов",
     statKey: null,
   },
+  {
+    href: "/student/leaderboard",
+    title: "Рейтинг",
+    description: "Топ учеников за неделю и за всё время",
+    statKey: null,
+  },
 ];
 
 export default async function StudentDashboard() {
-  const [user, homework] = await Promise.all([
+  const [user, homework, variants, onboarding] = await Promise.all([
     getCurrentUser(),
     getHomeworkList(),
+    getTestVariants(),
+    getOnboardingStatus(),
   ]);
 
   const activeHomework = homework.filter(
@@ -54,6 +65,14 @@ export default async function StudentDashboard() {
             ) : null}
           </div>
           <LogoutButton />
+        </div>
+
+        <div className="mt-8 space-y-8 sm:mt-10">
+          {onboarding ? (
+            <OnboardingChecklist checklist={onboarding.checklist} />
+          ) : null}
+          <ProgressWidget />
+          <ResumeSessionCards homework={homework} variants={variants} />
         </div>
 
         <section aria-labelledby="dashboard-quick-links" className="mt-8 sm:mt-10">

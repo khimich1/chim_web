@@ -52,6 +52,8 @@ class TestSession(Base):
     # Null when the session aggregates test items from several variants
     # (multi-item homework, SPEC §1.7).
     variant_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Set for free practice by task type (EGE: one type across all variants).
+    practice_task_type: Mapped[int | None] = mapped_column(Integer, nullable=True)
     homework_assignment_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         nullable=True,

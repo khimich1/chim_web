@@ -1,11 +1,16 @@
 import Link from "next/link";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
-import { VariantPicker } from "@/components/tests/VariantPicker";
-import { getTestVariants } from "@/lib/api/server";
+import { TestsPicker } from "@/components/tests/TestsPicker";
+import { getCurrentUser, getTestTaskTypes, getTestVariants } from "@/lib/api/server";
 
 export default async function TestsPage() {
-  const variants = await getTestVariants();
+  const user = await getCurrentUser();
+  const track = user?.track ?? "ege";
+  const [variants, taskTypes] = await Promise.all([
+    getTestVariants(),
+    getTestTaskTypes(),
+  ]);
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
@@ -14,7 +19,7 @@ export default async function TestsPage() {
           <p className="chem-kicker">Кабинет ученика</p>
           <h1 className="mt-1 text-2xl font-semibold text-zinc-900">Тесты</h1>
           <p className="mt-1 text-sm text-zinc-600">
-            Выберите вариант, чтобы начать пошаговое прохождение.
+            Выберите целый вариант или одно задание из всех вариантов.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -26,7 +31,7 @@ export default async function TestsPage() {
       </div>
 
       <section className="mt-10">
-        <VariantPicker variants={variants} />
+        <TestsPicker variants={variants} taskTypes={taskTypes} track={track} />
       </section>
     </main>
   );

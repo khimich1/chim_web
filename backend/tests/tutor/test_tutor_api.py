@@ -167,6 +167,32 @@ def _login(client: TestClient, email: str, password: str) -> None:
     assert response.status_code == 200
 
 
+def test_create_session_serializes_explain_incorrect_page_context(
+    tutor_client: TestClient,
+) -> None:
+    """page_context with solve gating fields must round-trip through API."""
+    _login(tutor_client, STUDENT_EMAIL, STUDENT_PASS)
+    test_session_id = str(uuid.uuid4())
+
+    create = tutor_client.post(
+        "/api/tutor/sessions",
+        json={
+            "page_context": {
+                "test_session_id": test_session_id,
+                "step_position": 2,
+                "test_id": 42,
+                "solve_mode": "explain_incorrect_step",
+            }
+        },
+    )
+    assert create.status_code == 201
+    body = create.json()["page_context"]
+    assert body["test_session_id"] == test_session_id
+    assert body["step_position"] == 2
+    assert body["test_id"] == 42
+    assert body["solve_mode"] == "explain_incorrect_step"
+
+
 def test_create_session_serializes_test_session_id_in_page_context(
     tutor_client: TestClient,
 ) -> None:

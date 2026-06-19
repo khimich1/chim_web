@@ -10,7 +10,7 @@ from app.core.config import Settings
 from app.models import ExamTrack, StudentProfile, User
 from app.repositories.content.base import ContentDbError
 from app.repositories.content.tests import ExamContentRepo
-from app.schemas.tests import QuestionRead, VariantRead
+from app.schemas.tests import QuestionRead, TaskTypeRead, VariantRead
 from app.services.image_substitution import substitute_image_placeholders
 
 
@@ -42,6 +42,25 @@ class TestCatalogService:
                 detail="Test content database unavailable",
             ) from exc
         return [VariantRead(filename=name) for name in filenames]
+
+    def list_task_types(self, track: ExamTrack) -> list[TaskTypeRead]:
+        repo = self._repos[track]
+        try:
+            type_numbers = repo.list_task_types()
+        except ContentDbError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Test content database unavailable",
+            ) from exc
+        return [
+            TaskTypeRead(
+                type=type_num,
+                variant_count=repo.count_expanded_questions(
+                    [type_num], track=track
+                ),
+            )
+            for type_num in type_numbers
+        ]
 
     def list_questions(self, track: ExamTrack, filename: str) -> list[QuestionRead]:
         repo = self._repos[track]

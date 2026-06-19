@@ -25,6 +25,26 @@ class ExamContentRepo:
     def __init__(self, db_path: Path) -> None:
         self._db_path = db_path
 
+    def list_task_types(self) -> list[int]:
+        """Distinct task type numbers available across exam variants."""
+        variants = self.list_variants()
+        if not variants:
+            return []
+        placeholders = ",".join("?" * len(variants))
+        with open_readonly(self._db_path) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT DISTINCT t.type
+                FROM tests t
+                WHERE t.filename IN ({placeholders})
+                  AND COALESCE(t.has_issue, 0) = 0
+                  AND t.filename NOT IN (SELECT filename FROM tests_bug)
+                ORDER BY t.type
+                """,
+                variants,
+            ).fetchall()
+        return [int(row["type"]) for row in rows]
+
     def list_variants(self) -> list[str]:
         with open_readonly(self._db_path) as conn:
             rows = conn.execute(

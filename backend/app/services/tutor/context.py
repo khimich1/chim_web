@@ -24,6 +24,8 @@ class TutorRunContext:
     user_id: str = "anonymous"
     role: TutorRole = "student"
     active_test_session_id: uuid.UUID | None = None
+    allowed_solve_test_id: int | None = None
+    solve_student_answer: str | None = None
     run_async: AsyncRunner | None = field(default=None, compare=False, repr=False)
     student_tools_service: StudentTutorToolsService | None = field(
         default=None,

@@ -23,3 +23,6 @@ class StudentRead(BaseModel):
     email: str
     track: ExamTrack
     created_at: datetime
+    first_login_at: datetime | None = None
+    onboarding_completed_at: datetime | None = None
+    is_activated: bool = False

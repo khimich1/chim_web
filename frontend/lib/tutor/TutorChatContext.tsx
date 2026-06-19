@@ -14,15 +14,18 @@ import type { TutorPageContext } from "@/lib/api/tutor";
 export type OpenTutorOptions = {
   pageContext?: TutorPageContext;
   initialMessage?: string;
+  autoSendInitialMessage?: boolean;
 };
 
 type TutorChatContextValue = {
   open: boolean;
   pageContextOverride: TutorPageContext | null;
   initialMessage: string | null;
+  autoSendInitialMessage: boolean;
   openTutor: (options?: OpenTutorOptions) => void;
   closeTutor: () => void;
   consumeInitialMessage: () => string | null;
+  consumeAutoSendInitialMessage: () => boolean;
   clearPageContextOverride: () => void;
 };
 
@@ -33,10 +36,12 @@ export function TutorChatProvider({ children }: { children: ReactNode }) {
   const [pageContextOverride, setPageContextOverride] =
     useState<TutorPageContext | null>(null);
   const [initialMessage, setInitialMessage] = useState<string | null>(null);
+  const [autoSendInitialMessage, setAutoSendInitialMessage] = useState(false);
 
   const openTutor = useCallback((options?: OpenTutorOptions) => {
     setPageContextOverride(options?.pageContext ?? null);
     setInitialMessage(options?.initialMessage?.trim() || null);
+    setAutoSendInitialMessage(Boolean(options?.autoSendInitialMessage));
     setOpen(true);
   }, []);
 
@@ -50,6 +55,12 @@ export function TutorChatProvider({ children }: { children: ReactNode }) {
     return message;
   }, [initialMessage]);
 
+  const consumeAutoSendInitialMessage = useCallback(() => {
+    const shouldSend = autoSendInitialMessage;
+    setAutoSendInitialMessage(false);
+    return shouldSend;
+  }, [autoSendInitialMessage]);
+
   const clearPageContextOverride = useCallback(() => {
     setPageContextOverride(null);
   }, []);
@@ -59,18 +70,22 @@ export function TutorChatProvider({ children }: { children: ReactNode }) {
       open,
       pageContextOverride,
       initialMessage,
+      autoSendInitialMessage,
       openTutor,
       closeTutor,
       consumeInitialMessage,
+      consumeAutoSendInitialMessage,
       clearPageContextOverride,
     }),
     [
       open,
       pageContextOverride,
       initialMessage,
+      autoSendInitialMessage,
       openTutor,
       closeTutor,
       consumeInitialMessage,
+      consumeAutoSendInitialMessage,
       clearPageContextOverride,
     ],
   );

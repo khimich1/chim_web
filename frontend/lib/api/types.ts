@@ -13,6 +13,36 @@ export interface Student {
   email: string;
   track: Track;
   created_at: string;
+  first_login_at: string | null;
+  onboarding_completed_at: string | null;
+  is_activated: boolean;
+}
+
+export interface OnboardingChecklist {
+  login: boolean;
+  first_action: boolean;
+  lecture: boolean;
+}
+
+export interface OnboardingStatus {
+  first_login_at: string | null;
+  onboarding_completed_at: string | null;
+  checklist: OnboardingChecklist;
+  needs_welcome: boolean;
+}
+
+export type RecommendedActionKind = "homework" | "diagnostic_test" | "textbook";
+
+export interface RecommendedAction {
+  kind: RecommendedActionKind;
+  label: string;
+  homework_id: string | null;
+  variant_ref: string | null;
+  textbook_topic: string | null;
+}
+
+export interface OnboardingWelcome extends OnboardingStatus {
+  recommended_action: RecommendedAction;
 }
 
 export interface TextbookTopic {
@@ -45,6 +75,11 @@ export interface TestVariant {
   filename: string;
 }
 
+export interface TestTaskType {
+  type: number;
+  variant_count: number;
+}
+
 export interface TestStep {
   position: number;
   test_id: number;
@@ -67,6 +102,38 @@ export interface TestSession {
   max_score: number | null;
   total_steps: number;
   steps: TestStep[];
+  created_at: string;
+}
+
+export interface StudentStats {
+  student_id: string;
+  total_points: number;
+  week_points: number;
+  current_streak: number;
+  longest_streak: number;
+  last_active_date: string | null;
+  tasks_solved: number;
+  total_minutes: number;
+  updated_at: string | null;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  display_name: string;
+  points: number;
+}
+
+/** GET /api/teacher/students/stats — teacher-facing student metrics (Task 62). */
+export interface TeacherStudentStats {
+  id: string;
+  email: string;
+  display_name: string | null;
+  total_points: number;
+  week_points: number;
+  streak: number;
+  tasks_solved: number;
+  total_minutes: number;
+  last_active_date: string | null;
 }
 
 export interface StepCheckResult {

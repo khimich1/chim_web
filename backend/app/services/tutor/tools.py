@@ -69,15 +69,16 @@ def build_tools(ctx: TutorRunContext) -> list[BaseTool]:
     def get_task(task_id: int) -> str:
         """Получить задание по id из банка задач текущего трека (ЕГЭ/ОГЭ)."""
         if ctx.active_test_session_id is not None and ctx.role == "student":
-            return json.dumps(
-                {
-                    "error": (
-                        "Разбор заданий с ключом недоступен во время активной "
-                        "тест-сессии. Задайте вопрос по теории."
-                    )
-                },
-                ensure_ascii=False,
-            )
+            if ctx.allowed_solve_test_id != task_id:
+                return json.dumps(
+                    {
+                        "error": (
+                            "Разбор заданий с ключом недоступен во время активной "
+                            "тест-сессии. Задайте вопрос по теории."
+                        )
+                    },
+                    ensure_ascii=False,
+                )
 
         task = repo_get_task(task_id, track=ctx.track)
         if task is None:

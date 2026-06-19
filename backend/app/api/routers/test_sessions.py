@@ -17,7 +17,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import StudentUser, get_app_settings
+from app.api.deps import StudentUser, get_activity_service, get_app_settings
 from app.core.config import Settings
 from app.db.session import get_db
 from app.schemas.test_session import (
@@ -28,6 +28,7 @@ from app.schemas.test_session import (
     StepCheckRequest,
     StepCheckResponse,
 )
+from app.services.activity_service import ActivityService
 from app.services.test_session_service import TestSessionService
 
 router = APIRouter(prefix="/api/tests/sessions", tags=["test-sessions"])
@@ -36,8 +37,9 @@ router = APIRouter(prefix="/api/tests/sessions", tags=["test-sessions"])
 def get_test_session_service(
     db: Annotated[AsyncSession, Depends(get_db)],
     settings: Annotated[Settings, Depends(get_app_settings)],
+    activity: Annotated[ActivityService, Depends(get_activity_service)],
 ) -> TestSessionService:
-    return TestSessionService(db, settings)
+    return TestSessionService(db, settings, activity)
 
 
 @router.post("", response_model=SessionRead, status_code=status.HTTP_201_CREATED)
@@ -55,11 +57,13 @@ async def get_active_session(
     service: Annotated[TestSessionService, Depends(get_test_session_service)],
     variant_ref: str | None = None,
     homework_assignment_id: uuid.UUID | None = None,
+    task_type: int | None = None,
 ) -> ActiveSessionResponse:
     return await service.get_active_session(
         student,
         variant_ref=variant_ref,
         homework_assignment_id=homework_assignment_id,
+        task_type=task_type,
     )
 
 

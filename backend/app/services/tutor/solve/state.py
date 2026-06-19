@@ -23,6 +23,7 @@ class SolveState(MessagesState):
     correct_ans: NotRequired[str | None]
     theory_hits: NotRequired[list[dict[str, Any]]]
     draft_answer: NotRequired[str | None]
+    student_answer: NotRequired[str | None]
     critique: NotRequired[dict[str, Any] | None]
     retry_count: NotRequired[int]
     answer_format: NotRequired[Literal["digit_string", "number"] | None]

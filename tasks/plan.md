@@ -1,9 +1,9 @@
 # Implementation Plan: Chemistry (chim_web) MVP
 
-**Источник:** [SPEC.md](../SPEC.md) v0.7.5 · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2  
+**Источник:** [SPEC.md](../SPEC.md) v0.7.7 · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2 · геймификация: [`docs/ideas/student-points-leaderboard.md`](../docs/ideas/student-points-leaderboard.md)  
 **Дата плана:** 2026-06-09  
-**Обновлено:** 2026-06-18  
-**Статус:** MVP core + Phase 12 ✅ (`7804506`); Task 29 ✅ routers ≥80%; Task 41 ✅ RAG accuracy (cleanup + hybrid + eval + query rewrite); Task 42 ✅ solve-pipeline этап A; Phase 11 UI redesign ✅ student cabinet (`9fb016a`, Tasks 48–52); **далее: Task 56 (таблица Менделеева) или Task 42 этап B / Task 44**; tutor Tasks 31–38 в истории `08b418a`
+**Обновлено:** 2026-06-19  
+**Статус:** MVP core + Phase 12 ✅ (`7804506`); Task 29 ✅ routers ≥80%; Task 41 ✅ RAG accuracy; Task 42 ✅ solve-pipeline этап A; Phase 11 UI redesign ✅ (`9fb016a`, Tasks 48–52); Task 56 ✅ Mendeleev overlay; **далее: Task 57 (solve после неверного ответа, §1.3.4) или Phase 13 (баллы и рейтинг, §1.8)**; tutor Tasks 31–38 в истории `08b418a`
 
 ---
 
@@ -69,8 +69,10 @@
 | 54 | StepProgressDots + resume UX в StepView | ✅ done | `7804506`; hint в `StepRead` при `hint_used` |
 | 55 | «Продолжить» — VariantPicker + TestHomeworkActions | ✅ done | `7804506` |
 | 56 | Таблица Менделеева — overlay при тестах | ✅ done | `PeriodicTableOverlay`, asset в `assets/` + `public/images/` |
+| 57 | «Спросить советчика» после неверного ответа (§1.3.4) | ✅ local | `solve_gating.py`, StepView + TutorChatContext, pytest + vitest |
+| 58–65 | Баллы, streak, рейтинг (§1.8, Phase 13) | ✅ local | миграции `008`/`009`, activity layer, API, student dashboard + leaderboard, teacher stats UI |
 
-**Текущий этап:** Phase 12 ✅; **Task 56** (справочник таблицы при тестах); Task 30 (Docker/CI); Task 44 (тренажёр) или Task 42 этап B.
+**Текущий этап:** Phase 12 ✅; **Task 57** ✅ local; **Phase 13 (58–65)** ✅ local; Task 44 (тренажёр) или Task 42 этап B.
 
 ---
 
@@ -87,8 +89,10 @@
 | `page_context.topic` **не** используется в retrieval | — | ✅ мягкий сигнал только в rewriter (не жёсткий `topic=` фильтр) |
 | StepProgressDots + «Продолжить» (§1.3.1–1.3.2) | Phase 12, Tasks 53–55 | ✅ `7804506` |
 | Таблица Менделеева при тестах (§1.3.3) | Task 56 | ✅ done |
+| Solve после неверного ответа (§1.3.4) | Task 57 | ✅ local |
 | UI redesign teal + mobile-first (§14) | Phase 11, Tasks 48–52 | ✅ `9fb016a` |
 | Мульти-item ДЗ (§1.7) | Tasks 39–40 | ✅ local |
+| Баллы, streak, рейтинг (§1.8) | Phase 13, Tasks 58–65 | ✅ local |
 
 **Расхождения spec ↔ подспеки:** закрыты в SPEC v0.7.3 и tutor-rag v0.8.1 (AC-6.2, tools §3, `TutorSourceCitation` без `test`).
 
@@ -143,7 +147,7 @@ Task 3  Content SQLite repos                 ✅
 | 2 | Пароль ученика при онбординге | Teacher задаёт временный пароль; смена при первом входе — **вне v1** |
 | 3 | VPS / HTTPS в v1 | Dev-only до Task 30; prod Docker + Let's Encrypt — отдельная фаза |
 | 4 | ОГЭ картинки без плейсхолдера | MVP: только явные `[рисунокNNNN]` / известные паттерны; маппинг `type→OGE000N` — Task 15a, если нужен |
-| 5 | `detailed_explanation` | По кнопке «Разбор» после «Проверить» (не авто) |
+| 5 | `detailed_explanation` | **Не показываем в UI (v2+).** При `is_correct=false` — кнопка «Спросить советчика» → AI solve-pipeline (§1.3.4, Task 57) |
 
 ---
 
@@ -629,7 +633,7 @@ Task 3  Content SQLite repos                 ✅
 
 ## Task 18: Tests UI — step view (Stepik)
 
-**Description:** `/(student)/tests/sessions/[id]` — одно задание на экран, **StepProgressDots** (§1.3.1), «Проверить», «Подсказка», «Разбор», «Назад»/«Далее».
+**Description:** `/(student)/tests/sessions/[id]` — одно задание на экран, **StepProgressDots** (§1.3.1), «Проверить», «Подсказка», «Спросить советчика» (при неверном ответе, §1.3.4 → Task 57), «Назад»/«Далее».
 
 **Acceptance criteria:**
 - [x] AC-2.4, AC-2.5, AC-2.6, AC-2.7 (базовый flow)
@@ -1033,11 +1037,13 @@ Task 3  Content SQLite repos                 ✅
 48 → 49 → 50 → 51 → 52 (UI redesign §14; можно параллельно; начать с 48→49)
 53 → 54 → 55 (SPEC §1.3.1–1.3.2: active session + StepProgressDots + «Продолжить»; P0 UX gap)
 56 (SPEC §1.3.3: таблица Менделеева overlay при тестах; frontend-only)
+57 (SPEC §1.3.4: solve после неверного ответа)
+58 → 65 (SPEC §1.8: баллы, streak, рейтинг — Phase 13)
 ```
 
-**Оценка:** ~30 задач MVP + 8 задач AI-советчика (v2+, Tasks 31–38) + Tasks 39–40 (мульти-item ДЗ) + Tasks 41–47 (надёжность и расширение агента) + Tasks 48–52 (UI redesign §14) + **Tasks 53–55 (SPEC §1.3.1–1.3.2: step-dots + resume)** + **Task 56 (таблица Менделеева)**.
+**Оценка:** ~30 задач MVP + 8 задач AI-советчика (v2+, Tasks 31–38) + Tasks 39–40 (мульти-item ДЗ) + Tasks 41–47 (надёжность и расширение агента) + Tasks 48–52 (UI redesign §14) + **Tasks 53–55 (SPEC §1.3.1–1.3.2: step-dots + resume)** + **Task 56 (таблица Менделеева)** + **Task 57 (solve после неверного ответа, §1.3.4)** + **Tasks 58–65 (баллы и рейтинг, §1.8)**.
 
-**Прогресс на 2026-06-18:** Tasks 0–29 ✅ | Task 30 🟡 | Tasks 31–40 ✅ в git | Task 41 ✅ (41.1–41.4) | **Task 42 ✅ этап A** | **Task 43 ✅ local** | Task 46 ⏸️ | Tasks 48–55 ✅ | **Task 56 ⏳** | **далее: Task 56, Task 44 или Task 42 этап B**
+**Прогресс на 2026-06-19:** Tasks 0–29 ✅ | Task 30 🟡 | Tasks 31–40 ✅ в git | Task 41 ✅ (41.1–41.4) | **Task 42 ✅ этап A** | **Task 43 ✅ local** | Task 46 ⏸️ | Tasks 48–56 ✅ | **Task 57 ✅ local** | **Tasks 58–65 ✅ local** | **далее: Task 65 checkpoint / коммит Phase 13, Task 44 или Task 42 этап B**
 
 ---
 
@@ -1105,11 +1111,11 @@ Task 3  Content SQLite repos                 ✅
 > **Статус:** ⏳ pending. **Детализирован и заменён Task 42** (срез 16-2, `tutor-rag.md` §17).
 > Сохранён здесь как исторический контекст Phase 9; реализацию вести по Task 42.
 
-**Description:** Перенести `planner/solver/critic/task_flow/state` и `validation.py`. `intent_router` направляет «разбери задание N» в solve-ветку **только вне активной тест-сессии**; иначе — теория.
+**Description:** Перенести `planner/solver/critic/task_flow/state` и `validation.py`. `intent_router` направляет «разбери задание N» в solve-ветку **вне активной тест-сессии** или в режиме `explain_incorrect_step` (§1.3.4, Task 57); иначе — теория.
 
 **Acceptance criteria:**
 - [ ] Вне теста: разбор задания → ключ сверяется кодом с `correct_ans`, есть цитата учебника
-- [ ] Во время активной `TestSession` ученика: solve-ветка и `get_task` с `correct_ans` отключены
+- [ ] Во время активной `TestSession`: solve и `get_task` с `correct_ans` **только** для серверно подтверждённого неверного шага (Task 57)
 - [ ] Лимит ретраев ≤2; гибридный финал при провале
 
 **Verification:**
@@ -1282,7 +1288,7 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 ### Checkpoint: AI-советчик (после Tasks 31–38)
 
 - [ ] Overlay-чат работает поверх учебника и тестов; ответы с цитатами
-- [ ] Gating: во время теста — только теория, `correct_ans` недоступен
+- [ ] Gating: во время теста — теория по умолчанию; solve с ключом — только после неверного шага (§1.3.4, Task 57)
 - [ ] Teacher видит диалоги своих учеников; RBAC проверен
 - [ ] Task 38: нет устаревшего `page_context`; LLM не держит DB-транзакцию
 - [ ] MVP-тесты (0–29) без регрессий
@@ -1364,7 +1370,7 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 - [x] AC-17.1: в логах виден `get_task(N)`; финальный ключ == `correct_ans` после нормализации
 - [x] AC-17.2: в разборе есть цитата (`topic`/`chunk_title`) из реально вызванного `retrieve_theory`
 - [x] `validation.py`: `digit_string` (порядок АБВГ без переупорядочивания) и `number` (допуск, `,`↔`.`, отбрасывание единиц)
-- [x] AC-17.4: во время активной `TestSession` solve-ветка не запускается (только теория)
+- [x] AC-17.4: во время активной `TestSession` solve **по умолчанию** не запускается; **исключение** — `explain_incorrect_step` (Task 57, §1.3.4)
 - [x] `intent_router` (regex задание+номер) + `prepare_context` (код) + код-критик
 
 **Acceptance criteria (этап B):**
@@ -1407,20 +1413,20 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 > Источник: `tutor-rag.md` §16.2 (`generate_practice`, `get_selfcheck`), §16.3 (U3, U4).
 
-**Description:** Tool `generate_practice(topic/type, n)` — подбор похожих заданий для тренировки (id + текст, **без** `correct_ans` в выдаче) поверх `search_tasks`. Tool `get_selfcheck(topic)` — вопросы самопроверки из `qa_questions/qa_answers` (источник `lecture_qa`). Frontend: suggested prompts по `page_context` (U3) и кнопка «спросить советчика» из шага теста/разбора (U4).
+**Description:** Tool `generate_practice(topic/type, n)` — подбор похожих заданий для тренировки (id + текст, **без** `correct_ans` в выдаче) поверх `search_tasks`. Tool `get_selfcheck(topic)` — вопросы самопроверки из `qa_questions/qa_answers` (источник `lecture_qa`). Frontend: suggested prompts по `page_context` (U3). Кнопка «Спросить советчика» из шага теста — **Task 57** (§1.3.4, solve после ошибки).
 
 **Acceptance criteria:**
 - [ ] `generate_practice` отдаёт задания трека ученика без ключей; учёт уже решённых — по решению open question §16 №2
 - [ ] `get_selfcheck` возвращает Q/A из учебника по теме
 - [ ] U3: на странице темы/теста показываются контекстные подсказки-промпты
-- [ ] U4: из шага теста можно открыть overlay с проброшенным `page_context`
+- [ ] U4: вынесено в **Task 57** — кнопка только при `is_correct=false`, solve-pipeline с `page_context`
 
 **Verification:**
 - [ ] `pytest backend/tests/tutor/test_tools.py`: practice без `correct_ans`, selfcheck по теме
-- [ ] `vitest`: suggested prompts рендерятся по `page_context`; кнопка из StepView открывает чат
+- [ ] `vitest`: suggested prompts рендерятся по `page_context`
 
-**Dependencies:** Task 43, Task 36 (overlay), Task 18 (StepView)
-**Files:** `backend/app/services/tutor/tools.py`, `frontend/components/tutor/TutorChatOverlay.tsx`, `frontend/components/tests/StepView.tsx`, `backend/tests/tutor/test_tools.py`
+**Dependencies:** Task 43, Task 36 (overlay), Task 57 (U4 в StepView)
+**Files:** `backend/app/services/tutor/tools.py`, `frontend/components/tutor/TutorChatOverlay.tsx`, `backend/tests/tutor/test_tools.py`
 **Scope:** M
 
 ---
@@ -1494,7 +1500,7 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 ### Checkpoint: Надёжность агента (после Tasks 41–47, Task 46 — по триггеру)
 
 - [ ] RAG-cleanup: индекс без `source == "test"`; hybrid recall@5 ≥ 0.8 (Task 41)
-- [ ] Solve-pipeline: ключ сверяется с `correct_ans` кодом; gating на тесте (AC-17.x, Task 42)
+- [ ] Solve-pipeline: ключ сверяется с `correct_ans` кодом; точечный gating на тесте (AC-17.x, Task 42 + Task 57, §1.3.4)
 - [ ] Персональный тьютор: ДЗ, анализ ошибок, рекомендации тем — только свои данные (AC-16.4, Tasks 43–44)
 - [ ] UX: streaming + markdown; профиль в PostgreSQL (Task 47)
 - [ ] _(опционально, Task 46)_ Анти-галлюцинации: пустой retrieval → отказ; цитата обязательна — только если eval покажет остаточные проблемы
@@ -1573,7 +1579,7 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ## Task 51: Редизайн тестов (Stepik) + StepProgressDots + итог
 
-**Description:** Применить стиль к пошаговым тестам (SPEC §14.2/14.5 + §1.3.1): card-header strip, **StepProgressDots** («Шаг N из M» + кружки по статусу, без progress bar и без `%`), formula chips в вопросах, кнопки «Проверить/Подсказка/Разбор» в новом стиле, decorative blobs на экране итога. Адаптив: горизонтальный скролл кружков при 28 шагах, крупные тач-таргеты, sticky-кнопки на мобилке.
+**Description:** Применить стиль к пошаговым тестам (SPEC §14.2/14.5 + §1.3.1): card-header strip, **StepProgressDots** («Шаг N из M» + кружки по статусу, без progress bar и без `%`), formula chips в вопросах, кнопки «Проверить» / «Спросить советчика» (при ошибке) в новом стиле, decorative blobs на экране итога. Адаптив: горизонтальный скролл кружков при 28 шагах, крупные тач-таргеты, sticky-кнопки на мобилке.
 
 > **Зависимость:** логика кружков и resume UX — **Task 54** (можно сделать до или вместе с визуальным polish).
 
@@ -1723,6 +1729,211 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ---
 
+## Task 57: «Спросить советчика» — solve-разбор после неверного ответа (§1.3.4)
+
+> Источник: `SPEC.md` §1.3.4, AC-2.14, AC-6.7/6.9; `tutor-rag.md` §17 (gating, обновить в этом же срезе).
+> **Пересматривает решение v0.6:** solve во время теста был полностью запрещён; теперь — **точечно** после `is_correct=false`.
+
+**Description:** На экране `StepView` кнопка **«Спросить советчика»** видна **только** когда текущий шаг `checked` и `is_correct=false`. По клику — overlay чата с `page_context`: `test_session_id`, `step_position`, `test_id`, `solve_mode: explain_incorrect_step`. Стартовый промпт запускает solve-pipeline (разбор + сравнение ответа ученика с эталоном). На бэкенде — серверная проверка шага в PostgreSQL перед выдачей `correct_ans`; `intent_router`, `get_task`, `prepare_context` принимают `allowed_solve_test_id` только для подтверждённой ошибки. FAB «AI-советчик» без этого контекста — по-прежнему только теория.
+
+**Acceptance criteria:**
+- [ ] AC-2.14: кнопка скрыта до «Проверить», при верном ответе и на непроверенных шагах
+- [ ] AC-6.7/6.9: solve с `correct_ans` только при валидном `explain_incorrect_step`; иначе отказ
+- [ ] `page_context` расширен в Pydantic-схеме tutor + TypeScript `TutorPageContext`
+- [ ] Стартовое сообщение ссылается на `test_id` из банка (не `type`, не номер шага UI)
+- [ ] Регрессия: произвольный «разбери задание N» во время теста без неверного шага — заблокирован
+- [ ] `tutor-rag.md` §17 gating синхронизирован с §1.3.4
+
+**Verification:**
+- [ ] `pytest backend/tests/tutor/test_solve.py`, `test_tools.py`, `test_graph.py`: точечный gating
+- [ ] `pytest backend/tests/tutor/test_tutor_api.py`: `page_context` с `step_position`/`test_id`
+- [ ] `vitest`: `StepView.test.tsx` — кнопка только при неверном ответе; `openTutor` с полным контекстом
+- [ ] Ручная проверка: неверный ответ → «Спросить советчика» → разбор с ключом; верный ответ → кнопки нет
+
+**Dependencies:** Task 18 (StepView), Task 36 (overlay), Task 42 (solve-pipeline этап A)
+**Files:**
+- `frontend/components/tests/StepView.tsx`, `StepView.test.tsx`
+- `frontend/lib/api/tutor.ts`, `frontend/lib/tutor/TutorChatContext.tsx`
+- `backend/app/schemas/tutor.py`
+- `backend/app/services/tutor/{context,tools}.py`, `tutor_service.py`
+- `backend/app/services/tutor/solve/{intent_router,prepare_context}.py`
+- `backend/tests/tutor/{test_solve,test_tools,test_graph,test_tutor_api}.py`
+- `docs/specs/tutor-rag.md` (§17 gating)
+**Scope:** M
+
+---
+
+## Phase 13: Баллы, streak и рейтинг (SPEC §1.8)
+
+> Источник: [`SPEC.md`](../SPEC.md) §1.8, [`docs/ideas/student-points-leaderboard.md`](../docs/ideas/student-points-leaderboard.md).  
+> **После** MVP core и рекомендуется **после** Task 57 (solve-gating не конфликтует, но общий StepView).  
+> **Модель:** ledger-first (`student_activity_events` + денормализованные `student_stats`). Хуки в существующие сервисы — без переписывания `TestSession.score`.
+
+## Task 58: Миграция — `student_activity_events`, `student_stats`, `display_name`
+
+**Description:** Alembic-миграция и ORM-модели для журнала активности и агрегатов. Расширить `StudentProfile` полем `display_name`. Enum `ActivityEventType`: `step_correct`, `homework_complete`, `streak_daily`, `streak_weekly` (и др. по мере надобности). Уникальный индекс `(student_id, event_type, ref_id)` на `student_activity_events`.
+
+**Acceptance criteria:**
+- [ ] `alembic upgrade head` создаёт `student_activity_events`, `student_stats`; колонка `display_name` на `student_profiles`
+- [ ] Модели и enum соответствуют SPEC §1.8
+- [ ] `ref_id` допускает привязку к `TestSessionStep.id` / `HomeworkAssignment.id` (uuid или string — зафиксировать в модели)
+
+**Verification:**
+- [ ] `pytest backend/tests/test_activity_models.py`
+- [ ] `alembic upgrade head` / `downgrade` на чистой БД
+
+**Dependencies:** Task 2 (StudentProfile), Task 14 (TestSession — для типов ref)
+**Files:** `backend/app/models/{activity,student_profile}.py`, `backend/app/models/__init__.py`, `backend/alembic/versions/*_activity_stats.py`, `backend/tests/test_activity_models.py`
+**Scope:** S
+
+---
+
+## Task 59: `activity_service` + repository (события, stats, streak, идемпотентность)
+
+**Description:** `ActivityRepository` + `ActivityService`: `record_event()` с upsert-защитой по уникальному индексу; обновление `student_stats` (total_points, week_points, tasks_solved, total_minutes, streak). Логика streak: активный день = ≥1 `step_correct`; бонусы +5/+30 с идемпотентностью. Пересчёт `week_points` по календарной неделе (UTC на MVP).
+
+**Acceptance criteria:**
+- [ ] Повторный `record_event` с тем же `(student_id, event_type, ref_id)` не дублирует баллы
+- [ ] `record_step_correct` → +10, инкремент `tasks_solved` один раз на шаг
+- [ ] Streak: первый верный шаг дня обновляет серию; `streak_daily` / `streak_weekly` начисляются один раз
+- [ ] `add_session_minutes(student_id, minutes)` обновляет `total_minutes`
+
+**Verification:**
+- [ ] `pytest backend/tests/test_activity_service.py` — идемпотентность, streak edge cases (пропуск дня, 7-й день), week_points
+
+**Dependencies:** Task 58
+**Files:** `backend/app/repositories/app/activity_repo.py`, `backend/app/services/activity_service.py`, `backend/app/schemas/activity.py`, `backend/tests/test_activity_service.py`
+**Scope:** M
+
+---
+
+## Task 60: Хуки в `test_session_service` и `homework_submit_service`
+
+**Description:** Вертикальный срез начисления баллов из существующих flow. После успешного `check_step` (`is_correct=true`, первый раз за шаг) → `activity_service.record_step_correct()`. После полной сдачи ДЗ в `homework_submit_service.submit()` → `record_homework_complete()`. При `complete` сессии — добавить минуты в stats. Ошибки activity layer не ломают основной flow (лог + optional transaction).
+
+**Acceptance criteria:**
+- [ ] Верный шаг в свободной практике и в ДЗ начисляет +10 один раз
+- [ ] Повторная проверка того же шага — 0 дополнительных баллов
+- [ ] Полная сдача ДЗ — +50 бонус один раз на assignment
+- [ ] `TestSession.score` не изменяется activity layer
+
+**Verification:**
+- [ ] `pytest backend/tests/test_activity_hooks.py` — интеграция через TestClient: check_step → stats; submit HW → stats
+- [ ] Регрессия: `test_test_sessions.py`, `test_homework_submit_test.py` зелёные
+
+**Dependencies:** Task 59, Task 15, Task 39
+**Files:** `backend/app/services/test_session_service.py`, `backend/app/services/homework_submit_service.py`, `backend/tests/test_activity_hooks.py`
+**Scope:** M
+
+---
+
+## Task 61: API — `GET /api/students/me/stats`, `GET /api/leaderboard`
+
+**Description:** Student endpoints для личной статистики и глобального рейтинга. `StudentStatsRead`: points, week_points, streak, tasks_solved, total_minutes. `LeaderboardEntry`: rank, display_name, points (без email). Query `period=week|all_time`, `limit` (default 50, max 100). RBAC: только `student` для `/me/stats`; leaderboard доступен всем авторизованным ученикам.
+
+**Acceptance criteria:**
+- [ ] `GET /api/students/me/stats` — актуальные агрегаты текущего ученика
+- [ ] `GET /api/leaderboard?period=week` — топ по `week_points`; `all_time` — по `total_points`
+- [ ] В ответе leaderboard — `display_name`, не email; fallback если `display_name` null (зафиксировать в схеме, см. open question в ideas doc)
+- [ ] Пустой топ → `[]`, не 404
+
+**Verification:**
+- [ ] `pytest backend/tests/test_leaderboard_api.py`
+- [ ] RBAC: teacher не может вызывать `/students/me/stats` как student endpoint → 403
+
+**Dependencies:** Task 60
+**Files:** `backend/app/api/routers/{students,leaderboard}.py`, `backend/app/schemas/activity.py`, `backend/app/services/activity_service.py`, `backend/tests/test_leaderboard_api.py`
+**Scope:** M
+
+---
+
+## Task 62: API — `GET /api/teacher/students/stats`
+
+**Description:** Преподаватель получает список своих учеников с агрегированной статистикой (баллы, streak, tasks_solved, total_minutes, last_active_date). RBAC: только ученики с `teacher_id` текущего teacher.
+
+**Acceptance criteria:**
+- [ ] Teacher видит stats только своих учеников
+- [ ] Student / чужой teacher → 403
+- [ ] Ответ пригоден для таблицы на экране учеников (id, email опционально для teacher, display_name, metrics)
+
+**Verification:**
+- [ ] `pytest backend/tests/test_teacher_student_stats.py`
+
+**Dependencies:** Task 61, Task 6
+**Files:** `backend/app/api/routers/students.py` (extend) или `teacher_stats.py`, `backend/app/schemas/activity.py`, `backend/tests/test_teacher_student_stats.py`
+**Scope:** S
+
+---
+
+## Task 63: Frontend — виджет прогресса на дашборде + карточки resume
+
+**Description:** Виджет на `/student`: текущие баллы (week + total), streak, `tasks_solved`, время. Карточки «Продолжить» для активных `TestSession` (улучшение UX поверх §1.3.2 / Task 55): in_progress сессии с elapsed time. API client `lib/api/activity.ts`.
+
+**Acceptance criteria:**
+- [ ] Дашборд ученика показывает виджет прогресса из `GET /api/students/me/stats`
+- [ ] Карточки resume для in_progress сессий (ДЗ и свободная практика) с кнопкой «Продолжить»
+- [ ] Для in_progress — отображение elapsed time (из `created_at` сессии)
+- [ ] Стили в духе §14 (teal, карточки)
+
+**Verification:**
+- [ ] `vitest`: `ProgressWidget.test.tsx`, `ResumeSessionCards.test.tsx` (MSW)
+- [ ] Ручная проверка: частичная сессия → дашборд → «Продолжить»
+
+**Dependencies:** Task 61, Task 55
+**Files:** `frontend/components/student/ProgressWidget.tsx`, `frontend/components/student/ResumeSessionCards.tsx`, `frontend/app/student/page.tsx`, `frontend/lib/api/activity.ts`, соответствующие `*.test.tsx`
+**Scope:** M
+
+---
+
+## Task 64: Frontend — страница `/student/leaderboard`
+
+**Description:** Страница глобального рейтинга: переключатель `week` / `all_time`, таблица топ-N с rank, display_name, points. Подсветка текущего ученика в списке. Ссылка с дашборда.
+
+**Acceptance criteria:**
+- [ ] `GET /api/leaderboard` с выбранным `period`
+- [ ] Текущий ученик выделен в таблице (если в топе)
+- [ ] Адаптив: одна колонка на мобилке; без email в UI
+
+**Verification:**
+- [ ] `vitest`: `LeaderboardPage.test.tsx`
+- [ ] Ручная проверка: два ученика с разными баллами → порядок в топе
+
+**Dependencies:** Task 61, Task 63
+**Files:** `frontend/app/student/leaderboard/page.tsx`, `frontend/components/student/LeaderboardTable.tsx`, `frontend/lib/api/activity.ts`, `frontend/components/student/LeaderboardTable.test.tsx`
+**Scope:** M
+
+---
+
+## Task 65: Тесты — pytest + vitest coverage (activity & leaderboard)
+
+**Description:** Закрыть пробелы в покрытии Phase 13: edge cases streak (полночь UTC), week rollover, concurrent duplicate events, frontend error states. Убедиться, что MVP + tutor тесты без регрессий.
+
+**Acceptance criteria:**
+- [ ] `pytest` зелёный: models, service, hooks, all API tasks
+- [ ] `vitest` зелёный: ProgressWidget, ResumeSessionCards, LeaderboardTable
+- [ ] Нет утечки email в leaderboard API responses для student role
+
+**Verification:**
+- [ ] `cd backend && pytest backend/tests/test_activity*.py backend/tests/test_leaderboard*.py backend/tests/test_teacher_student_stats.py`
+- [ ] `cd frontend && npm run test -- ProgressWidget ResumeSessionCards Leaderboard`
+- [ ] Полный `pytest` + `npm run test` без регрессий
+
+**Dependencies:** Task 58–64
+**Files:** дополнения в `backend/tests/test_activity*.py`, `frontend/components/student/*.test.tsx`
+**Scope:** S
+
+---
+
+### Checkpoint: Баллы и рейтинг (после Tasks 58–65)
+
+- [ ] Верный шаг начисляет +10 один раз; полная сдача ДЗ — +50
+- [ ] Streak и week/all_time leaderboard работают
+- [ ] Ученик видит виджет и `/student/leaderboard`; teacher — stats учеников
+- [ ] Resume-карточки на дашборде; `TestSession.score` не затронут
+- [ ] `pytest` + `vitest` зелёные; email не в публичном топе
+
+---
+
 ### Checkpoint: Step-dots + resume + Mendeleev (после Tasks 53–56)
 
 - [ ] AC-2.10–2.12, AC-3.8 закрыты (Tasks 53–55)
@@ -1740,9 +1951,11 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 3. ~~**Task 39** — мульти-item submit (SPEC §1.7)~~ ✅ сделано (одна `TestSession` `variant_ref=null`, `HomeworkItemProgress`, общий `homework_mapper`, новый эндпоинт `items/{index}/complete`).
 4. ~~**Task 40** — UI-конструктор выбора заданий.~~ ✅ сделано.
 5. **Phase 12 (Tasks 53–55)** — StepProgressDots + «Продолжить тест» (SPEC §1.3.1–1.3.2). ✅
-6. **Task 56** — overlay «Таблица Менделеева» при прохождении теста (SPEC §1.3.3). **← рекомендуется следующим P0 UX срезом** (frontend-only, asset уже в repo).
-7. **Task 29** — coverage check (`pytest-cov` по auth, homework, test_sessions, notifications).
-8. **Task 30** — Docker Compose + GitHub Actions.
-9. После MVP → Phase 9 (Tasks 31–38, AI-советчик).
-10. После базового советчика → Phase 10 (Tasks 41–47). Начать с **Task 41**. ✅
-11. **Phase 11 (UI redesign, SPEC §14)** — параллельно с Phase 12 или после. ✅ Task 48 → Task 49. Task 51 опирается на Task 54 (кружки).
+6. ~~**Task 56** — overlay «Таблица Менделеева» при прохождении теста (SPEC §1.3.3).~~ ✅
+7. **Task 57** — «Спросить советчика» после неверного ответа + точечный solve-gating (SPEC §1.3.4). **← рекомендуется следующим срезом** (full-stack: StepView + tutor gating).
+8. **Phase 13 (Tasks 58–65)** — баллы, streak, рейтинг (SPEC §1.8, `docs/ideas/student-points-leaderboard.md`). После Task 57 или параллельно backend 58–62 с frontend 63–64.
+9. **Task 29** — coverage check (`pytest-cov` по auth, homework, test_sessions, notifications).
+10. **Task 30** — Docker Compose + GitHub Actions.
+11. После MVP → Phase 9 (Tasks 31–38, AI-советчик).
+12. После базового советчика → Phase 10 (Tasks 41–47). Начать с **Task 41**. ✅
+13. **Phase 11 (UI redesign, SPEC §14)** — параллельно с Phase 12 или после. ✅ Task 48 → Task 49. Task 51 опирается на Task 54 (кружки).

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { MarkOnboardingStep } from "@/components/student/MarkOnboardingStep";
 import { ChunkViewer } from "@/components/textbook/ChunkViewer";
 import { getTextbookChunks } from "@/lib/api/server";
 
@@ -28,6 +29,7 @@ export default async function TextbookTopicPage({
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 pb-28 sm:px-6 sm:py-12 lg:pb-12">
+      <MarkOnboardingStep step="lecture" />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="chem-kicker">Учебник</p>

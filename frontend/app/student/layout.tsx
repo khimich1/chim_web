@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { StudentNav } from "@/components/layout/StudentNav";
+import { StudentOnboardingGate } from "@/components/student/StudentOnboardingGate";
 import { TutorShell } from "@/components/tutor/TutorShell";
 import { getCurrentUser } from "@/lib/api/server";
 
@@ -18,6 +19,7 @@ export default async function StudentLayout({
   }
   return (
     <TutorShell>
+      <StudentOnboardingGate />
       <StudentNav />
       {children}
     </TutorShell>

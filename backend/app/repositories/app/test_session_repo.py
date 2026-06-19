@@ -47,6 +47,7 @@ class TestSessionRepository:
         *,
         variant_ref: str | None = None,
         homework_assignment_id: uuid.UUID | None = None,
+        practice_task_type: int | None = None,
     ) -> TestSession | None:
         stmt = select(TestSession).where(
             TestSession.student_id == student_id,
@@ -56,10 +57,17 @@ class TestSessionRepository:
             stmt = stmt.where(
                 TestSession.variant_ref == variant_ref,
                 TestSession.homework_assignment_id.is_(None),
+                TestSession.practice_task_type.is_(None),
             )
         if homework_assignment_id is not None:
             stmt = stmt.where(
                 TestSession.homework_assignment_id == homework_assignment_id,
+            )
+        if practice_task_type is not None:
+            stmt = stmt.where(
+                TestSession.practice_task_type == practice_task_type,
+                TestSession.variant_ref.is_(None),
+                TestSession.homework_assignment_id.is_(None),
             )
         stmt = stmt.order_by(
             TestSession.created_at.desc(),

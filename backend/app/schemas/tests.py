@@ -9,6 +9,11 @@ class VariantRead(BaseModel):
     filename: str
 
 
+class TaskTypeRead(BaseModel):
+    type: int
+    variant_count: int
+
+
 class QuestionRead(BaseModel):
     """Public question metadata for students (before answering)."""
 

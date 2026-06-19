@@ -7,8 +7,11 @@ returned to the client — only a boolean correctness result.
 
 from __future__ import annotations
 
+import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
+from typing import TypeVar
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -39,19 +42,60 @@ from app.schemas.test_session import (
     StepCheckResponse,
     StepRead,
 )
+from app.services.activity_service import ActivityService
 from app.services.grading_service import GradingService
 from app.services.image_substitution import substitute_image_placeholders
+from app.services.onboarding_service import OnboardingService
+
+logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
+
+
+def _ensure_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _session_duration_minutes(created_at: datetime, completed_at: datetime) -> int:
+    seconds = (
+        _ensure_utc(completed_at) - _ensure_utc(created_at)
+    ).total_seconds()
+    if seconds <= 0:
+        return 0
+    return int(seconds // 60)
 
 
 class TestSessionService:
-    def __init__(self, session: AsyncSession, settings: Settings) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        settings: Settings,
+        activity: ActivityService | None = None,
+    ) -> None:
         self._session = session
+        self._settings = settings
         self._repo = TestSessionRepository(session)
         self._grading = GradingService()
+        self._activity = activity or ActivityService(session)
         self._content_repos = {
             ExamTrack.EGE: ExamContentRepo(settings.content_ege_db_path),
             ExamTrack.OGE: ExamContentRepo(settings.content_oge_db_path),
         }
+
+    async def _run_activity_hook(
+        self,
+        hook_name: str,
+        action: Callable[[], Awaitable[_T]],
+    ) -> None:
+        """Record gamification side effects without failing the primary flow."""
+        try:
+            await action()
+            await self._session.commit()
+        except Exception:
+            logger.exception("Activity hook failed: %s", hook_name)
+            await self._session.rollback()
 
     async def _resolve_track(self, student: User) -> ExamTrack:
         profile = await self._session.scalar(
@@ -72,6 +116,7 @@ class TestSessionService:
     ) -> SessionRead:
         track = await self._resolve_track(student)
         repo = self._content_repo(track)
+        practice_task_type: int | None = None
 
         if data.homework_assignment_id is not None:
             # Server is the source of truth for homework test scope: aggregate
@@ -80,8 +125,15 @@ class TestSessionService:
                 student, data.homework_assignment_id
             )
         else:
-            assert data.variant_ref is not None  # enforced by SessionCreate validator
-            sources = [(data.variant_ref, data.types)]
+            if (data.variant_ref or "").strip():
+                sources = [(data.variant_ref.strip(), data.types)]
+                practice_task_type = None
+            else:
+                assert data.types is not None
+                sources = repo.expand_types_across_variants(data.types, track=track)
+                practice_task_type = (
+                    data.types[0] if len(data.types) == 1 else None
+                )
 
         questions = self._collect_questions(repo, sources)
         if not questions:
@@ -90,15 +142,24 @@ class TestSessionService:
                 detail="No questions found for the requested variant",
             )
 
-        distinct_variants = {variant for variant, _ in sources}
-        variant_ref = (
-            next(iter(distinct_variants)) if len(distinct_variants) == 1 else None
-        )
+        if data.homework_assignment_id is not None:
+            distinct_variants = {variant for variant, _ in sources}
+            variant_ref = (
+                next(iter(distinct_variants)) if len(distinct_variants) == 1 else None
+            )
+        elif (data.variant_ref or "").strip():
+            distinct_variants = {variant for variant, _ in sources}
+            variant_ref = (
+                next(iter(distinct_variants)) if len(distinct_variants) == 1 else None
+            )
+        else:
+            variant_ref = None
 
         test_session = TestSession(
             student_id=student.id,
             track=track,
             variant_ref=variant_ref,
+            practice_task_type=practice_task_type,
             homework_assignment_id=data.homework_assignment_id,
             status=TestSessionStatus.IN_PROGRESS,
             created_at=datetime.now(timezone.utc),
@@ -112,6 +173,10 @@ class TestSessionService:
             ],
         )
         await self._repo.add(test_session)
+        await OnboardingService(self._session, self._settings).mark_first_action(
+            student.id,
+            action_type="test_session",
+        )
         await self._session.commit()
 
         reloaded = await self._repo.get_with_steps(test_session.id)
@@ -198,13 +263,19 @@ class TestSessionService:
         *,
         variant_ref: str | None = None,
         homework_assignment_id: uuid.UUID | None = None,
+        task_type: int | None = None,
     ) -> ActiveSessionResponse:
         has_variant = bool((variant_ref or "").strip())
         has_homework = homework_assignment_id is not None
-        if has_variant == has_homework:
+        has_task_type = task_type is not None
+        scope_count = sum([has_variant, has_homework, has_task_type])
+        if scope_count != 1:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Provide exactly one of variant_ref or homework_assignment_id",
+                detail=(
+                    "Provide exactly one of variant_ref, homework_assignment_id, "
+                    "or task_type"
+                ),
             )
 
         if homework_assignment_id is not None:
@@ -226,6 +297,7 @@ class TestSessionService:
             student.id,
             variant_ref=variant_ref.strip() if has_variant else None,
             homework_assignment_id=homework_assignment_id,
+            practice_task_type=task_type,
         )
         return ActiveSessionResponse(
             session_id=active.id if active is not None else None,
@@ -255,12 +327,21 @@ class TestSessionService:
         repo = self._content_repo(test_session.track)
         question = self._require_question(repo, step.test_id)
 
+        was_already_correct = step.is_correct is True
         is_correct = self._grading.grade(answer, question.correct_ans)
         step.answer = answer
         step.is_correct = is_correct
         step.status = StepStatus.CHECKED
         step.checked_at = datetime.now(timezone.utc)
         await self._session.commit()
+
+        if is_correct and not was_already_correct:
+            step_id = step.id
+            student_id = student.id
+            await self._run_activity_hook(
+                "record_step_correct",
+                lambda: self._activity.record_step_correct(student_id, step_id),
+            )
 
         return StepCheckResponse(
             position=step.position,
@@ -276,12 +357,22 @@ class TestSessionService:
         score = sum(1 for step in test_session.steps if step.is_correct)
         max_score = len(test_session.steps)
 
-        if test_session.status != TestSessionStatus.COMPLETED:
+        was_already_completed = test_session.status == TestSessionStatus.COMPLETED
+        completed_at = datetime.now(timezone.utc)
+        if not was_already_completed:
             test_session.status = TestSessionStatus.COMPLETED
-            test_session.completed_at = datetime.now(timezone.utc)
+            test_session.completed_at = completed_at
         test_session.score = score
         test_session.max_score = max_score
         await self._session.commit()
+
+        if not was_already_completed:
+            minutes = _session_duration_minutes(test_session.created_at, completed_at)
+            student_id = student.id
+            await self._run_activity_hook(
+                "add_session_minutes",
+                lambda: self._activity.add_session_minutes(student_id, minutes),
+            )
 
         repo = self._content_repo(test_session.track)
         summary_steps = [
@@ -374,5 +465,6 @@ class TestSessionService:
             score=test_session.score,
             max_score=test_session.max_score,
             total_steps=len(steps),
+            created_at=test_session.created_at,
             steps=steps,
         )

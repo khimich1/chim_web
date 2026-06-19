@@ -19,11 +19,17 @@ def should_use_solve_pipeline(
 ) -> bool:
     """True when message asks to solve a task and gating allows it."""
     ctx = ctx or get_tutor_context()
-    if extract_task_id(user_message) is None:
-        return False
+    task_id = extract_task_id(user_message)
+
     if ctx.role == "student" and ctx.active_test_session_id is not None:
-        return False
-    return True
+        allowed = ctx.allowed_solve_test_id
+        if allowed is None:
+            return False
+        if task_id is not None and task_id != allowed:
+            return False
+        return True
+
+    return task_id is not None
 
 
 def route_intent(

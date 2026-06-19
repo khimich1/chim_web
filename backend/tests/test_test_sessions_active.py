@@ -151,6 +151,17 @@ def _create_test_homework(client: TestClient) -> str:
     return response.json()["id"]
 
 
+def test_active_session_by_task_type(client: TestClient) -> None:
+    _login(client)
+    created = client.post("/api/tests/sessions", json={"types": [1]})
+    assert created.status_code == 201, created.text
+    session_id = created.json()["id"]
+
+    active = client.get("/api/tests/sessions/active", params={"task_type": 1})
+    assert active.status_code == 200
+    assert active.json()["session_id"] == session_id
+
+
 def test_active_session_by_variant_ref(client: TestClient) -> None:
     _login(client)
     created = _create_free_session(client)

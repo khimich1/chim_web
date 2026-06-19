@@ -2,6 +2,11 @@ from app.models.enums import ExamTrack
 from app.repositories.content.tests import ExamContentRepo
 
 
+def test_list_task_types_returns_distinct_types(ege_tests_db) -> None:
+    repo = ExamContentRepo(ege_tests_db)
+    assert repo.list_task_types() == [1, 2]
+
+
 def test_list_variants_excludes_bug_and_has_issue(ege_tests_db) -> None:
     repo = ExamContentRepo(ege_tests_db)
     variants = repo.list_variants()

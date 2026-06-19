@@ -117,6 +117,45 @@ export function TutorChatOverlay() {
     }
   }, [ensureSession]);
 
+  const handleSendText = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || loading) return;
+
+      setLoading(true);
+      setError(null);
+      setInput("");
+
+      const optimisticUser: TutorMessage = {
+        id: `tmp-${Date.now()}`,
+        role: "user",
+        content: trimmed,
+        created_at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, optimisticUser]);
+
+      try {
+        const id = await ensureSession();
+        const response = await sendTutorMessage(id, trimmed);
+        const assistant: TutorMessage = {
+          id: response.message_id,
+          role: "assistant",
+          content: response.content,
+          sources: response.sources,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistant]);
+      } catch (err) {
+        setError(formatFetchError(err, "Ошибка отправки сообщения"));
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticUser.id));
+        setInput(trimmed);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [ensureSession, loading],
+  );
+
   const handleOpen = () => {
     if (opening) return;
     setOpen(true);
@@ -134,46 +173,18 @@ export function TutorChatOverlay() {
       return;
     }
     const pending = tutorChat?.consumeInitialMessage();
+    const autoSend = tutorChat?.consumeAutoSendInitialMessage() ?? false;
     if (pending) {
       setInput(pending);
+      if (autoSend) {
+        void handleSendText(pending);
+      }
     }
-  }, [open, opening, tutorChat]);
+  }, [open, opening, tutorChat, handleSendText]);
 
   const handleSend = async (event: React.FormEvent) => {
     event.preventDefault();
-    const text = input.trim();
-    if (!text || loading) return;
-
-    setLoading(true);
-    setError(null);
-    setInput("");
-
-    const optimisticUser: TutorMessage = {
-      id: `tmp-${Date.now()}`,
-      role: "user",
-      content: text,
-      created_at: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, optimisticUser]);
-
-    try {
-      const id = await ensureSession();
-      const response = await sendTutorMessage(id, text);
-      const assistant: TutorMessage = {
-        id: response.message_id,
-        role: "assistant",
-        content: response.content,
-        sources: response.sources,
-        created_at: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, assistant]);
-    } catch (err) {
-      setError(formatFetchError(err, "Ошибка отправки сообщения"));
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticUser.id));
-      setInput(text);
-    } finally {
-      setLoading(false);
-    }
+    await handleSendText(input);
   };
 
   const handleSuggestedPrompt = (message: string) => {

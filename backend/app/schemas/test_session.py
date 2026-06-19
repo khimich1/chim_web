@@ -22,10 +22,20 @@ class SessionCreate(BaseModel):
     homework_assignment_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
-    def _require_variant_for_free_practice(self) -> SessionCreate:
-        if self.homework_assignment_id is None and not (self.variant_ref or "").strip():
-            raise ValueError("variant_ref is required when no homework_assignment_id")
-        return self
+    def _require_scope(self) -> SessionCreate:
+        has_homework = self.homework_assignment_id is not None
+        has_variant = bool((self.variant_ref or "").strip())
+        has_types_only = (
+            not has_homework
+            and not has_variant
+            and self.types is not None
+            and len(self.types) > 0
+        )
+        if has_homework or has_variant or has_types_only:
+            return self
+        raise ValueError(
+            "Provide variant_ref, types (without variant), or homework_assignment_id"
+        )
 
 
 class StepRead(BaseModel):
@@ -53,6 +63,7 @@ class SessionRead(BaseModel):
     score: int | None = None
     max_score: int | None = None
     total_steps: int
+    created_at: datetime
     steps: list[StepRead]
 
 

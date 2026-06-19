@@ -54,11 +54,19 @@ def _build_solver_messages(state: SolveState) -> list[SystemMessage | HumanMessa
             f"5. Эталонный ключ (используй дословно в «Ответ: …»): {correct_ans}\n"
         )
     )
+    student_answer = (state.get("student_answer") or "").strip()
+    student_block = (
+        f"\n## Ответ ученика\n{student_answer}\n"
+        "Сравни ответ ученика с эталоном и объясни, в чём ошибка.\n"
+        if student_answer
+        else ""
+    )
     user = HumanMessage(
         content=(
             f"## Задание (id={task_context.get('id')}, type={task_context.get('type')})\n"
             f"{task_context.get('question', '')}\n\n"
             f"## Учебник\n{_format_theory_block(theory_hits)}\n"
+            f"{student_block}"
         )
         + (f"\n## Исправления после проверки\n{fix_instructions}\n" if fix_instructions else "")
     )

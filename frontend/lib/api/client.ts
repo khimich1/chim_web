@@ -57,10 +57,17 @@ export async function apiFetch<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
+  const { signal: initSignal, ...restInit } = init;
+  const useTimeout = process.env.VITEST !== "true" && initSignal === undefined;
+
   const response = await fetch(`${API_URL}${path}`, {
     credentials: "include",
-    ...init,
-    signal: init.signal ?? AbortSignal.timeout(API_FETCH_TIMEOUT_MS),
+    ...restInit,
+    ...(useTimeout
+      ? { signal: AbortSignal.timeout(API_FETCH_TIMEOUT_MS) }
+      : initSignal
+        ? { signal: initSignal }
+        : {}),
     headers: {
       "Content-Type": "application/json",
       ...init.headers,

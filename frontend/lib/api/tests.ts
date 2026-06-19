@@ -3,6 +3,7 @@ import type {
   ActiveSessionResult,
   StepCheckResult,
   TestSession,
+  TestTaskType,
   TestVariant,
 } from "@/lib/api/types";
 
@@ -10,17 +11,33 @@ export function listVariants(): Promise<TestVariant[]> {
   return apiFetch<TestVariant[]>("/api/tests/variants");
 }
 
+export function listTaskTypes(): Promise<TestTaskType[]> {
+  return apiFetch<TestTaskType[]>("/api/tests/task-types");
+}
+
 export function createSession(
-  variantRef: string,
+  variantRefOrOptions:
+    | string
+    | { types: number[]; homeworkAssignmentId?: string },
   options?: { types?: number[]; homeworkAssignmentId?: string },
 ): Promise<TestSession> {
+  const payload =
+    typeof variantRefOrOptions === "string"
+      ? {
+          variant_ref: variantRefOrOptions,
+          types: options?.types ?? null,
+          homework_assignment_id: options?.homeworkAssignmentId ?? null,
+        }
+      : {
+          variant_ref: null,
+          types: variantRefOrOptions.types,
+          homework_assignment_id:
+            variantRefOrOptions.homeworkAssignmentId ?? null,
+        };
+
   return apiFetch<TestSession>("/api/tests/sessions", {
     method: "POST",
-    body: JSON.stringify({
-      variant_ref: variantRef,
-      types: options?.types ?? null,
-      homework_assignment_id: options?.homeworkAssignmentId ?? null,
-    }),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -40,8 +57,9 @@ export function getSession(sessionId: string): Promise<TestSession> {
 
 export function getActiveSession(
   params:
-    | { variantRef: string; homeworkAssignmentId?: undefined }
-    | { homeworkAssignmentId: string; variantRef?: undefined },
+    | { variantRef: string; homeworkAssignmentId?: undefined; taskType?: undefined }
+    | { homeworkAssignmentId: string; variantRef?: undefined; taskType?: undefined }
+    | { taskType: number; variantRef?: undefined; homeworkAssignmentId?: undefined },
 ): Promise<ActiveSessionResult> {
   const search = new URLSearchParams();
   if ("variantRef" in params && params.variantRef) {
@@ -49,6 +67,9 @@ export function getActiveSession(
   }
   if ("homeworkAssignmentId" in params && params.homeworkAssignmentId) {
     search.set("homework_assignment_id", params.homeworkAssignmentId);
+  }
+  if ("taskType" in params && params.taskType !== undefined) {
+    search.set("task_type", String(params.taskType));
   }
   return apiFetch<ActiveSessionResult>(
     `/api/tests/sessions/active?${search.toString()}`,

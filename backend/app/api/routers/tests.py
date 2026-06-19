@@ -2,6 +2,7 @@
 
 | Method | Path                                      | Role    | Response              |
 |--------|-------------------------------------------|---------|-----------------------|
+| GET    | /api/tests/task-types                     | student | list[TaskTypeRead]    |
 | GET    | /api/tests/variants                       | student | list[VariantRead]     |
 | GET    | /api/tests/variants/{filename}/questions  | student | list[QuestionRead]    |
 | GET    | /api/tests/images/{filename}              | student | image/png stream      |
@@ -19,7 +20,7 @@ from app.api.deps import CurrentUser, StudentUser, get_app_settings
 from app.core.config import Settings
 from app.db.session import get_db
 from app.models.enums import ExamTrack, UserRole
-from app.schemas.tests import QuestionRead, VariantRead
+from app.schemas.tests import QuestionRead, TaskTypeRead, VariantRead
 from app.services.test_catalog_service import TestCatalogService
 
 router = APIRouter(prefix="/api/tests", tags=["tests"])
@@ -51,6 +52,28 @@ async def list_variants(
     else:
         resolved_track = await service.resolve_track(db, user)
     return service.list_variants(resolved_track)
+
+
+@router.get("/task-types", response_model=list[TaskTypeRead])
+async def list_task_types(
+    user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    service: Annotated[TestCatalogService, Depends(get_test_catalog_service)],
+    track: ExamTrack | None = Query(
+        default=None,
+        description="Required when the caller is a teacher",
+    ),
+) -> list[TaskTypeRead]:
+    if user.role == UserRole.TEACHER:
+        if track is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="track query parameter is required for teachers",
+            )
+        resolved_track = track
+    else:
+        resolved_track = await service.resolve_track(db, user)
+    return service.list_task_types(resolved_track)
 
 
 @router.get("/variants/{filename}/questions", response_model=list[QuestionRead])

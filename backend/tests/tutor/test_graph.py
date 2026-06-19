@@ -104,3 +104,36 @@ def test_get_task_blocked_during_active_test_session() -> None:
     data = json.loads(raw)
     assert "error" in data
     assert "тест-сессии" in data["error"].lower()
+
+
+def test_get_task_allowed_for_gated_incorrect_step(
+    rag_content_dbs: dict[str, Path],
+    monkeypatch,
+) -> None:
+    import uuid
+
+    from app.core.config import Settings
+
+    settings = Settings(
+        database_url="postgresql+asyncpg://user:pass@localhost:5432/chemistry",
+        jwt_secret="test-secret",
+        content_ege_db_path=rag_content_dbs["ege"],
+        content_oge_db_path=rag_content_dbs["oge"],
+        content_lectures_db_path=rag_content_dbs["lectures"],
+    )
+    monkeypatch.setattr("app.services.tutor.tasks.get_settings", lambda: settings)
+
+    ctx = TutorRunContext(
+        track="ege",
+        user_id="u1",
+        role="student",
+        active_test_session_id=uuid.uuid4(),
+        allowed_solve_test_id=1,
+    )
+    tools = build_tools(ctx)
+    get_task_tool = next(t for t in tools if t.name == "get_task")
+    raw = get_task_tool.invoke({"task_id": 1})
+    data = json.loads(raw)
+    assert "error" not in data
+    assert data["id"] == 1
+    assert "correct_ans" in data

@@ -17,11 +17,18 @@ from app.core.security import TokenError, decode_access_token
 from app.db.session import get_db
 from app.models import User, UserRole
 from app.repositories.app.user_repo import UserRepository
+from app.services.activity_service import ActivityService
 
 
 def get_app_settings(request: Request) -> Settings:
     """Return the Settings instance bound to the running app."""
     return request.app.state.settings
+
+
+def get_activity_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ActivityService:
+    return ActivityService(db)
 
 
 async def get_current_user(

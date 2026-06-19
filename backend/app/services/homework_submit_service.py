@@ -11,8 +11,11 @@ records an aggregated score, and notifies the teacher once — only at 100%.
 
 from __future__ import annotations
 
+import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
+from typing import TypeVar
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -33,7 +36,12 @@ from app.repositories.app.homework_repo import HomeworkRepository
 from app.repositories.app.notification_repo import NotificationRepository
 from app.repositories.app.test_session_repo import TestSessionRepository
 from app.schemas.homework import HomeworkRead, HomeworkSubmitRequest
+from app.services.activity_service import ActivityService
 from app.services.homework_mapper import to_homework_read
+
+logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
 
 _TEST_KINDS = {
     HomeworkItemKind.TEST_VARIANT.value,
@@ -43,11 +51,28 @@ _TEST_KINDS = {
 
 
 class HomeworkSubmitService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        activity: ActivityService | None = None,
+    ) -> None:
         self._session = session
         self._homework = HomeworkRepository(session)
         self._sessions = TestSessionRepository(session)
         self._notifications = NotificationRepository(session)
+        self._activity = activity or ActivityService(session)
+
+    async def _run_activity_hook(
+        self,
+        hook_name: str,
+        action: Callable[[], Awaitable[_T]],
+    ) -> None:
+        try:
+            await action()
+            await self._session.commit()
+        except Exception:
+            logger.exception("Activity hook failed: %s", hook_name)
+            await self._session.rollback()
 
     async def submit(
         self,
@@ -100,6 +125,14 @@ class HomeworkSubmitService:
         await self._homework.update_status(assignment, HomeworkStatus.SUBMITTED)
         await self._notify_teacher(assignment, student)
         await self._session.commit()
+
+        assignment_id = assignment.id
+        student_id = student.id
+        await self._run_activity_hook(
+            "record_homework_complete",
+            lambda: self._activity.record_homework_complete(student_id, assignment_id),
+        )
+
         self._session.expire_all()
 
         reloaded = await self._homework.get_by_id(assignment_id)

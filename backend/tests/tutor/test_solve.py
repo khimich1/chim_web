@@ -67,6 +67,33 @@ def test_should_use_solve_pipeline_gating_during_active_test() -> None:
     ) == "general_agent"
 
 
+def test_should_use_solve_pipeline_allows_explain_incorrect_step() -> None:
+    active = TutorRunContext(
+        track="ege",
+        user_id="u1",
+        role="student",
+        active_test_session_id=uuid.uuid4(),
+        allowed_solve_test_id=42,
+        solve_student_answer="99",
+    )
+    assert should_use_solve_pipeline("разбери задание 42", active)
+    assert not should_use_solve_pipeline("разбери задание 99", active)
+    assert should_use_solve_pipeline(
+        "Объясни, в чём ошибка, и сравни с правильным ответом.",
+        active,
+    )
+    assert route_intent(
+        {
+            "messages": [
+                HumanMessage(
+                    content="Разбери задание 42. Мой ответ: «99». Объясни ошибку."
+                )
+            ]
+        },
+        active,
+    ) == "solve_pipeline"
+
+
 def test_route_after_input_guard_sends_solve_intent_to_prepare_context() -> None:
     ctx = TutorRunContext(track="ege", user_id="u1", role="student")
     state = {"messages": [HumanMessage(content="разбери задание 3")]}
@@ -106,6 +133,50 @@ def test_prepare_context_calls_get_task_and_retrieve_theory(
     assert result["correct_ans"] == "secret-answer"
     assert result["theory_hits"]
     assert result["theory_hits"][0]["topic"] == "Алканы"
+
+
+def test_prepare_context_uses_allowed_test_id_during_active_session(
+    rag_content_dbs: dict[str, Path],
+    rag_retriever,
+    monkeypatch,
+) -> None:
+    from app.core.config import Settings
+
+    settings = Settings(
+        database_url="postgresql+asyncpg://user:pass@localhost:5432/chemistry",
+        jwt_secret="test-secret",
+        content_ege_db_path=rag_content_dbs["ege"],
+        content_oge_db_path=rag_content_dbs["oge"],
+        content_lectures_db_path=rag_content_dbs["lectures"],
+    )
+    monkeypatch.setattr("app.services.tutor.tasks.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.services.tutor.solve.prepare_context.search_theory",
+        _mock_theory_hits,
+    )
+
+    ctx = TutorRunContext(
+        track="ege",
+        user_id="u1",
+        role="student",
+        active_test_session_id=uuid.uuid4(),
+        allowed_solve_test_id=1,
+        solve_student_answer="wrong",
+    )
+    node = make_prepare_context_node(ctx)
+    result = node(
+        {
+            "messages": [
+                HumanMessage(
+                    content="Объясни, в чём ошибка, и сравни с правильным ответом."
+                )
+            ],
+        }
+    )
+
+    assert result["task_id"] == 1
+    assert result["student_answer"] == "wrong"
+    assert result["correct_ans"] == "secret-answer"
 
 
 def test_run_code_critic_rejects_wrong_key() -> None:

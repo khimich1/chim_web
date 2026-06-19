@@ -4,6 +4,9 @@ export interface TutorPageContext {
   topic?: string | null;
   test_session_id?: string | null;
   homework_id?: string | null;
+  step_position?: number | null;
+  test_id?: number | null;
+  solve_mode?: "explain_incorrect_step" | null;
 }
 
 export interface TutorSessionSummary {

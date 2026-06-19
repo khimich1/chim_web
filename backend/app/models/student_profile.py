@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING
+from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Enum, ForeignKey, Uuid
+from sqlalchemy import DateTime, Enum, ForeignKey, JSON, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -38,6 +39,24 @@ class StudentProfile(Base):
     track: Mapped[ExamTrack] = mapped_column(
         Enum(ExamTrack, name="exam_track", native_enum=False, length=10),
         nullable=False,
+    )
+    display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    first_login_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    onboarding_checklist: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=lambda: {
+            "login": False,
+            "first_action": False,
+            "lecture": False,
+        },
     )
 
     user: Mapped[User] = relationship(

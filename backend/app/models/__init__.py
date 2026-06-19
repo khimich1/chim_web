@@ -1,6 +1,8 @@
 """ORM models for app PostgreSQL database."""
 
+from app.models.activity import StudentActivityEvent, StudentStats
 from app.models.enums import (
+    ActivityEventType,
     ExamTrack,
     HomeworkItemKind,
     HomeworkStatus,
@@ -22,6 +24,7 @@ from app.models.tutor import TutorMessage, TutorSession
 from app.models.user import User
 
 __all__ = [
+    "ActivityEventType",
     "ExamTrack",
     "HomeworkAssignment",
     "HomeworkItemKind",
@@ -31,7 +34,9 @@ __all__ = [
     "Notification",
     "NotificationType",
     "StepStatus",
+    "StudentActivityEvent",
     "StudentProfile",
+    "StudentStats",
     "TestSession",
     "TestSessionStatus",
     "TestSessionStep",

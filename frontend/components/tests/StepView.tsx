@@ -94,6 +94,22 @@ export function StepView({ session }: { session: TestSession }) {
   }
 
   const isChecked = step.status === "checked";
+  const showAskTutor =
+    isChecked && step.is_correct === false && step.test_id != null;
+
+  function handleAskTutor() {
+    const studentAnswer = (step.answer ?? answer).trim();
+    openTutor({
+      pageContext: {
+        test_session_id: session.id,
+        step_position: step.position,
+        test_id: step.test_id,
+        solve_mode: "explain_incorrect_step",
+      },
+      initialMessage: `Разбери задание ${step.test_id}. Мой ответ: «${studentAnswer || "—"}». Объясни, в чём ошибка, и сравни с правильным ответом.`,
+      autoSendInitialMessage: true,
+    });
+  }
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -138,21 +154,17 @@ export function StepView({ session }: { session: TestSession }) {
             />
           </div>
 
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={() =>
-                openTutor({
-                  pageContext: { test_session_id: session.id },
-                  initialMessage:
-                    "Подскажи теорию из учебника, которая поможет решить это задание.",
-                })
-              }
-              className="chem-btn-ghost min-h-[44px] px-3 py-2 text-sm text-chem-teal"
-            >
-              Спросить советчика
-            </button>
-          </div>
+          {showAskTutor ? (
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={handleAskTutor}
+                className="chem-btn-ghost min-h-[44px] px-3 py-2 text-sm text-chem-teal"
+              >
+                Спросить советчика
+              </button>
+            </div>
+          ) : null}
 
           {isChecked ? (
             <p

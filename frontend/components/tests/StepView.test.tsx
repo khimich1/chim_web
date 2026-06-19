@@ -142,17 +142,59 @@ describe("StepView", () => {
     );
   });
 
-  it("opens the tutor overlay with test session context", async () => {
+  it("does not show ask-tutor before check or on correct answer", () => {
     render(<StepView session={session} />);
 
-    await userEvent.click(
-      screen.getByRole("button", { name: "Спросить советчика" }),
-    );
+    expect(
+      screen.queryByRole("button", { name: "Спросить советчика" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens tutor with explain_incorrect_step context after wrong answer", async () => {
+    const freshSession: TestSession = {
+      ...session,
+      steps: [
+        {
+          position: 0,
+          test_id: 42,
+          type: 1,
+          question: "Вопрос 1",
+          options: null,
+          status: "unseen",
+          answer: null,
+          is_correct: null,
+          hint_used: false,
+        },
+      ],
+      total_steps: 1,
+    };
+
+    mockedCheck.mockResolvedValue({
+      position: 0,
+      is_correct: false,
+      status: "checked",
+    });
+
+    render(<StepView session={freshSession} />);
+
+    await userEvent.type(screen.getByLabelText("Ваш ответ"), "99");
+    await userEvent.click(screen.getByRole("button", { name: "Проверить" }));
+
+    const askButton = await screen.findByRole("button", {
+      name: "Спросить советчика",
+    });
+    await userEvent.click(askButton);
 
     expect(openTutor).toHaveBeenCalledWith({
-      pageContext: { test_session_id: "sess-1" },
+      pageContext: {
+        test_session_id: "sess-1",
+        step_position: 0,
+        test_id: 42,
+        solve_mode: "explain_incorrect_step",
+      },
       initialMessage:
-        "Подскажи теорию из учебника, которая поможет решить это задание.",
+        "Разбери задание 42. Мой ответ: «99». Объясни, в чём ошибка, и сравни с правильным ответом.",
+      autoSendInitialMessage: true,
     });
   });
 });

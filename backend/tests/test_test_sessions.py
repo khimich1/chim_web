@@ -131,6 +131,8 @@ def test_create_session_builds_steps_from_variant(client: TestClient) -> None:
     assert body["variant_ref"] == "001.txt"
     assert body["status"] == "in_progress"
     assert body["total_steps"] == 2
+    assert "created_at" in body
+    assert body["created_at"] is not None
     positions = [s["position"] for s in body["steps"]]
     assert positions == [0, 1]
     # No correct answer leaks into the step view.
@@ -143,6 +145,16 @@ def test_create_partial_session_filters_types(client: TestClient) -> None:
 
     assert body["total_steps"] == 1
     assert body["steps"][0]["type"] == 2
+
+
+def test_create_session_by_task_type_across_variants(client: TestClient) -> None:
+    _login(client)
+    response = client.post("/api/tests/sessions", json={"types": [1]})
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["variant_ref"] is None
+    assert body["total_steps"] == 1
+    assert body["steps"][0]["type"] == 1
 
 
 def test_question_has_image_url_substituted(client: TestClient) -> None:
@@ -187,6 +199,8 @@ def test_check_step_wrong_answer_then_recheck(client: TestClient) -> None:
     assert right.json()["is_correct"] is True
 
     state = client.get(f"/api/tests/sessions/{session_id}").json()
+    assert "created_at" in state
+    assert state["created_at"] is not None
     step0 = state["steps"][0]
     assert step0["answer"] == "1"
     assert step0["is_correct"] is True

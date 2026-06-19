@@ -38,6 +38,7 @@ from app.schemas.tutor import (
 )
 from app.services.tutor.context import TutorRunContext
 from app.services.tutor.graph import build_graph
+from app.services.tutor.solve_gating import resolve_incorrect_step_gate
 from app.services.tutor.student_tools import StudentTutorToolsService
 
 logger = logging.getLogger(__name__)
@@ -274,6 +275,8 @@ class TutorService:
     ) -> TutorRunContext:
         track: ExamTrack = ExamTrack.EGE
         active_test_session_id: uuid.UUID | None = None
+        allowed_solve_test_id: int | None = None
+        solve_student_answer: str | None = None
 
         if user.role == UserRole.STUDENT:
             profile = await self._db.scalar(
@@ -291,11 +294,23 @@ class TutorService:
                 except ValueError:
                     pass
 
+            gate = await resolve_incorrect_step_gate(
+                self._db,
+                student_id=user.id,
+                page_context=page_context,
+            )
+            if gate is not None:
+                active_test_session_id = gate.test_session_id
+                allowed_solve_test_id = gate.test_id
+                solve_student_answer = gate.student_answer
+
         return TutorRunContext(
             track=track.value,
             user_id=str(user.id),
             role=user.role.value,  # type: ignore[arg-type]
             active_test_session_id=active_test_session_id,
+            allowed_solve_test_id=allowed_solve_test_id,
+            solve_student_answer=solve_student_answer,
             run_async=run_async,
             student_tools_service=student_tools_service,
         )

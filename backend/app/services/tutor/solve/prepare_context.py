@@ -44,8 +44,39 @@ def make_prepare_context_node(ctx: TutorRunContext | None = None):
     def prepare_context(state: SolveState) -> dict[str, Any]:
         run_ctx = ctx or get_tutor_context()
         user_text = _last_user_text(state)
+
+        if (
+            run_ctx.role == "student"
+            and run_ctx.active_test_session_id is not None
+            and run_ctx.allowed_solve_test_id is None
+        ):
+            return {
+                "messages": [
+                    AIMessage(
+                        content=(
+                            "Разбор заданий с ключом недоступен во время активной "
+                            "тест-сессии. Сначала проверьте ответ на шаге — после "
+                            "ошибки станет доступна кнопка «Спросить советчика»."
+                        )
+                    )
+                ],
+            }
+
         task_id = extract_task_id(user_text)
-        if task_id is None:
+        if run_ctx.allowed_solve_test_id is not None:
+            if task_id is not None and task_id != run_ctx.allowed_solve_test_id:
+                return {
+                    "messages": [
+                        AIMessage(
+                            content=(
+                                "Разбор с ключом доступен только для текущего "
+                                "неверного шага теста."
+                            )
+                        )
+                    ],
+                }
+            task_id = run_ctx.allowed_solve_test_id
+        elif task_id is None:
             return {
                 "messages": [
                     AIMessage(
@@ -83,7 +114,7 @@ def make_prepare_context_node(ctx: TutorRunContext | None = None):
         }
         answer_format = detect_answer_format(task.type, task.correct_ans)
 
-        return {
+        payload: dict[str, Any] = {
             "task_id": task_id,
             "task_context": task_context,
             "correct_ans": task.correct_ans,
@@ -92,6 +123,9 @@ def make_prepare_context_node(ctx: TutorRunContext | None = None):
             "retry_count": 0,
             "fix_instructions": "",
         }
+        if run_ctx.solve_student_answer is not None:
+            payload["student_answer"] = run_ctx.solve_student_answer
+        return payload
 
     return prepare_context
 

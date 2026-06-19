@@ -14,8 +14,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routers import auth as auth_router
 from app.api.routers import homework as homework_router
+from app.api.routers import leaderboard as leaderboard_router
 from app.api.routers import notifications as notifications_router
 from app.api.routers import students as students_router
+from app.api.routers import teacher_stats as teacher_stats_router
 from app.api.routers import test_sessions as test_sessions_router
 from app.api.routers import tests as tests_router
 from app.api.routers import textbook as textbook_router
@@ -53,6 +55,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     application.include_router(auth_router.router)
     application.include_router(students_router.router)
+    application.include_router(teacher_stats_router.router)
+    application.include_router(leaderboard_router.router)
     application.include_router(homework_router.router)
     application.include_router(notifications_router.router)
     application.include_router(textbook_router.router)

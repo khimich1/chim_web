@@ -139,6 +139,17 @@ def _login(client: TestClient, email: str, password: str = STUDENT_PASS):
     return client.post("/api/auth/login", json={"email": email, "password": password})
 
 
+def test_ege_student_lists_task_types(client: TestClient) -> None:
+    assert _login(client, EGE_STUDENT_EMAIL).status_code == 200
+
+    response = client.get("/api/tests/task-types")
+    assert response.status_code == 200
+    assert response.json() == [
+        {"type": 1, "variant_count": 1},
+        {"type": 2, "variant_count": 1},
+    ]
+
+
 def test_ege_student_lists_variants(client: TestClient) -> None:
     assert _login(client, EGE_STUDENT_EMAIL).status_code == 200
 

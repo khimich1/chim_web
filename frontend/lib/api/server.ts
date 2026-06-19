@@ -8,11 +8,15 @@ import type {
   HomeworkAssignment,
   Notification,
   Student,
+  TeacherStudentStats,
   TestSession,
+  TestTaskType,
   TestVariant,
   TextbookTopic,
   Track,
   User,
+  OnboardingStatus,
+  OnboardingWelcome,
 } from "@/lib/api/types";
 
 /**
@@ -56,6 +60,15 @@ export async function getStudents(): Promise<Student[]> {
   return (await response.json()) as Student[];
 }
 
+/** Server-side student stats for teacher pages (Task 62). */
+export async function getTeacherStudentsStats(): Promise<TeacherStudentStats[]> {
+  return (
+    (await fetchWithCookies<TeacherStudentStats[]>(
+      "/api/teacher/students/stats",
+    )) ?? []
+  );
+}
+
 async function fetchWithCookies<T>(path: string): Promise<T | null> {
   const cookieHeader = (await cookies()).toString();
   if (!cookieHeader) {
@@ -85,6 +98,14 @@ export async function getTextbookChunks(topic: string): Promise<ChunkSummary[]> 
   );
 }
 
+export async function getTestTaskTypes(track?: Track): Promise<TestTaskType[]> {
+  const query = track ? `?track=${track}` : "";
+  return (
+    (await fetchWithCookies<TestTaskType[]>(`/api/tests/task-types${query}`)) ??
+    []
+  );
+}
+
 export async function getTestVariants(track?: Track): Promise<TestVariant[]> {
   const query = track ? `?track=${track}` : "";
   return (await fetchWithCookies<TestVariant[]>(`/api/tests/variants${query}`)) ?? [];
@@ -98,6 +119,14 @@ export async function getTestSession(
 
 export async function getHomeworkList(): Promise<HomeworkAssignment[]> {
   return (await fetchWithCookies<HomeworkAssignment[]>("/api/homework")) ?? [];
+}
+
+export async function getOnboardingStatus(): Promise<OnboardingStatus | null> {
+  return fetchWithCookies<OnboardingStatus>("/api/students/me/onboarding");
+}
+
+export async function getOnboardingWelcome(): Promise<OnboardingWelcome | null> {
+  return fetchWithCookies<OnboardingWelcome>("/api/students/me/onboarding/welcome");
 }
 
 export async function getHomework(

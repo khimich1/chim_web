@@ -3,10 +3,14 @@ import Link from "next/link";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { CreateStudentForm } from "@/components/students/CreateStudentForm";
 import { StudentList } from "@/components/students/StudentList";
-import { getCurrentUser, getStudents } from "@/lib/api/server";
+import { getCurrentUser, getStudents, getTeacherStudentsStats } from "@/lib/api/server";
 
 export default async function StudentsPage() {
-  const [user, students] = await Promise.all([getCurrentUser(), getStudents()]);
+  const [user, students, stats] = await Promise.all([
+    getCurrentUser(),
+    getStudents(),
+    getTeacherStudentsStats(),
+  ]);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
@@ -32,7 +36,7 @@ export default async function StudentsPage() {
         <h2 className="mb-4 text-lg font-semibold text-zinc-900">
           Список ({students.length})
         </h2>
-        <StudentList students={students} />
+        <StudentList students={students} stats={stats} />
       </section>
     </main>
   );
