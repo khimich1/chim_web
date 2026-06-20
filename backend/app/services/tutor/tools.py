@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 
 from langchain_core.tools import BaseTool, tool
 
@@ -194,5 +195,53 @@ def build_tools(ctx: TutorRunContext) -> list[BaseTool]:
                 get_selfcheck,
             ]
         )
+
+    if ctx.role == "teacher" and ctx.teacher_tools_service is not None and ctx.run_async is not None:
+        service = ctx.teacher_tools_service
+        run = ctx.run_async
+
+        @tool
+        def summarize_student(student_id: str) -> str:
+            """Сводка по ученику: слабые темы, ошибки по типам заданий, активность."""
+            try:
+                parsed_id = uuid.UUID(student_id)
+            except ValueError:
+                return json.dumps(
+                    {"error": "Некорректный student_id"},
+                    ensure_ascii=False,
+                )
+            summary = run(service.summarize_student(parsed_id))
+            if summary is None:
+                return json.dumps(
+                    {"error": "Ученик не найден или недоступен"},
+                    ensure_ascii=False,
+                )
+            return json.dumps(summary.model_dump(mode="json"), ensure_ascii=False)
+
+        @tool
+        def suggest_homework(student_id: str) -> str:
+            """Черновик ДЗ под слабые темы ученика (без автосоздания в БД)."""
+            try:
+                parsed_id = uuid.UUID(student_id)
+            except ValueError:
+                return json.dumps(
+                    {"error": "Некорректный student_id"},
+                    ensure_ascii=False,
+                )
+            draft = run(service.suggest_homework(parsed_id))
+            if draft is None:
+                return json.dumps(
+                    {"error": "Ученик не найден или недоступен"},
+                    ensure_ascii=False,
+                )
+            return json.dumps(draft.model_dump(mode="json"), ensure_ascii=False)
+
+        @tool
+        def class_overview() -> str:
+            """Агрегат частых ошибок по типу задания среди всех учеников преподавателя."""
+            overview = run(service.class_overview())
+            return json.dumps(overview.model_dump(mode="json"), ensure_ascii=False)
+
+        tools.extend([summarize_student, suggest_homework, class_overview])
 
     return tools

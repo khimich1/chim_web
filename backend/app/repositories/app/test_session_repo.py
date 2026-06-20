@@ -22,6 +22,11 @@ class IncorrectStepRow:
     checked_at: datetime | None
 
 
+@dataclass(frozen=True, slots=True)
+class IncorrectStepRowWithStudent(IncorrectStepRow):
+    student_id: uuid.UUID
+
+
 class TestSessionRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -122,6 +127,51 @@ class TestSessionRepository:
                 session_id=row.session_id,
                 track=row.track,
                 checked_at=row.checked_at,
+            )
+            for row in result.all()
+        ]
+
+    async def list_incorrect_steps_for_students(
+        self,
+        student_ids: list[uuid.UUID],
+        *,
+        limit: int = 200,
+    ) -> list[IncorrectStepRowWithStudent]:
+        """Return recent incorrect steps for multiple students (newest first)."""
+        if not student_ids:
+            return []
+
+        from app.models import TestSessionStep
+
+        stmt = (
+            select(
+                TestSessionStep.test_id,
+                TestSessionStep.session_id,
+                TestSession.track,
+                TestSessionStep.checked_at,
+                TestSession.student_id,
+            )
+            .join(TestSession, TestSessionStep.session_id == TestSession.id)
+            .where(
+                TestSession.student_id.in_(student_ids),
+                TestSessionStep.status == StepStatus.CHECKED,
+                TestSessionStep.is_correct.is_(False),
+            )
+            .order_by(
+                TestSessionStep.checked_at.desc().nullslast(),
+                TestSessionStep.id.desc(),
+            )
+            .limit(max(1, limit))
+        )
+
+        result = await self._session.execute(stmt)
+        return [
+            IncorrectStepRowWithStudent(
+                test_id=row.test_id,
+                session_id=row.session_id,
+                track=row.track,
+                checked_at=row.checked_at,
+                student_id=row.student_id,
             )
             for row in result.all()
         ]

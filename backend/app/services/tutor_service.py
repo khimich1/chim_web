@@ -40,6 +40,7 @@ from app.services.tutor.context import TutorRunContext
 from app.services.tutor.graph import build_graph
 from app.services.tutor.solve_gating import resolve_incorrect_step_gate
 from app.services.tutor.student_tools import StudentTutorToolsService
+from app.services.tutor.teacher_tools import TeacherTutorToolsService
 
 logger = logging.getLogger(__name__)
 
@@ -153,11 +154,17 @@ class TutorService:
             if user.role == UserRole.STUDENT
             else None
         )
+        teacher_service = (
+            TeacherTutorToolsService(self._db, user=user)
+            if user.role == UserRole.TEACHER
+            else None
+        )
         ctx = await self._build_run_context(
             user,
             session.page_context,
             run_async=run_async,
             student_tools_service=student_service,
+            teacher_tools_service=teacher_service,
         )
         graph = build_graph(ctx, llm=self._llm, settings=self._settings)
         invoke_input = {
@@ -272,6 +279,7 @@ class TutorService:
         *,
         run_async=None,
         student_tools_service: StudentTutorToolsService | None = None,
+        teacher_tools_service: TeacherTutorToolsService | None = None,
     ) -> TutorRunContext:
         track: ExamTrack = ExamTrack.EGE
         active_test_session_id: uuid.UUID | None = None
@@ -313,6 +321,7 @@ class TutorService:
             solve_student_answer=solve_student_answer,
             run_async=run_async,
             student_tools_service=student_tools_service,
+            teacher_tools_service=teacher_tools_service,
         )
 
     async def _get_active_test_session_id(self, student_id: uuid.UUID) -> uuid.UUID | None:

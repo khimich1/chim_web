@@ -12,6 +12,7 @@ from app.services.rag.documents import ExamTrack
 
 if TYPE_CHECKING:
     from app.services.tutor.student_tools import StudentTutorToolsService
+    from app.services.tutor.teacher_tools import TeacherTutorToolsService
 
 TutorRole = Literal["student", "teacher"]
 T = TypeVar("T")
@@ -28,6 +29,11 @@ class TutorRunContext:
     solve_student_answer: str | None = None
     run_async: AsyncRunner | None = field(default=None, compare=False, repr=False)
     student_tools_service: StudentTutorToolsService | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+    teacher_tools_service: TeacherTutorToolsService | None = field(
         default=None,
         compare=False,
         repr=False,
