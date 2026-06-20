@@ -38,6 +38,17 @@ class HomeworkItemKind(str, enum.Enum):
     TEST_VARIANT = "test_variant"
     TEST_PARTIAL = "test_partial"
     TEST_BY_TYPE = "test_by_type"
+    CUSTOM_THEME = "custom_theme"
+
+
+class TestSessionSource(str, enum.Enum):
+    EXAM = "exam"
+    CUSTOM = "custom"
+
+
+class GradingMode(str, enum.Enum):
+    AUTO = "auto"
+    SELF_CHECK = "self_check"
 
 
 class NotificationType(str, enum.Enum):

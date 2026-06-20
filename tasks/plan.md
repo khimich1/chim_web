@@ -1,8 +1,8 @@
 # Implementation Plan: Chemistry (chim_web) MVP
 
-**Источник:** [SPEC.md](../SPEC.md) v0.7.7 · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2 · геймификация: [`docs/ideas/student-points-leaderboard.md`](../docs/ideas/student-points-leaderboard.md)  
+**Источник:** [SPEC.md](../SPEC.md) v0.7.8 · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2 · геймификация: [`docs/ideas/student-points-leaderboard.md`](../docs/ideas/student-points-leaderboard.md) · конструктор заданий: [`docs/ideas/teacher-task-constructor.md`](../docs/ideas/teacher-task-constructor.md)  
 **Дата плана:** 2026-06-09  
-**Обновлено:** 2026-06-19  
+**Обновлено:** 2026-06-20  
 **Статус:** MVP core + Phase 12 ✅ (`7804506`); Task 29 ✅ routers ≥80%; Task 41 ✅ RAG accuracy; Task 42 ✅ solve-pipeline этап A; Phase 11 UI redesign ✅ (`9fb016a`, Tasks 48–52); Task 56 ✅ Mendeleev overlay; **далее: Task 57 (solve после неверного ответа, §1.3.4) или Phase 13 (баллы и рейтинг, §1.8)**; tutor Tasks 31–38 в истории `08b418a`
 
 ---
@@ -71,8 +71,9 @@
 | 56 | Таблица Менделеева — overlay при тестах | ✅ done | `PeriodicTableOverlay`, asset в `assets/` + `public/images/` |
 | 57 | «Спросить советчика» после неверного ответа (§1.3.4) | ✅ local | `solve_gating.py`, StepView + TutorChatContext, pytest + vitest |
 | 58–65 | Баллы, streak, рейтинг (§1.8, Phase 13) | ✅ local | миграции `008`/`009`, activity layer, API, student dashboard + leaderboard, teacher stats UI |
+| 66–74 | Конструктор заданий преподавателя (§1.9, Phase 14) | ✅ local | migration `011`, teacher themes/tasks API, uploads, custom TestSession, HomeworkForm, StepProgressDots free nav |
 
-**Текущий этап:** Phase 12 ✅; **Task 57** ✅ local; **Phase 13 (58–65)** ✅ local; Task 44 (тренажёр) или Task 42 этап B.
+**Текущий этап:** Phase 12 ✅; **Task 57** ✅ local; **Phase 13 (58–65)** ✅ local; **Phase 14 (66–74)** ✅ local; **Следующий шаг:** E2E teacher→student flow или Task 44 / Task 42 этап B.
 
 ---
 
@@ -1944,6 +1945,240 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ---
 
+---
+
+### Phase 14: Конструктор заданий преподавателя (§1.9)
+
+> **Источник:** [`docs/ideas/teacher-task-constructor.md`](../docs/ideas/teacher-task-constructor.md) · SPEC §1.9  
+> **Стратегия:** срезы A → B → C (кастомный контент → ДЗ → UX кружочков)
+
+---
+
+## Task 66: Custom content — models + migration
+
+**Description:** `TeacherTheme`, `CustomTask`; расширение `TestSession` (`source`, `custom_theme_id`, `custom_task_ids`).
+
+**Acceptance criteria:**
+- [ ] AC-7.1 (модель): темы привязаны к `teacher_id`; задания — к `theme_id`
+- [ ] `grading_mode`: `auto` | `self_check`; jsonb-блоки вопроса и эталона
+- [ ] Alembic migration с downgrade
+
+**Verification:**
+- [ ] `pytest backend/tests/test_custom_task_models.py`
+- [ ] `alembic upgrade head`
+
+**Dependencies:** Task 2
+
+**Files:**
+- `backend/app/models/teacher_theme.py`, `backend/app/models/custom_task.py`
+- `backend/alembic/versions/010_custom_tasks.py`
+- `backend/tests/test_custom_task_models.py`
+
+**Scope:** M
+
+---
+
+## Task 67: Image upload API
+
+**Description:** `POST /api/uploads/images`, `GET /api/uploads/images/{id}`; лимит 5 МБ; MIME jpeg/png/webp.
+
+**Acceptance criteria:**
+- [ ] AC-7.3: teacher и student могут загружать; RBAC на чтение
+- [ ] Отклонение невалидного MIME/размера → 422
+
+**Verification:**
+- [ ] `pytest backend/tests/test_uploads_api.py`
+
+**Dependencies:** Task 6
+
+**Files:**
+- `backend/app/api/routers/uploads.py`
+- `backend/app/services/upload_service.py`
+- `backend/app/core/config.py` (`upload_dir`)
+- `backend/tests/test_uploads_api.py`
+
+**Scope:** S
+
+---
+
+## Task 68: Teacher themes/tasks CRUD API
+
+**Description:** CRUD тем и заданий; только свои темы (RBAC).
+
+**Acceptance criteria:**
+- [ ] AC-7.1, AC-7.2: create/update/delete тем и заданий
+- [ ] `is_published` управляет видимостью для ученика
+- [ ] AC-7.7: update без версионирования
+
+**Verification:**
+- [ ] `pytest backend/tests/test_teacher_themes_api.py`
+
+**Dependencies:** Task 66, Task 67
+
+**Files:**
+- `backend/app/schemas/custom_task.py`
+- `backend/app/services/teacher_theme_service.py`
+- `backend/app/repositories/app/teacher_theme_repo.py`
+- `backend/app/api/routers/teacher_themes.py`
+- `backend/tests/test_teacher_themes_api.py`
+
+**Scope:** M
+
+---
+
+## Task 69: Custom TestSession — create, check, compare
+
+**Description:** `POST /api/tests/sessions` с `custom_theme_id`; шаги из `CustomTask`; `check` для `auto`; `compare` для `self_check`.
+
+**Acceptance criteria:**
+- [ ] AC-7.5: auto — авто-проверка; self_check — эталон, не в score
+- [ ] `GET /api/custom-themes` для ученика (только published + свой teacher)
+- [ ] Resume `in_progress` для кастомной сессии
+
+**Verification:**
+- [ ] `pytest backend/tests/test_custom_test_sessions.py`
+
+**Dependencies:** Task 68, Task 15
+
+**Files:**
+- `backend/app/services/custom_test_session_service.py`
+- `backend/app/api/routers/custom_themes.py`
+- расширение `test_sessions.py`, `test_session_service.py`
+- `backend/tests/test_custom_test_sessions.py`
+
+**Scope:** L
+
+---
+
+## Task 70: Teacher UI — конструктор тем
+
+**Description:** `/teacher/themes` — список тем; создание/редактирование темы и заданий; upload картинок.
+
+**Acceptance criteria:**
+- [ ] AC-7.1, AC-7.2, AC-7.3 в UI
+- [ ] Выбор `grading_mode`; блоки текста и картинки
+- [ ] Ссылка с дашборда преподавателя
+
+**Verification:**
+- [ ] vitest: `ThemeEditor`, `TaskEditor`
+- [ ] Ручная проверка: создать тему с auto + self_check
+
+**Dependencies:** Task 5, Task 68, Task 67
+
+**Files:**
+- `frontend/app/teacher/themes/page.tsx`
+- `frontend/app/teacher/themes/[id]/page.tsx`
+- `frontend/components/teacher/ThemeEditor.tsx`, `TaskEditor.tsx`
+- `frontend/lib/api/teacher-themes.ts`
+
+**Scope:** L
+
+---
+
+## Task 71: Student UI — вкладка «Темы»
+
+**Description:** Третья вкладка в `TestsPicker`; список тем; «Начать» / «Продолжить».
+
+**Acceptance criteria:**
+- [ ] AC-7.4: только published темы преподавателя
+- [ ] AC-2.12-подобное: resume для кастомной сессии
+
+**Verification:**
+- [ ] vitest: `TestsPicker`, `ThemePicker`
+- [ ] MSW + ручная проверка
+
+**Dependencies:** Task 69, Task 17
+
+**Files:**
+- `frontend/components/tests/ThemePicker.tsx`
+- `frontend/components/tests/TestsPicker.tsx`
+- `frontend/lib/api/custom-themes.ts`
+
+**Scope:** M
+
+---
+
+## Task 72: StepView — custom tasks + self_check
+
+**Description:** Рендер jsonb-блоков; «Сравнить ответ»; опциональный upload картинки в ответе.
+
+**Acceptance criteria:**
+- [ ] AC-7.5: разный UI для `auto` vs `self_check`
+- [ ] AC-7.3: опциональный file input у ученика
+- [ ] Итог сессии: self_check шаги вне score
+
+**Verification:**
+- [ ] vitest: `StepView` custom mode
+- [ ] pytest: summary score excludes self_check
+
+**Dependencies:** Task 69, Task 18
+
+**Files:**
+- `frontend/components/tests/StepView.tsx`
+- `frontend/components/tests/CustomQuestionContent.tsx`
+- `frontend/components/tests/AnswerInput.tsx`
+
+**Scope:** M
+
+---
+
+## Task 73: Homework — custom_theme + test_by_type variants
+
+**Description:** `HomeworkItemKind.CUSTOM_THEME`; `test_by_type.variants[]`; UI в `HomeworkForm`; submit flow.
+
+**Acceptance criteria:**
+- [ ] AC-7.6, AC-3.4
+- [ ] Валидация: theme принадлежит teacher; variants существуют в content DB
+- [ ] Submit кастомного ДЗ через TestSession
+
+**Verification:**
+- [ ] `pytest backend/tests/test_homework_custom_theme.py`
+- [ ] vitest: `HomeworkForm` variants + custom_theme
+
+**Dependencies:** Task 69, Task 21, Task 40
+
+**Files:**
+- `backend/app/schemas/homework.py`, `homework_validation.py`
+- `backend/app/services/homework_submit_service.py`
+- `frontend/components/homework/HomeworkForm.tsx`
+- `backend/tests/test_homework_custom_theme.py`
+
+**Scope:** M
+
+---
+
+## Task 74: StepProgressDots — свободная навигация
+
+**Description:** Снять `disabled` для `unseen`; клик на любой кружок.
+
+**Acceptance criteria:**
+- [ ] AC-2.11, AC-7.8, §1.9.6
+- [ ] При входе — первый непроверенный шаг (без регрессии)
+
+**Verification:**
+- [ ] vitest: `StepProgressDots.test.tsx`
+- [ ] Ручная проверка на ЕГЭ-сессии 28 шагов
+
+**Dependencies:** Task 54
+
+**Files:**
+- `frontend/components/tests/StepProgressDots.tsx`
+- `frontend/components/tests/StepProgressDots.test.tsx`
+
+**Scope:** S
+
+---
+
+### Checkpoint: Конструктор заданий (после Tasks 66–74)
+
+- [ ] Преподаватель создаёт тему с auto + self_check заданиями
+- [ ] Ученик проходит во вкладке «Темы»; self_check не в score
+- [ ] ДЗ с `custom_theme` и `test_by_type` + выбранные variants
+- [ ] Свободная навигация по кружочкам во всех тестах
+- [ ] `pytest` + `vitest` зелёные
+
+---
+
 ## Следующий шаг
 
 1. **E2E** — teacher → assign HW (лекция + тест) → student submit → notification + score у teacher.
@@ -1959,3 +2194,4 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 11. После MVP → Phase 9 (Tasks 31–38, AI-советчик).
 12. После базового советчика → Phase 10 (Tasks 41–47). Начать с **Task 41**. ✅
 13. **Phase 11 (UI redesign, SPEC §14)** — параллельно с Phase 12 или после. ✅ Task 48 → Task 49. Task 51 опирается на Task 54 (кружки).
+14. **Phase 14 (Tasks 66–74)** — конструктор заданий преподавателя (SPEC §1.9, `docs/ideas/teacher-task-constructor.md`). **← рекомендуется после Phase 13.** Срез A: Tasks 66–72; срез B: Task 73; срез C: Task 74.

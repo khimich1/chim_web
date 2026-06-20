@@ -36,6 +36,18 @@ describe("formatSessionTitle", () => {
     ).toBe("Домашнее задание");
   });
 
+  it("returns custom theme label", () => {
+    expect(
+      formatSessionTitle(
+        baseSession({
+          variant_ref: null,
+          custom_theme_id: "theme-1",
+          source: "custom",
+        }),
+      ),
+    ).toBe("Авторская тема");
+  });
+
   it("returns mixed-session fallback when both refs are null", () => {
     expect(
       formatSessionTitle(

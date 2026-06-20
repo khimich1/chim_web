@@ -80,6 +80,12 @@ export default async function TeacherDashboard() {
         >
           AI-советчик
         </Link>
+        <Link
+          href="/teacher/themes"
+          className="inline-flex rounded-md border border-chem-royal px-4 py-2 text-sm font-medium text-chem-royal transition hover:bg-chem-royal/5"
+        >
+          Конструктор тем
+        </Link>
       </div>
     </main>
   );

@@ -15,7 +15,7 @@ from app.models import (
     UserRole,
 )
 from app.models.enums import HomeworkItemKind
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.repositories.app.homework_repo import HomeworkRepository
 from app.repositories.app.student_repo import StudentRepository
 from app.repositories.app.test_session_repo import TestSessionRepository
@@ -25,8 +25,13 @@ from app.services.homework_validation import validate_homework_items
 
 
 class HomeworkService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        settings: Settings | None = None,
+    ) -> None:
         self._session = session
+        self._settings = settings or get_settings()
         self._homework = HomeworkRepository(session)
         self._students = StudentRepository(session)
         self._test_sessions = TestSessionRepository(session)
@@ -46,10 +51,12 @@ class HomeworkService:
                 detail="Student not found",
             )
 
-        validate_homework_items(
+        await validate_homework_items(
             data.items,
             track=student.student_profile.track,
-            settings=get_settings(),
+            teacher_id=teacher.id,
+            settings=self._settings,
+            session=self._session,
         )
 
         items_payload = [item.model_dump(mode="json") for item in data.items]

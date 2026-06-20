@@ -46,6 +46,13 @@ def test_expand_types_across_variants_ege(ege_tests_db) -> None:
     ]
     assert repo.count_expanded_questions([1], track=ExamTrack.EGE) == 1
 
+    filtered = repo.expand_types_across_variants(
+        [1],
+        track=ExamTrack.EGE,
+        variants=["001.txt"],
+    )
+    assert filtered == [("001.txt", [1])]
+
 
 def test_expand_types_across_variants_oge(oge_tests_db) -> None:
     repo = ExamContentRepo(oge_tests_db)

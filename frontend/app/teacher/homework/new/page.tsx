@@ -4,17 +4,29 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
 import { HomeworkForm } from "@/components/homework/HomeworkForm";
 import {
   getStudents,
+  getTeacherThemesWithTaskCounts,
+  getTeacherThemeTasks,
   getTestVariants,
   getTextbookTopics,
 } from "@/lib/api/server";
 
 export default async function TeacherHomeworkNewPage() {
-  const [students, topics, egeVariants, ogeVariants] = await Promise.all([
-    getStudents(),
-    getTextbookTopics(),
-    getTestVariants("ege"),
-    getTestVariants("oge"),
-  ]);
+  const [students, topics, egeVariants, ogeVariants, themeSummaries] =
+    await Promise.all([
+      getStudents(),
+      getTextbookTopics(),
+      getTestVariants("ege"),
+      getTestVariants("oge"),
+      getTeacherThemesWithTaskCounts(),
+    ]);
+
+  const teacherThemes = await Promise.all(
+    themeSummaries.map(async (theme) => ({
+      id: theme.id,
+      title: theme.title,
+      tasks: await getTeacherThemeTasks(theme.id),
+    })),
+  );
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
@@ -41,6 +53,7 @@ export default async function TeacherHomeworkNewPage() {
             ege: egeVariants.map((variant) => variant.filename),
             oge: ogeVariants.map((variant) => variant.filename),
           }}
+          teacherThemes={teacherThemes}
         />
       </section>
     </main>

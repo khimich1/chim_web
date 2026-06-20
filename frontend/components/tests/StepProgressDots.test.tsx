@@ -32,7 +32,7 @@ describe("StepProgressDots", () => {
     expect(screen.queryByText(/%/)).not.toBeInTheDocument();
   });
 
-  it("applies status classes and allows clicking open steps only", async () => {
+  it("applies status classes and allows clicking any step", async () => {
     const onSelect = vi.fn();
     const steps = [
       makeStep({ position: 0, status: "checked", is_correct: true }),
@@ -47,13 +47,13 @@ describe("StepProgressDots", () => {
     expect(tabs[0]).toHaveAttribute("aria-current", "step");
     expect(tabs[1]).toHaveClass("chem-step-dot--answered");
     expect(tabs[2]).toHaveClass("chem-step-dot--unseen");
-    expect(tabs[2]).toBeDisabled();
+    expect(tabs[2]).not.toBeDisabled();
 
     await userEvent.click(tabs[1]);
     expect(onSelect).toHaveBeenCalledWith(1);
 
     await userEvent.click(tabs[2]);
-    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith(2);
   });
 
   it("uses scrollable layout for long sessions", () => {

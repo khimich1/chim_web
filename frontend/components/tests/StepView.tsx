@@ -3,11 +3,13 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { ApiError } from "@/lib/api/client";
-import { checkStep, completeSession } from "@/lib/api/tests";
-import type { TestSession, TestStep } from "@/lib/api/types";
+import { CustomQuestionContent } from "@/components/tests/CustomQuestionContent";
 import { QuestionContent } from "@/components/tests/QuestionContent";
 import { StepProgressDots } from "@/components/tests/StepProgressDots";
+import { ApiError } from "@/lib/api/client";
+import { uploadImage } from "@/lib/api/uploads";
+import { checkStep, compareStep, completeSession } from "@/lib/api/tests";
+import type { ContentBlock, TestSession, TestStep } from "@/lib/api/types";
 import { useTutorChat } from "@/lib/tutor/TutorChatContext";
 
 function findFirstUnchecked(steps: TestStep[]): number {
@@ -15,31 +17,95 @@ function findFirstUnchecked(steps: TestStep[]): number {
   return index === -1 ? 0 : index;
 }
 
+function isCustomStep(step: TestStep): boolean {
+  return (
+    step.custom_task_id != null ||
+    (step.question_blocks != null && step.question_blocks.length > 0)
+  );
+}
+
+function isCustomSession(session: TestSession): boolean {
+  return (
+    session.source === "custom" ||
+    session.custom_theme_id != null ||
+    session.steps.some(isCustomStep)
+  );
+}
+
+function stepTitle(step: TestStep, index: number): string {
+  if (isCustomStep(step)) {
+    if (step.grading_mode === "self_check") {
+      return "Самопроверка";
+    }
+    return "Авторское задание";
+  }
+  return `Тип ${step.type ?? index + 1}`;
+}
+
 export function StepView({ session }: { session: TestSession }) {
   const router = useRouter();
   const { openTutor } = useTutorChat();
+  const customSession = isCustomSession(session);
   const initialIndex = findFirstUnchecked(session.steps);
   const [steps, setSteps] = useState<TestStep[]>(session.steps);
   const [current, setCurrent] = useState(initialIndex);
   const [answer, setAnswer] = useState(
     session.steps[initialIndex]?.answer ?? "",
   );
+  const [referenceAnswer, setReferenceAnswer] = useState<ContentBlock[] | null>(
+    null,
+  );
+  const [answerImageUrl, setAnswerImageUrl] = useState<string | null>(null);
+  const [uploadingAnswerImage, setUploadingAnswerImage] = useState(false);
   const [checking, setChecking] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const step = steps[current];
   const isLast = current === steps.length - 1;
+  const isSelfCheck = step?.grading_mode === "self_check";
 
   const checkedCount = useMemo(
     () => steps.filter((s) => s.status === "checked").length,
     [steps],
   );
 
+  const scorableCount = useMemo(
+    () => steps.filter((s) => s.grading_mode !== "self_check").length,
+    [steps],
+  );
+
   function goTo(index: number) {
     setCurrent(index);
     setAnswer(steps[index]?.answer ?? "");
+    setReferenceAnswer(null);
+    setAnswerImageUrl(null);
     setError(null);
+  }
+
+  function buildAnswerPayload(): string {
+    const text = answer.trim();
+    if (answerImageUrl) {
+      return text ? `${text}\n${answerImageUrl}` : answerImageUrl;
+    }
+    return text;
+  }
+
+  async function handleAnswerImageUpload(file: File) {
+    setError(null);
+    setUploadingAnswerImage(true);
+    try {
+      const result = await uploadImage(file);
+      setAnswerImageUrl(result.url);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Не удалось загрузить изображение.",
+      );
+    } finally {
+      setUploadingAnswerImage(false);
+    }
   }
 
   async function handleCheck() {
@@ -49,13 +115,14 @@ export function StepView({ session }: { session: TestSession }) {
     setError(null);
     setChecking(true);
     try {
-      const result = await checkStep(session.id, step.position, answer);
+      const payload = buildAnswerPayload();
+      const result = await checkStep(session.id, step.position, payload);
       setSteps((prev) =>
         prev.map((s) =>
           s.position === step.position
             ? {
                 ...s,
-                answer,
+                answer: payload,
                 is_correct: result.is_correct,
                 status: "checked",
               }
@@ -67,6 +134,39 @@ export function StepView({ session }: { session: TestSession }) {
         err instanceof ApiError
           ? err.message
           : "Не удалось проверить ответ.",
+      );
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  async function handleCompare() {
+    if (!step) {
+      return;
+    }
+    setError(null);
+    setChecking(true);
+    try {
+      const payload = buildAnswerPayload();
+      const result = await compareStep(session.id, step.position, payload);
+      setReferenceAnswer(result.reference_answer);
+      setSteps((prev) =>
+        prev.map((s) =>
+          s.position === step.position
+            ? {
+                ...s,
+                answer: payload,
+                status: "checked",
+                is_correct: null,
+              }
+            : s,
+        ),
+      );
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Не удалось сравнить ответ.",
       );
     } finally {
       setChecking(false);
@@ -95,7 +195,10 @@ export function StepView({ session }: { session: TestSession }) {
 
   const isChecked = step.status === "checked";
   const showAskTutor =
-    isChecked && step.is_correct === false && step.test_id != null;
+    !customSession &&
+    isChecked &&
+    step.is_correct === false &&
+    step.test_id != null;
 
   function handleAskTutor() {
     const studentAnswer = (step.answer ?? answer).trim();
@@ -110,6 +213,11 @@ export function StepView({ session }: { session: TestSession }) {
       autoSendInitialMessage: true,
     });
   }
+
+  const actionDisabled =
+    checking ||
+    (isSelfCheck ? buildAnswerPayload() === "" : answer.trim() === "") ||
+    isChecked;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -131,12 +239,18 @@ export function StepView({ session }: { session: TestSession }) {
             <p className="text-xs font-medium uppercase tracking-wide text-white/75">
               Задание
             </p>
-            <h2 className="truncate text-lg font-semibold">Тип {step.type}</h2>
+            <h2 className="truncate text-lg font-semibold">
+              {stepTitle(step, current)}
+            </h2>
           </div>
         </header>
 
         <div className="min-w-0 px-4 py-6 sm:px-5">
-          <QuestionContent text={step.question} />
+          {isCustomStep(step) && step.question_blocks ? (
+            <CustomQuestionContent blocks={step.question_blocks} />
+          ) : step.question ? (
+            <QuestionContent text={step.question} />
+          ) : null}
 
           <div className="mt-5 flex flex-col gap-2">
             <label
@@ -150,8 +264,34 @@ export function StepView({ session }: { session: TestSession }) {
               type="text"
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
-              className="chem-input min-h-[44px] w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
+              disabled={isChecked}
+              className="chem-input min-h-[44px] w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 disabled:bg-zinc-50"
             />
+            {customSession ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="cursor-pointer rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:border-zinc-400">
+                  {uploadingAnswerImage ? "Загрузка…" : "Прикрепить изображение"}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="sr-only"
+                    disabled={isChecked || uploadingAnswerImage}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        void handleAnswerImageUpload(file);
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                {answerImageUrl ? (
+                  <span className="text-xs text-chem-teal-dark">
+                    Изображение прикреплено
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           {showAskTutor ? (
@@ -166,7 +306,7 @@ export function StepView({ session }: { session: TestSession }) {
             </div>
           ) : null}
 
-          {isChecked ? (
+          {isChecked && !isSelfCheck ? (
             <p
               role="status"
               aria-live="polite"
@@ -176,6 +316,25 @@ export function StepView({ session }: { session: TestSession }) {
             >
               {step.is_correct ? "✓ Верно" : "✗ Неверно"}
             </p>
+          ) : null}
+
+          {isChecked && isSelfCheck ? (
+            <p
+              role="status"
+              aria-live="polite"
+              className="mt-4 px-3 py-2 text-sm bg-chem-teal-soft text-chem-teal-dark"
+            >
+              Ответ сохранён. Сравните с эталоном ниже.
+            </p>
+          ) : null}
+
+          {referenceAnswer ? (
+            <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+              <p className="mb-2 text-sm font-medium text-zinc-700">
+                Эталонный ответ
+              </p>
+              <CustomQuestionContent blocks={referenceAnswer} />
+            </div>
           ) : null}
 
           {error ? (
@@ -194,11 +353,15 @@ export function StepView({ session }: { session: TestSession }) {
           <div className="flex gap-2 sm:mt-2">
             <button
               type="button"
-              onClick={handleCheck}
-              disabled={checking || answer.trim() === "" || isChecked}
+              onClick={isSelfCheck ? handleCompare : handleCheck}
+              disabled={actionDisabled}
               className="chem-btn-primary min-h-[44px] flex-1 px-4 py-2.5 text-sm disabled:opacity-60 sm:flex-none sm:px-5"
             >
-              {checking ? "Проверка…" : "Проверить"}
+              {checking
+                ? "Обработка…"
+                : isSelfCheck
+                  ? "Сравнить ответ"
+                  : "Проверить"}
             </button>
           </div>
         </div>
@@ -218,7 +381,9 @@ export function StepView({ session }: { session: TestSession }) {
             </button>
 
             <span className="text-center text-sm text-zinc-500">
-              Проверено {checkedCount} из {steps.length}
+              {customSession && scorableCount < steps.length
+                ? `Проверено ${checkedCount} из ${steps.length} (в баллах: ${scorableCount})`
+                : `Проверено ${checkedCount} из ${steps.length}`}
             </span>
 
             {isLast ? (

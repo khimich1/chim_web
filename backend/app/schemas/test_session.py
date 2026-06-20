@@ -10,7 +10,13 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.models.enums import ExamTrack, StepStatus, TestSessionStatus
+from app.models.enums import (
+    ExamTrack,
+    GradingMode,
+    StepStatus,
+    TestSessionSource,
+    TestSessionStatus,
+)
 
 
 class SessionCreate(BaseModel):
@@ -20,21 +26,33 @@ class SessionCreate(BaseModel):
     # Optional subset of `type` numbers for partial homework; None = full variant.
     types: list[int] | None = None
     homework_assignment_id: uuid.UUID | None = None
+    # Custom theme session (SPEC §1.9.5).
+    custom_theme_id: uuid.UUID | None = None
+    task_ids: list[uuid.UUID] | None = None
 
     @model_validator(mode="after")
     def _require_scope(self) -> SessionCreate:
         has_homework = self.homework_assignment_id is not None
         has_variant = bool((self.variant_ref or "").strip())
+        has_custom = self.custom_theme_id is not None
         has_types_only = (
             not has_homework
             and not has_variant
+            and not has_custom
             and self.types is not None
             and len(self.types) > 0
         )
-        if has_homework or has_variant or has_types_only:
+        if has_homework or has_variant or has_types_only or has_custom:
+            if has_custom and (has_homework or has_variant or has_types_only):
+                raise ValueError(
+                    "custom_theme_id cannot be combined with exam session fields"
+                )
+            if has_custom and self.task_ids is not None and len(self.task_ids) == 0:
+                raise ValueError("task_ids must be non-empty when provided")
             return self
         raise ValueError(
-            "Provide variant_ref, types (without variant), or homework_assignment_id"
+            "Provide variant_ref, types (without variant), homework_assignment_id, "
+            "or custom_theme_id"
         )
 
 
@@ -42,10 +60,13 @@ class StepRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     position: int
-    test_id: int
-    type: int
-    question: str
+    test_id: int | None = None
+    custom_task_id: uuid.UUID | None = None
+    type: int | None = None
+    question: str | None = None
     options: str | None = None
+    question_blocks: list[dict] | None = None
+    grading_mode: GradingMode | None = None
     status: StepStatus
     answer: str | None = None
     is_correct: bool | None = None
@@ -57,8 +78,10 @@ class SessionRead(BaseModel):
 
     id: uuid.UUID
     track: ExamTrack
+    source: TestSessionSource = TestSessionSource.EXAM
     variant_ref: str | None = None
     homework_assignment_id: uuid.UUID | None = None
+    custom_theme_id: uuid.UUID | None = None
     status: TestSessionStatus
     score: int | None = None
     max_score: int | None = None
@@ -77,10 +100,18 @@ class StepCheckResponse(BaseModel):
     status: StepStatus
 
 
+class StepCompareResponse(BaseModel):
+    position: int
+    status: StepStatus
+    reference_answer: list[dict]
+
+
 class SessionSummaryStep(BaseModel):
     position: int
-    test_id: int
-    type: int
+    test_id: int | None = None
+    custom_task_id: uuid.UUID | None = None
+    type: int | None = None
+    grading_mode: GradingMode | None = None
     is_correct: bool | None = None
     hint_used: bool
 

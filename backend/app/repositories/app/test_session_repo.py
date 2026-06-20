@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import TestSession, TestSessionStatus
-from app.models.enums import ExamTrack, StepStatus
+from app.models.enums import ExamTrack, StepStatus, TestSessionSource
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +48,7 @@ class TestSessionRepository:
         variant_ref: str | None = None,
         homework_assignment_id: uuid.UUID | None = None,
         practice_task_type: int | None = None,
+        custom_theme_id: uuid.UUID | None = None,
     ) -> TestSession | None:
         stmt = select(TestSession).where(
             TestSession.student_id == student_id,
@@ -58,6 +59,7 @@ class TestSessionRepository:
                 TestSession.variant_ref == variant_ref,
                 TestSession.homework_assignment_id.is_(None),
                 TestSession.practice_task_type.is_(None),
+                TestSession.source == TestSessionSource.EXAM,
             )
         if homework_assignment_id is not None:
             stmt = stmt.where(
@@ -68,6 +70,12 @@ class TestSessionRepository:
                 TestSession.practice_task_type == practice_task_type,
                 TestSession.variant_ref.is_(None),
                 TestSession.homework_assignment_id.is_(None),
+                TestSession.source == TestSessionSource.EXAM,
+            )
+        if custom_theme_id is not None:
+            stmt = stmt.where(
+                TestSession.custom_theme_id == custom_theme_id,
+                TestSession.source == TestSessionSource.CUSTOM,
             )
         stmt = stmt.order_by(
             TestSession.created_at.desc(),

@@ -1,8 +1,8 @@
 # SPEC — Chemistry (chim_web)
 
-**Версия:** 0.7.7  
-**Дата:** 2026-06-09 (обновлено 2026-06-19)  
-**Статус:** частично согласован (§1.6 AI-советчик — адаптация `RAG_chemistry`; §14 UI redesign — визуальный язык согласован по референсам; §1.3.1 — step-dots + возобновление сессии; §1.3.3 — справочник таблицы Менделеева при тестах; §1.3.4 — solve-разбор после неверного ответа; §1.8 — баллы, streak и рейтинг — в scope Phase 13; AC-6.2 — sources только из учебника, v0.7.3)  
+**Версия:** 0.7.8  
+**Дата:** 2026-06-09 (обновлено 2026-06-20)  
+**Статус:** частично согласован (§1.6 AI-советчик — адаптация `RAG_chemistry`; §14 UI redesign — визуальный язык согласован по референсам; §1.3.1 — step-dots + возобновление сессии; §1.3.3 — справочник таблицы Менделеева при тестах; §1.3.4 — solve-разбор после неверного ответа; §1.8 — баллы, streak и рейтинг — Phase 13; §1.9 — конструктор заданий преподавателя — Phase 14; AC-6.2 — sources только из учебника, v0.7.3)  
 **Стек:** FastAPI + Next.js (monorepo `chim_web`, см. `AGENTS.md`)
 
 ---
@@ -28,6 +28,7 @@
 | 11 | **UX тестов** | Организация прохождения — **в стиле Stepik**: пошаговый сценарий, одно задание на экран, мгновенная проверка, навигация по шагам, прогресс. |
 | 12 | **AI-советчик** | Доступен **ученику и преподавателю** (разные system prompt / права tools). UI — **плавающее окно (overlay-панель) поверх учебника и тестов**, доступно с любого экрана кабинета. История диалогов — **PostgreSQL**; преподаватель может просматривать диалоги своих учеников. Провайдер LLM — **абстракция** (конкретный vendor — до реализации). Rate limit на v2+ — **нет** (мало пользователей). |
 | 13 | **Движок AI-советчика** | Реализуется **адаптацией готового проекта `RAG_chemistry`** (LangGraph + RAG, читает те же контентные БД), а не разработкой с нуля. Код портируется в `backend/app/services/{rag,tutor}/`. См. `docs/specs/tutor-rag.md` §14. |
+| 14 | **Кастомные задания преподавателя** | Хранятся в **PostgreSQL** (не в read-only SQLite). Картинки — локальный upload (`settings.upload_dir`), лимит **5 МБ**, MIME: `image/jpeg`, `image/png`, `image/webp`. Один преподаватель на ученика (`StudentProfile.teacher_id`). См. §1.9. |
 
 ---
 
@@ -40,7 +41,7 @@
 | Роль | MVP-возможности |
 |------|-----------------|
 | **Ученик** | Учебник (лекции по темам), тесты ЕГЭ/ОГЭ, выполнение домашних заданий |
-| **Преподаватель** | Список учеников, назначение ДЗ, просмотр статуса/результатов, уведомления о сдаче |
+| **Преподаватель** | Список учеников, **конструктор тем и заданий** (§1.9), назначение ДЗ, просмотр статуса/результатов, уведомления о сдаче |
 
 ### Зачем
 
@@ -335,7 +336,8 @@ grading_mode: Literal["exact", "ai_assisted", "manual"] = "exact"
 | Аспект | Решение |
 |--------|---------|
 | Кол-во `items` | ≥1; смешивание видов (`lecture` + `test_partial` + `test_variant` + `test_by_type`) в одном ДЗ разрешено |
-| Источник тестов | `test_partial`/`test_variant` из **разных** `variant`; `test_by_type` — номер `type` по **всем** вариантам трека (ЕГЭ: одно задание №N из каждого варианта; ОГЭ: все варианты файла `{N}.txt`) |
+| Источник тестов | `test_partial`/`test_variant` из **разных** `variant`; `test_by_type` — номер `type` по вариантам трека (ЕГЭ: одно задание №N из каждого **выбранного** варианта; ОГЭ: файл `{N}.txt` если в списке; если `variants[]` пуст — все варианты, как раньше). См. §1.9.3 |
+| Кастомные темы | `custom_theme` — тема и/или подмножество заданий преподавателя (§1.9) |
 | Трек | Все задания одного ДЗ — в треке ученика (ЕГЭ/ОГЭ); смешивание треков запрещено |
 | `bug`/`has_issue` | Недоступны для выбора (фильтр content repo) |
 | Прохождение тестов | Все тестовые `items` → один `TestSession` с агрегированным `test_ids[]` (`variant_ref=null` при нескольких вариантах). Лекции — отдельная отметка «Прочитано» |
@@ -439,6 +441,142 @@ homework_submit_service.submit()   → activity_service.record_homework_complete
 - Push-уведомления о streak; WebSocket real-time leaderboard
 - Баллы за неверные попытки; перезапись `TestSession.score`
 
+### 1.9 Конструктор заданий преподавателя (кастомные темы)
+
+> **Идея и обоснование:** [`docs/ideas/teacher-task-constructor.md`](docs/ideas/teacher-task-constructor.md)  
+> **План реализации:** Phase 14 в `tasks/plan.md` (Tasks 66–74).
+
+#### Цели
+
+| Роль | Зачем |
+|------|-------|
+| **Преподаватель** | Создавать собственные темы и задания (текст, число, картинки), назначать их как ДЗ, дополнять банк ЕГЭ/ОГЭ |
+| **Ученик** | Видеть темы преподавателя в разделе «Тесты», проходить пошагово (Stepik), сдавать в составе ДЗ |
+
+Кастомный контент **не** попадает в read-only SQLite; живёт в PostgreSQL и доступен только ученикам с `StudentProfile.teacher_id` = автор темы.
+
+#### 1.9.1 Типы заданий (`grading_mode`)
+
+| Режим | Описание | Проверка | В `score` сессии |
+|-------|----------|----------|------------------|
+| `auto` | Краткий ответ (число или текст) | Авто: нормализация + сравнение с `correct_value` (как ЕГЭ) | Да: верно/неверно |
+| `self_check` | Письменный ответ | Кнопка **«Сравнить ответ»** → показ **полного эталона** (`reference_answer`: текст, число, картинки) | **Нет** — шаг помечается `viewed` / `answered`, не влияет на `score/max_score` |
+
+Преподаватель выбирает `grading_mode` при создании задания. AI-проверка письменных (§1.5) — **не** используется; `self_check` — осознанная самопроверка ученика.
+
+#### 1.9.2 Контент-блоки
+
+Вопрос и эталон — массивы блоков:
+
+```json
+{ "type": "text", "content": "..." }
+{ "type": "image", "url": "/api/uploads/images/{id}" }
+```
+
+**Ответ ученика:** текст (обязателен для отправки шага) + **опциональная** загрузка картинки (`POST /api/uploads/images`, role: student).
+
+**Редактирование:** преподаватель может менять задание **в любой момент**; версионирования нет. Активная `in_progress` сессия может показывать старый текст до перезагрузки страницы — приемлемо для MVP.
+
+#### 1.9.3 Публикация и видимость
+
+- Тема имеет `is_published: bool`. Ученик видит только **опубликованные** темы своего преподавателя.
+- Вкладка **«Темы»** в `TestsPicker` (рядом с «По вариантам» / «По заданиям») — список тем → «Начать» / «Продолжить» → `TestSession` с `source=custom`.
+
+#### 1.9.4 Домашнее задание
+
+Новый пункт `items[]`:
+
+```json
+{ "kind": "custom_theme", "theme_id": "uuid", "task_ids": ["uuid", "..."] }
+```
+
+`task_ids` опционален — если пуст/отсутствует, все задания темы по `sort_order`.
+
+Расширение `test_by_type`:
+
+```json
+{ "kind": "test_by_type", "types": [10, 11], "variants": ["001.txt", "003.txt"] }
+```
+
+`variants` опционален — если пуст/отсутствует, развёртка по **всем** вариантам трека (текущее поведение). UI: чекбоксы вариантов в `HomeworkForm`.
+
+#### 1.9.5 TestSession (кастом)
+
+```
+TestSession
+  ├── source: exam | custom          # default exam для обратной совместимости
+  ├── custom_theme_id (nullable)
+  ├── custom_task_ids[] (nullable)   # подмножество заданий темы
+  └── ... (остальное как в §3)
+```
+
+Шаги кастомной сессии ссылаются на `custom_task_id` вместо `test_id` из SQLite. Прохождение — тот же `StepView`; для `self_check` вместо «Проверить» — «Сравнить ответ».
+
+#### 1.9.6 Навигация по шагам (изменение §1.3.1)
+
+**Решено (v0.7.8):** клик по **любому** кружку в `StepProgressDots` переключает шаг, в т.ч. `unseen` — для **всех** сессий (ЕГЭ, ОГЭ, кастом, ДЗ). При входе в сессию по-прежнему открывается первый непроверенный шаг (AC-2.11).
+
+#### 1.9.7 Upload (безопасность)
+
+| Параметр | Значение |
+|----------|----------|
+| Max size | 5 МБ |
+| MIME | `image/jpeg`, `image/png`, `image/webp` |
+| Хранение | `settings.upload_dir` (локально; S3 — вне MVP) |
+| Доступ | RBAC: teacher — свои uploads; student — свои ответы; чтение — участники сессии/ДЗ |
+
+#### API (планируемые)
+
+| Method | Path | Role | Описание |
+|--------|------|------|----------|
+| GET/POST | `/api/teacher/themes` | teacher | Список / создать тему |
+| GET/PATCH/DELETE | `/api/teacher/themes/{id}` | teacher | CRUD темы |
+| GET/POST | `/api/teacher/themes/{id}/tasks` | teacher | Список / создать задание |
+| GET/PATCH/DELETE | `/api/teacher/tasks/{id}` | teacher | CRUD задания |
+| POST | `/api/uploads/images` | teacher, student | Загрузка картинки → `{ url, id }` |
+| GET | `/api/uploads/images/{id}` | auth | Отдача файла (RBAC) |
+| GET | `/api/custom-themes` | student | Опубликованные темы своего преподавателя |
+| POST | `/api/tests/sessions` | student | + body `{ custom_theme_id, task_ids? }` для кастомной сессии |
+
+#### Модель данных (app DB)
+
+```
+TeacherTheme
+  ├── teacher_id, title, description?, is_published, sort_order
+  └── created_at, updated_at
+
+CustomTask
+  ├── theme_id, title?, sort_order
+  ├── grading_mode: auto | self_check
+  ├── question_blocks (jsonb)
+  ├── reference_answer (jsonb)      # эталон для self_check и «Сравнить»
+  ├── correct_value? (string)       # для auto
+  └── created_at, updated_at
+
+TestSession (расширение)
+  ├── source: exam | custom
+  └── custom_theme_id?, custom_task_ids[]?
+
+HomeworkItem (расширение)
+  ├── custom_theme: { theme_id, task_ids? }
+  └── test_by_type: { types[], variants? }
+```
+
+#### Success criteria (§1.9)
+
+- [ ] Преподаватель создаёт тему, добавляет задания `auto` и `self_check` с текстом и картинками.
+- [ ] Ученик видит опубликованные темы во вкладке «Темы» и проходит сессию в `StepView`.
+- [ ] `auto`: «Проверить» → верно/неверно; `self_check`: «Сравнить ответ» → полный эталон; self_check не влияет на score.
+- [ ] Преподаватель назначает ДЗ с пунктом `custom_theme` и `test_by_type` с выбранными `variants`.
+- [ ] Кружки: переход на любой шаг, включая нерешённые.
+- [ ] `pytest` + `vitest` зелёные для новых сценариев.
+
+#### Вне scope §1.9
+
+- Версионирование заданий; OCR; AI-grading письменных
+- Общий банк между преподавателями; варианты A/B/C/D
+- S3/CDN; случайная выборка N из пула (`max_steps`)
+
 ### Success criteria (тестируемые)
 
 - [ ] Ученик с ролью `student` и треком ЕГЭ видит список тем учебника и может открыть чанк (текст + аудио).
@@ -454,11 +592,12 @@ homework_submit_service.submit()   → activity_service.record_homework_complete
 - [ ] После сдачи ДЗ преподаватель получает **in-app уведомление** и видит результат в карточке ученика.
 - [ ] Задания из `tests_bug` / с `has_issue=1` **не попадают** в выдачу ученику.
 - [ ] `pytest` (backend) и `vitest` (frontend) зелёные для покрытых сценариев.
+- [ ] Преподаватель создаёт кастомные темы; ученик проходит их во вкладке «Темы» (§1.9).
 
 ### Вне scope v1
 
 - AI-агент / чат-советчик (Agent + RAG) — **v2+**, см. §1.6
-- **Письменные задания и AI-проверка** (контента пока нет; roadmap v2, см. §1.4–1.5)
+- **Письменные задания в банке ЕГЭ/ОГЭ и AI-проверка** (контента пока нет; roadmap v2, см. §1.4–1.5). **Исключение:** кастомные `self_check` задания преподавателя (§1.9) — в scope Phase 14, без AI
 - Self-registration, OAuth, несколько преподавателей / школ
 - Редактирование контента в UI
 - Email/Telegram-уведомления
@@ -593,10 +732,11 @@ HomeworkAssignment
   ├── title, description
   ├── due_at (nullable)
   ├── items[]: НЕСКОЛЬКО пунктов; тестовые — из РАЗНЫХ вариантов (§1.7)
-  │             { kind: lecture | test_variant | test_partial | test_by_type, ref... }
+  │             { kind: lecture | test_variant | test_partial | test_by_type | custom_theme, ref... }
   │             test_variant: { variant: "003.txt" }           # все type варианта
   │             test_partial:  { variant: "003.txt", types: [10,11,15] }
-  │             test_by_type: { types: [10] }                  # №10 из каждого варианта (ЕГЭ)
+  │             test_by_type: { types: [10], variants?: ["001.txt","003.txt"] }  # §1.9.4
+  │             custom_theme: { theme_id, task_ids?: [...] }    # §1.9
   │             lecture:       { topic, chunk_idxs[]? }        # сдача = «Прочитано»
   │             # пример смешанного ДЗ:
   │             # [ {test_partial, "003.txt", [10,11]}, {test_partial, "007.txt", [15]}, {lecture, "Алканы"} ]
@@ -604,6 +744,8 @@ HomeworkAssignment
 
 TestSession                          # пошаговое прохождение (Stepik-style)
   ├── student_id, track, variant_ref (nullable для mixed-ДЗ), test_ids[]
+  ├── source: exam | custom (§1.9.5)
+  ├── custom_theme_id, custom_task_ids[] (nullable)
   ├── homework_assignment_id (nullable)
   ├── status: in_progress | completed
   └── steps[]: { test_id, answer, is_correct, hint_used, status, checked_at }
@@ -646,6 +788,15 @@ StudentStats (Phase 13, §1.8)             # денормализованные 
 
 StudentProfile (расширение)
   └── display_name (nullable → публичное имя в рейтинге)
+
+TeacherTheme (Phase 14, §1.9)
+  ├── teacher_id, title, description?, is_published, sort_order
+  └── tasks[] → CustomTask
+
+CustomTask (Phase 14, §1.9)
+  ├── theme_id, grading_mode (auto | self_check)
+  ├── question_blocks, reference_answer (jsonb)
+  └── correct_value? (string, для auto)
 ```
 
 ---
@@ -763,7 +914,7 @@ StudentProfile (расширение)
 | AC-2.8 | Навигация «Назад» / «Далее»; итоговый экран со сводкой баллов |
 | AC-2.9 | Проблемные задания скрыты |
 | AC-2.10 | Кружок шага: **зелёный** если проверен верно, **crimson** если неверно, **teal-soft** если открыт но не проверен, **пустой** если не открыт; текущий — с teal-кольцом |
-| AC-2.11 | Клик по открытому кружку переключает шаг; при возврате в сессию открывается первый непроверенный шаг |
+| AC-2.11 | Клик по **любому** кружку переключает шаг (в т.ч. `unseen`, §1.9.6); при возврате в сессию открывается первый непроверенный шаг |
 | AC-2.12 | На экране ДЗ (тестовая часть) и в списке вариантов: **«Продолжить»** при наличии `in_progress` сессии, иначе **«Начать»** (§1.3.2) |
 | AC-2.13 | На экране пошагового теста — кнопка **«Таблица Менделеева»**; overlay с изображением таблицы; закрытие не сбрасывает ответ и шаг (§1.3.3) |
 | AC-2.14 | Кнопка **«Спросить советчика»** видна **только** при `checked` + `is_correct=false` на текущем шаге; открывает overlay с solve-разбором этого задания (§1.3.4) |
@@ -776,10 +927,10 @@ StudentProfile (расширение)
 
 | AC | Критерий |
 |----|----------|
-| AC-3.1 | Создать ДЗ: ученик, **несколько** пунктов (`lecture` / `test_variant` / `test_partial`), ссылки на контент, опционально `due_at` |
+| AC-3.1 | Создать ДЗ: ученик, **несколько** пунктов (`lecture` / `test_variant` / `test_partial` / `custom_theme`), ссылки на контент, опционально `due_at` |
 | AC-3.2 | Ученик видит список активных ДЗ со статусом |
 | AC-3.3 | Лекция: кнопка «Прочитано» завершает пункт ДЗ. Тест: сдача ответов по назначенным заданиям |
-| AC-3.4 | `test_variant` — все задания варианта; `test_partial` — выбранные `type` из варианта; `test_by_type` — выбранные `type` по всем вариантам трека |
+| AC-3.4 | `test_variant` — все задания варианта; `test_partial` — выбранные `type` из варианта; `test_by_type` — выбранные `type` по вариантам трека (`variants[]` опционален, §1.9.4); `custom_theme` — тема и/или подмножество заданий преподавателя |
 | AC-3.5 | Преподаватель видит статус и результат (балл для тестов) |
 | AC-3.6 | ДЗ может содержать **несколько** тестовых пунктов **из разных вариантов** (§1.7); удобный конструктор выбора в UI преподавателя |
 | AC-3.7 | Статус и score ДЗ — **агрегат** по всем `items`; `submitted` только когда выполнены все пункты; одно уведомление преподавателю при полной сдаче |
@@ -801,6 +952,23 @@ StudentProfile (расширение)
 |----|----------|
 | AC-5.1 | CRUD учеников (create минимум; deactivate опционально) |
 | AC-5.2 | Назначение трека ЕГЭ/ОГЭ |
+
+### US-7: Конструктор заданий (преподаватель → ученик)
+
+**Как** преподаватель, **хочу** создавать темы с собственными заданиями, **чтобы** дополнять банк ЕГЭ/ОГЭ и назначать их ученикам.
+
+**Как** ученик, **хочу** видеть темы преподавателя в «Тестах», **чтобы** решать дополнительные задания в привычном Stepik-формате.
+
+| AC | Критерий |
+|----|----------|
+| AC-7.1 | Преподаватель: CRUD тем (`title`, `description`, `is_published`) и заданий внутри темы |
+| AC-7.2 | Задание: `grading_mode` = `auto` \| `self_check`; блоки вопроса (текст, картинка); эталон для `self_check`; `correct_value` для `auto` |
+| AC-7.3 | Upload картинок: ≤5 МБ, jpeg/png/webp; преподаватель — в вопрос/эталон; ученик — опционально в ответ |
+| AC-7.4 | Ученик: вкладка **«Темы»** в `TestsPicker` — только `is_published` темы своего `teacher_id` |
+| AC-7.5 | `auto`: кнопка «Проверить» → авто-оценка; `self_check`: «Сравнить ответ» → полный эталон; self_check **не** в `score` |
+| AC-7.6 | ДЗ: пункт `custom_theme`; `test_by_type` с опциональным `variants[]` — чекбоксы в UI |
+| AC-7.7 | Редактирование задания без версионирования; опубликованные темы сразу видны ученикам |
+| AC-7.8 | Навигация: клик по любому кружку шага (§1.9.6, AC-2.11) |
 
 ### US-6: AI-советчик (Agent + RAG) — v2+
 
@@ -835,7 +1003,7 @@ StudentProfile (расширение)
 | GET | `/api/tests/variants` | student | Варианты (по треку) |
 | GET | `/api/tests/variants/{ref}/questions` | student | Список вопросов (метаданные, без ответов) |
 | GET | `/api/tests/images/{filename}` | student | PNG |
-| POST | `/api/tests/sessions` | student | Начать сессию (вариант / partial / ДЗ) |
+| POST | `/api/tests/sessions` | student | Начать сессию (вариант / partial / ДЗ / **custom_theme**, §1.9) |
 | GET | `/api/tests/sessions/active` | student | Активная `in_progress` сессия: query `variant_ref` (практика) или `homework_assignment_id` (ДЗ) → `{ session_id } \| null` |
 | GET | `/api/tests/sessions/{id}` | student | Состояние шагов, прогресс |
 | POST | `/api/tests/sessions/{id}/steps/{n}/check` | student | Проверить ответ шага (Stepik «Проверить») |
@@ -856,6 +1024,13 @@ StudentProfile (расширение)
 | GET | `/api/students/me/stats` | student | Личная статистика: баллы, streak, время (§1.8, Phase 13) |
 | GET | `/api/leaderboard` | student | Глобальный рейтинг: `?period=week\|all_time&limit=50` (§1.8) |
 | GET | `/api/teacher/students/stats` | teacher | Статистика своих учеников (§1.8) |
+| GET/POST | `/api/teacher/themes` | teacher | Список / создать тему (§1.9) |
+| GET/PATCH/DELETE | `/api/teacher/themes/{id}` | teacher | CRUD темы |
+| GET/POST | `/api/teacher/themes/{id}/tasks` | teacher | Задания темы |
+| GET/PATCH/DELETE | `/api/teacher/tasks/{id}` | teacher | CRUD задания |
+| POST | `/api/uploads/images` | teacher, student | Загрузка изображения (§1.9.7) |
+| GET | `/api/uploads/images/{id}` | auth | Файл (RBAC) |
+| GET | `/api/custom-themes` | student | Опубликованные темы преподавателя |
 
 ---
 
@@ -868,6 +1043,7 @@ StudentProfile (расширение)
 | Учебник: список тем | student | P0 |
 | Учебник: чанк + аудио | student | P0 |
 | Тесты: выбор варианта | student | P0 |
+| Тесты: вкладка **«Темы»** (кастомные задания преподавателя) | student | P1 (§1.9, Phase 14) |
 | Тесты: пошаговая сессия (Stepik UI) | student | P0 |
 | Тесты: справочник «Таблица Менделеева» (overlay) | student | P0 |
 | Тесты: итоговая сводка сессии | student | P0 |
@@ -877,6 +1053,7 @@ StudentProfile (расширение)
 | Ученики (список) | teacher | P0 |
 | Статистика учеников (баллы, активность) | teacher | P1 (§1.8, Phase 13) |
 | Создать ДЗ (лекция / вариант / выбор заданий) | teacher | P0 |
+| **Конструктор тем и заданий** | teacher | P1 (§1.9, Phase 14) |
 | Уведомления | teacher | P0 |
 | AI-советчик: плавающее окно (overlay) поверх учебника/тестов | student | P2 (v2+) |
 | AI-советчик: просмотр диалогов ученика | teacher | P2 (v2+) |
@@ -897,6 +1074,7 @@ StudentProfile (расширение)
 | Галлюцинации AI-советника | RAG-only ответы; цитаты; guardrail off-topic; gating `correct_ans` (§1.3.4); тесты на утечку ключа вне неверного шага |
 | Стоимость LLM API | Абстракция провайдера; mock в тестах; мониторинг токенов (post-launch) |
 | Prompt injection в `lecture` | Sanitize tool output; не выполнять инструкции из контента учебника |
+| Upload картинок (§1.9) | Whitelist MIME, лимит 5 МБ, RBAC на чтение; не отдавать путь вне `upload_dir` |
 
 ---
 
@@ -923,6 +1101,9 @@ StudentProfile (расширение)
 | Прогресс в тесте | **Кружки по шагам** (цвет = статус), не progress bar (§1.3.1) |
 | Возобновление тест-сессии | Кнопка **«Продолжить»** на ДЗ и в списке вариантов; API `active_test_session_id` / `GET .../sessions/active` (§1.3.2) |
 | Таблица Менделеева при тестах | Статический PNG в overlay; только экран активной сессии; без backend (§1.3.3) |
+| Кастомные задания преподавателя | PostgreSQL + локальный upload; `auto` + `self_check`; вкладка «Темы»; ДЗ `custom_theme` (§1.9) |
+| `test_by_type` в ДЗ | Опциональный `variants[]` — ручной выбор вариантов преподавателем (§1.9.4) |
+| Навигация по кружочкам | Клик на **любой** шаг, включая `unseen` (§1.9.6) |
 
 ## 12. Открытые вопросы
 
@@ -941,7 +1122,7 @@ StudentProfile (расширение)
 
 ## 13. Следующий шаг
 
-После **одобрения spec** → `planning-and-task-breakdown` → `tasks/plan.md` → инкрементальная реализация по `AGENTS.md`.
+Спека §1.9 согласована (v0.7.8). Далее → **Phase 14** в `tasks/plan.md` (Tasks 66–74) → `incremental-implementation` срез A (Tasks 66–72).
 
 ---
 
@@ -1070,6 +1251,7 @@ StudentProfile (расширение)
 ---
 
 *Changelog:*  
+- 0.7.8 — §1.9 **конструктор заданий преподавателя**: темы + кастомные задания (`auto` / `self_check`), upload картинок, вкладка «Темы» у ученика, ДЗ `custom_theme`, `test_by_type.variants[]`, свободная навигация по кружочкам (AC-2.11, §1.9.6); US-7, AC-7.1–7.8; идея — `docs/ideas/teacher-task-constructor.md`; план — Phase 14 (`tasks/plan.md`, Tasks 66–74).  
 - 0.7.7 — §1.8 **баллы, streak и рейтинг**: ledger-first (`student_activity_events` + `student_stats`), правила v1, API, хуки в `test_session_service` / `homework_submit_service`; «Рейтинги, геймификация» убраны из «Вне scope v1» → Phase 13 (`tasks/plan.md` Tasks 58–65); идея — `docs/ideas/student-points-leaderboard.md`.  
 - 0.7.6 — §1.3.4 **«Спросить советчика» после неверного ответа**: кнопка только при `checked` + `is_correct=false`; solve-pipeline с `get_task` + сверка `correct_ans`; точечный gating на сервере (`explain_incorrect_step` в `page_context`). Обновлены §1.6, AC-2.7/2.14, AC-6.7/6.9, §11. План: **Task 57**; синхронизация `tutor-rag.md` §17 — в Task 57.  
 - 0.7.5 — §1.3.3 **таблица Менделеева при тестах**: FAB + overlay с PNG-справочником; AC-2.13; §9, §11, §14.2/14.5/14.7; asset `assets/mendeleev-periodic-table.png` + `frontend/public/images/`. План: Task 56.  

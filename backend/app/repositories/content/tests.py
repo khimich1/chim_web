@@ -63,25 +63,29 @@ class ExamContentRepo:
         types: list[int],
         *,
         track: ExamTrack,
+        variants: list[str] | None = None,
     ) -> list[tuple[str, list[int] | None]]:
         """Expand homework ``test_by_type`` items into (variant, types) sources.
 
         EGE: one question per variant for each requested ``type``.
         OGE: full file ``{type:03d}.txt`` (all variants of that task type).
+        When ``variants`` is set, only those files are included (SPEC §1.9.4).
         """
+        all_variants = self.list_variants()
+        selected = all_variants if variants is None else list(variants)
+
         if track == ExamTrack.OGE:
             sources: list[tuple[str, list[int] | None]] = []
-            known_variants = set(self.list_variants())
+            known_variants = set(all_variants)
             for type_num in sorted(types):
                 filename = f"{type_num:03d}.txt"
-                if filename in known_variants:
+                if filename in known_variants and filename in selected:
                     sources.append((filename, None))
             return sources
 
         sources = []
-        variants = self.list_variants()
         for type_num in sorted(types):
-            for variant in variants:
+            for variant in selected:
                 if self._variant_has_type(variant, type_num):
                     sources.append((variant, [type_num]))
         return sources
@@ -91,11 +95,12 @@ class ExamContentRepo:
         types: list[int],
         *,
         track: ExamTrack,
+        variants: list[str] | None = None,
     ) -> int:
         """Count questions that ``test_by_type`` would include (for validation)."""
         total = 0
         for variant, type_filter in self.expand_types_across_variants(
-            types, track=track
+            types, track=track, variants=variants
         ):
             questions = self.list_questions(variant)
             if type_filter is not None:

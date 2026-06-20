@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { StepView } from "@/components/tests/StepView";
-import { checkStep, completeSession } from "@/lib/api/tests";
+import { checkStep, compareStep, completeSession } from "@/lib/api/tests";
 import type { TestSession } from "@/lib/api/types";
 
 const push = vi.fn();
@@ -19,14 +19,26 @@ vi.mock("@/lib/tutor/TutorChatContext", () => ({
 
 vi.mock("@/lib/api/tests", () => ({
   checkStep: vi.fn(),
+  compareStep: vi.fn(),
   completeSession: vi.fn(),
+}));
+
+vi.mock("@/lib/api/uploads", () => ({
+  uploadImage: vi.fn(),
 }));
 
 vi.mock("@/components/tests/QuestionContent", () => ({
   QuestionContent: ({ text }: { text: string }) => <p>{text}</p>,
 }));
 
+vi.mock("@/components/tests/CustomQuestionContent", () => ({
+  CustomQuestionContent: ({ blocks }: { blocks: { content?: string }[] }) => (
+    <p>{blocks[0]?.content ?? "custom"}</p>
+  ),
+}));
+
 const mockedCheck = vi.mocked(checkStep);
+const mockedCompare = vi.mocked(compareStep);
 const mockedComplete = vi.mocked(completeSession);
 
 const session: TestSession = {
@@ -196,5 +208,61 @@ describe("StepView", () => {
         "Разбери задание 42. Мой ответ: «99». Объясни, в чём ошибка, и сравни с правильным ответом.",
       autoSendInitialMessage: true,
     });
+  });
+
+  it("uses compare for self_check custom steps and shows reference", async () => {
+    const customSession: TestSession = {
+      id: "sess-custom",
+      track: "ege",
+      source: "custom",
+      variant_ref: null,
+      homework_assignment_id: null,
+      custom_theme_id: "theme-1",
+      status: "in_progress",
+      score: null,
+      max_score: null,
+      total_steps: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      steps: [
+        {
+          position: 0,
+          test_id: null,
+          custom_task_id: "task-1",
+          type: null,
+          question: null,
+          options: null,
+          question_blocks: [{ type: "text", content: "Опишите реакцию" }],
+          grading_mode: "self_check",
+          status: "unseen",
+          answer: null,
+          is_correct: null,
+          hint_used: false,
+        },
+      ],
+    };
+
+    mockedCompare.mockResolvedValue({
+      position: 0,
+      status: "checked",
+      reference_answer: [{ type: "text", content: "Эталон" }],
+    });
+
+    render(<StepView session={customSession} />);
+
+    expect(screen.getByText("Опишите реакцию")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Спросить советчика" }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Ваш ответ"), "мой ответ");
+    await userEvent.click(screen.getByRole("button", { name: "Сравнить ответ" }));
+
+    expect(mockedCompare).toHaveBeenCalledWith(
+      "sess-custom",
+      0,
+      "мой ответ",
+    );
+    expect(await screen.findByText("Эталон")).toBeInTheDocument();
+    expect(mockedCheck).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,11 @@
 import Link from "next/link";
 
-import { formatSessionTitle } from "@/components/tests/session-utils";
+import {
+  formatSessionTitle,
+  stepLabel,
+  stepVerdict,
+  verdictClass,
+} from "@/components/tests/session-utils";
 import { DecorativeBlobs } from "@/components/ui/DecorativeBlobs";
 import type { TestSession } from "@/lib/api/types";
 
@@ -9,6 +14,9 @@ export function SessionSummary({ session }: { session: TestSession }) {
   const maxScore = session.max_score ?? session.total_steps;
   const percent =
     maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+  const hasSelfCheck = session.steps.some(
+    (step) => step.grading_mode === "self_check",
+  );
 
   return (
     <div className="relative isolate min-w-0 overflow-hidden rounded-xl">
@@ -23,6 +31,11 @@ export function SessionSummary({ session }: { session: TestSession }) {
             <p className="mt-2 text-4xl font-bold tabular-nums">
               {score} / {maxScore}
             </p>
+            {hasSelfCheck ? (
+              <p className="mt-1 text-xs text-white/80">
+                Задания с самопроверкой не входят в баллы
+              </p>
+            ) : null}
             <p className="mt-1 text-sm text-white/85">
               {formatSessionTitle(session)}
             </p>
@@ -45,22 +58,12 @@ export function SessionSummary({ session }: { session: TestSession }) {
                 >
                   {index + 1}
                 </span>
-                <span className="min-w-0 truncate">Задание {step.type}</span>
+                <span className="min-w-0 truncate">{stepLabel(step, index)}</span>
               </span>
               <span
-                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  step.is_correct === true
-                    ? "chem-verdict-correct"
-                    : step.is_correct === false
-                      ? "chem-verdict-incorrect"
-                      : "bg-zinc-100 text-zinc-500"
-                }`}
+                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${verdictClass(step)}`}
               >
-                {step.is_correct === true
-                  ? "✓ Верно"
-                  : step.is_correct === false
-                    ? "✗ Неверно"
-                    : "— Не отвечено"}
+                {stepVerdict(step)}
               </span>
             </li>
           ))}

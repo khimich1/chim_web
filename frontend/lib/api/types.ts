@@ -62,13 +62,22 @@ export interface TextbookChunk extends ChunkSummary {
 }
 
 export type TestSessionStatus = "in_progress" | "completed";
+export type TestSessionSource = "exam" | "custom";
 export type StepStatus = "unseen" | "answered" | "checked";
+export type GradingMode = "auto" | "self_check";
+
+export interface ContentBlock {
+  type: "text" | "image";
+  content?: string | null;
+  url?: string | null;
+}
 export type HomeworkStatus = "assigned" | "in_progress" | "submitted" | "reviewed";
 export type HomeworkItemKind =
   | "lecture"
   | "test_variant"
   | "test_partial"
-  | "test_by_type";
+  | "test_by_type"
+  | "custom_theme";
 export type NotificationType = "homework_submitted";
 
 export interface TestVariant {
@@ -82,10 +91,13 @@ export interface TestTaskType {
 
 export interface TestStep {
   position: number;
-  test_id: number;
-  type: number;
-  question: string;
+  test_id: number | null;
+  custom_task_id?: string | null;
+  type: number | null;
+  question: string | null;
   options: string | null;
+  question_blocks?: ContentBlock[] | null;
+  grading_mode?: GradingMode | null;
   status: StepStatus;
   answer: string | null;
   is_correct: boolean | null;
@@ -95,8 +107,10 @@ export interface TestStep {
 export interface TestSession {
   id: string;
   track: Track;
+  source?: TestSessionSource;
   variant_ref: string | null;
   homework_assignment_id: string | null;
+  custom_theme_id?: string | null;
   status: TestSessionStatus;
   score: number | null;
   max_score: number | null;
@@ -142,6 +156,81 @@ export interface StepCheckResult {
   status: StepStatus;
 }
 
+export interface StepCompareResult {
+  position: number;
+  status: StepStatus;
+  reference_answer: ContentBlock[];
+}
+
+export interface UploadImageResponse {
+  id: string;
+  url: string;
+}
+
+export interface TeacherTheme {
+  id: string;
+  teacher_id: string;
+  title: string;
+  description: string | null;
+  is_published: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeacherThemeCreateInput {
+  title: string;
+  description?: string | null;
+  is_published?: boolean;
+  sort_order?: number;
+}
+
+export interface TeacherThemeUpdateInput {
+  title?: string;
+  description?: string | null;
+  is_published?: boolean;
+  sort_order?: number;
+}
+
+export interface CustomTask {
+  id: string;
+  theme_id: string;
+  title: string | null;
+  sort_order: number;
+  grading_mode: GradingMode;
+  question_blocks: ContentBlock[];
+  reference_answer: ContentBlock[] | null;
+  correct_value: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomTaskCreateInput {
+  title?: string | null;
+  sort_order?: number;
+  grading_mode: GradingMode;
+  question_blocks: ContentBlock[];
+  reference_answer?: ContentBlock[] | null;
+  correct_value?: string | null;
+}
+
+export interface CustomTaskUpdateInput {
+  title?: string | null;
+  sort_order?: number;
+  grading_mode?: GradingMode;
+  question_blocks?: ContentBlock[];
+  reference_answer?: ContentBlock[] | null;
+  correct_value?: string | null;
+}
+
+export interface CustomThemeListItem {
+  id: string;
+  title: string;
+  description: string | null;
+  task_count: number;
+  sort_order: number;
+}
+
 export interface ActiveSessionResult {
   session_id: string | null;
 }
@@ -166,13 +255,21 @@ export interface TestPartialHomeworkItem {
 export interface TestByTypeHomeworkItem {
   kind: "test_by_type";
   types: number[];
+  variants?: string[] | null;
+}
+
+export interface CustomThemeHomeworkItem {
+  kind: "custom_theme";
+  theme_id: string;
+  task_ids?: string[] | null;
 }
 
 export type HomeworkItem =
   | LectureHomeworkItem
   | TestVariantHomeworkItem
   | TestPartialHomeworkItem
-  | TestByTypeHomeworkItem;
+  | TestByTypeHomeworkItem
+  | CustomThemeHomeworkItem;
 
 export interface HomeworkSubmission {
   id: string;

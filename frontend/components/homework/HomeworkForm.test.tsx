@@ -33,6 +33,39 @@ const variantsByTrack = {
   oge: ["001.txt"],
 };
 
+const teacherThemes = [
+  {
+    id: "theme-1",
+    title: "ОВР",
+    tasks: [
+      {
+        id: "task-auto",
+        theme_id: "theme-1",
+        title: "Auto task",
+        sort_order: 0,
+        grading_mode: "auto" as const,
+        question_blocks: [{ type: "text" as const, content: "Q" }],
+        reference_answer: null,
+        correct_value: "4",
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+      {
+        id: "task-self",
+        theme_id: "theme-1",
+        title: "Self check",
+        sort_order: 1,
+        grading_mode: "self_check" as const,
+        question_blocks: [{ type: "text" as const, content: "Q2" }],
+        reference_answer: [{ type: "text" as const, content: "Ref" }],
+        correct_value: null,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+    ],
+  },
+];
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockedCreate.mockResolvedValue({
@@ -61,6 +94,7 @@ describe("HomeworkForm", () => {
         students={students}
         topics={topics}
         variantsByTrack={variantsByTrack}
+        teacherThemes={teacherThemes}
       />,
     );
 
@@ -114,6 +148,7 @@ describe("HomeworkForm", () => {
         students={students}
         topics={topics}
         variantsByTrack={variantsByTrack}
+        teacherThemes={teacherThemes}
       />,
     );
 
@@ -129,6 +164,7 @@ describe("HomeworkForm", () => {
         students={students}
         topics={topics}
         variantsByTrack={variantsByTrack}
+        teacherThemes={teacherThemes}
       />,
     );
 
@@ -143,7 +179,7 @@ describe("HomeworkForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Добавить пункт" }));
 
     expect(
-      screen.getByText(/1\. Тест: №10 по всем вариантам/),
+      screen.getByText(/1\. Тест: №10 по вариантам/),
     ).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Назначить" }));
@@ -169,6 +205,7 @@ describe("HomeworkForm", () => {
         ]}
         topics={topics}
         variantsByTrack={variantsByTrack}
+        teacherThemes={teacherThemes}
       />,
     );
 
@@ -179,5 +216,81 @@ describe("HomeworkForm", () => {
 
     expect(screen.getByRole("button", { name: "19" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "28" })).not.toBeInTheDocument();
+  });
+
+  it("adds custom_theme with optional task selection", async () => {
+    render(
+      <HomeworkForm
+        students={students}
+        topics={topics}
+        variantsByTrack={variantsByTrack}
+        teacherThemes={teacherThemes}
+      />,
+    );
+
+    await fillTitle("Кастомная тема");
+
+    await userEvent.selectOptions(
+      screen.getByLabelText("Тип пункта"),
+      "custom_theme",
+    );
+    await userEvent.click(screen.getByRole("checkbox", { name: /Auto task/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Добавить пункт" }));
+
+    expect(screen.getByText(/1\. Тема: ОВР \(1 зад\.\)/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Назначить" }));
+
+    expect(mockedCreate).toHaveBeenCalledWith({
+      student_id: "student-1",
+      title: "Кастомная тема",
+      description: null,
+      items: [
+        {
+          kind: "custom_theme",
+          theme_id: "theme-1",
+          task_ids: ["task-auto"],
+        },
+      ],
+    });
+  });
+
+  it("adds test_by_type with selected variants", async () => {
+    render(
+      <HomeworkForm
+        students={students}
+        topics={topics}
+        variantsByTrack={variantsByTrack}
+        teacherThemes={teacherThemes}
+      />,
+    );
+
+    await fillTitle("Выбор вариантов");
+
+    await userEvent.selectOptions(
+      screen.getByLabelText("Тип пункта"),
+      "test_by_type",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "11" }));
+    await userEvent.click(screen.getByRole("button", { name: "003" }));
+    await userEvent.click(screen.getByRole("button", { name: "007" }));
+    await userEvent.click(screen.getByRole("button", { name: "Добавить пункт" }));
+
+    expect(screen.getByText(/варианты: 003, 007/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Назначить" }));
+
+    expect(mockedCreate).toHaveBeenCalledWith({
+      student_id: "student-1",
+      title: "Выбор вариантов",
+      description: null,
+      items: [
+        {
+          kind: "test_by_type",
+          types: [10],
+          variants: ["003.txt", "007.txt"],
+        },
+      ],
+    });
   });
 });

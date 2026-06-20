@@ -59,7 +59,6 @@ export function StepProgressDots({
       >
         {steps.map((step, index) => {
           const isCurrent = index === current;
-          const isOpen = step.status !== "unseen";
 
           return (
             <button
@@ -68,13 +67,7 @@ export function StepProgressDots({
               role="tab"
               aria-current={isCurrent ? "step" : undefined}
               aria-label={stepAriaLabel(step, index + 1)}
-              aria-disabled={!isOpen}
-              disabled={!isOpen}
-              onClick={() => {
-                if (isOpen) {
-                  onSelect(index);
-                }
-              }}
+              onClick={() => onSelect(index)}
               className={dotClassName(step, isCurrent)}
             >
               <span className="sr-only">{index + 1}</span>

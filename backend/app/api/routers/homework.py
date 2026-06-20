@@ -42,8 +42,9 @@ async def create_homework(
     payload: HomeworkCreate,
     teacher: TeacherUser,
     db: Annotated[AsyncSession, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> HomeworkRead:
-    return await HomeworkService(db).create_assignment(teacher, payload)
+    return await HomeworkService(db, settings).create_assignment(teacher, payload)
 
 
 @router.get("", response_model=list[HomeworkRead])

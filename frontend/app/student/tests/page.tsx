@@ -2,14 +2,20 @@ import Link from "next/link";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { TestsPicker } from "@/components/tests/TestsPicker";
-import { getCurrentUser, getTestTaskTypes, getTestVariants } from "@/lib/api/server";
+import {
+  getCurrentUser,
+  getCustomThemes,
+  getTestTaskTypes,
+  getTestVariants,
+} from "@/lib/api/server";
 
 export default async function TestsPage() {
   const user = await getCurrentUser();
   const track = user?.track ?? "ege";
-  const [variants, taskTypes] = await Promise.all([
+  const [variants, taskTypes, themes] = await Promise.all([
     getTestVariants(),
     getTestTaskTypes(),
+    getCustomThemes(),
   ]);
 
   return (
@@ -19,7 +25,7 @@ export default async function TestsPage() {
           <p className="chem-kicker">Кабинет ученика</p>
           <h1 className="mt-1 text-2xl font-semibold text-zinc-900">Тесты</h1>
           <p className="mt-1 text-sm text-zinc-600">
-            Выберите целый вариант или одно задание из всех вариантов.
+            Выберите вариант, задание по типу или тему преподавателя.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -31,7 +37,12 @@ export default async function TestsPage() {
       </div>
 
       <section className="mt-10">
-        <TestsPicker variants={variants} taskTypes={taskTypes} track={track} />
+        <TestsPicker
+          variants={variants}
+          taskTypes={taskTypes}
+          themes={themes}
+          track={track}
+        />
       </section>
     </main>
   );

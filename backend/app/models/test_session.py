@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     Enum,
     ForeignKey,
@@ -22,12 +23,15 @@ from sqlalchemy import (
     Uuid,
     func,
 )
+from sqlalchemy.dialects.sqlite import JSON as SQLiteJSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import JSON
 
 from app.db.base import Base
-from app.models.enums import ExamTrack, StepStatus, TestSessionStatus
+from app.models.enums import ExamTrack, StepStatus, TestSessionSource, TestSessionStatus
 
 if TYPE_CHECKING:
+    from app.models.teacher_theme import TeacherTheme
     from app.models.user import User
 
 
@@ -59,6 +63,27 @@ class TestSession(Base):
         nullable=True,
         index=True,
     )
+    source: Mapped[TestSessionSource] = mapped_column(
+        Enum(
+            TestSessionSource,
+            name="test_session_source",
+            native_enum=False,
+            length=10,
+        ),
+        nullable=False,
+        default=TestSessionSource.EXAM,
+        server_default=TestSessionSource.EXAM.value,
+    )
+    custom_theme_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("teacher_themes.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    custom_task_ids: Mapped[list[str] | None] = mapped_column(
+        JSON().with_variant(SQLiteJSON, "sqlite"),
+        nullable=True,
+    )
     status: Mapped[TestSessionStatus] = mapped_column(
         Enum(
             TestSessionStatus,
@@ -82,6 +107,7 @@ class TestSession(Base):
     )
 
     student: Mapped[User] = relationship("User")
+    custom_theme: Mapped[TeacherTheme | None] = relationship("TeacherTheme")
     steps: Mapped[list[TestSessionStep]] = relationship(
         "TestSessionStep",
         back_populates="session",
@@ -94,6 +120,11 @@ class TestSessionStep(Base):
     __tablename__ = "test_session_steps"
     __table_args__ = (
         UniqueConstraint("session_id", "position", name="uq_step_session_position"),
+        CheckConstraint(
+            "(test_id IS NOT NULL AND custom_task_id IS NULL) OR "
+            "(test_id IS NULL AND custom_task_id IS NOT NULL)",
+            name="ck_step_exactly_one_question_ref",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -108,7 +139,13 @@ class TestSessionStep(Base):
         index=True,
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
-    test_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    test_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    custom_task_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("custom_tasks.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     answer: Mapped[str | None] = mapped_column(String(512), nullable=True)
     is_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     hint_used: Mapped[bool] = mapped_column(

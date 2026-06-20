@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api/client";
 import type {
   ActiveSessionResult,
   StepCheckResult,
+  StepCompareResult,
   TestSession,
   TestTaskType,
   TestVariant,
@@ -18,22 +19,31 @@ export function listTaskTypes(): Promise<TestTaskType[]> {
 export function createSession(
   variantRefOrOptions:
     | string
-    | { types: number[]; homeworkAssignmentId?: string },
+    | { types: number[]; homeworkAssignmentId?: string }
+    | { customThemeId: string; taskIds?: string[] },
   options?: { types?: number[]; homeworkAssignmentId?: string },
 ): Promise<TestSession> {
-  const payload =
-    typeof variantRefOrOptions === "string"
-      ? {
-          variant_ref: variantRefOrOptions,
-          types: options?.types ?? null,
-          homework_assignment_id: options?.homeworkAssignmentId ?? null,
-        }
-      : {
-          variant_ref: null,
-          types: variantRefOrOptions.types,
-          homework_assignment_id:
-            variantRefOrOptions.homeworkAssignmentId ?? null,
-        };
+  let payload: Record<string, unknown>;
+
+  if (typeof variantRefOrOptions === "string") {
+    payload = {
+      variant_ref: variantRefOrOptions,
+      types: options?.types ?? null,
+      homework_assignment_id: options?.homeworkAssignmentId ?? null,
+    };
+  } else if ("customThemeId" in variantRefOrOptions) {
+    payload = {
+      custom_theme_id: variantRefOrOptions.customThemeId,
+      task_ids: variantRefOrOptions.taskIds ?? null,
+    };
+  } else {
+    payload = {
+      variant_ref: null,
+      types: variantRefOrOptions.types,
+      homework_assignment_id:
+        variantRefOrOptions.homeworkAssignmentId ?? null,
+    };
+  }
 
   return apiFetch<TestSession>("/api/tests/sessions", {
     method: "POST",
@@ -57,9 +67,10 @@ export function getSession(sessionId: string): Promise<TestSession> {
 
 export function getActiveSession(
   params:
-    | { variantRef: string; homeworkAssignmentId?: undefined; taskType?: undefined }
-    | { homeworkAssignmentId: string; variantRef?: undefined; taskType?: undefined }
-    | { taskType: number; variantRef?: undefined; homeworkAssignmentId?: undefined },
+    | { variantRef: string; homeworkAssignmentId?: undefined; taskType?: undefined; customThemeId?: undefined }
+    | { homeworkAssignmentId: string; variantRef?: undefined; taskType?: undefined; customThemeId?: undefined }
+    | { taskType: number; variantRef?: undefined; homeworkAssignmentId?: undefined; customThemeId?: undefined }
+    | { customThemeId: string; variantRef?: undefined; homeworkAssignmentId?: undefined; taskType?: undefined },
 ): Promise<ActiveSessionResult> {
   const search = new URLSearchParams();
   if ("variantRef" in params && params.variantRef) {
@@ -70,6 +81,9 @@ export function getActiveSession(
   }
   if ("taskType" in params && params.taskType !== undefined) {
     search.set("task_type", String(params.taskType));
+  }
+  if ("customThemeId" in params && params.customThemeId) {
+    search.set("custom_theme_id", params.customThemeId);
   }
   return apiFetch<ActiveSessionResult>(
     `/api/tests/sessions/active?${search.toString()}`,
@@ -83,6 +97,20 @@ export function checkStep(
 ): Promise<StepCheckResult> {
   return apiFetch<StepCheckResult>(
     `/api/tests/sessions/${sessionId}/steps/${position}/check`,
+    {
+      method: "POST",
+      body: JSON.stringify({ answer }),
+    },
+  );
+}
+
+export function compareStep(
+  sessionId: string,
+  position: number,
+  answer: string,
+): Promise<StepCompareResult> {
+  return apiFetch<StepCompareResult>(
+    `/api/tests/sessions/${sessionId}/steps/${position}/compare`,
     {
       method: "POST",
       body: JSON.stringify({ answer }),

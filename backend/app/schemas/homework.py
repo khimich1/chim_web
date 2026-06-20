@@ -40,6 +40,7 @@ class TestByTypeItem(BaseModel):
 
     kind: Literal[HomeworkItemKind.TEST_BY_TYPE] = HomeworkItemKind.TEST_BY_TYPE
     types: list[int] = Field(min_length=1)
+    variants: list[str] | None = None
 
     @field_validator("types")
     @classmethod
@@ -48,9 +49,33 @@ class TestByTypeItem(BaseModel):
             raise ValueError("types must be positive integers")
         return value
 
+    @field_validator("variants")
+    @classmethod
+    def validate_variants(cls, value: list[str] | None) -> list[str] | None:
+        if value is not None and len(value) == 0:
+            raise ValueError("variants must be non-empty when provided")
+        return value
+
+
+class CustomThemeHomeworkItem(BaseModel):
+    kind: Literal[HomeworkItemKind.CUSTOM_THEME] = HomeworkItemKind.CUSTOM_THEME
+    theme_id: uuid.UUID
+    task_ids: list[uuid.UUID] | None = None
+
+    @field_validator("task_ids")
+    @classmethod
+    def validate_task_ids(cls, value: list[uuid.UUID] | None) -> list[uuid.UUID] | None:
+        if value is not None and len(value) == 0:
+            raise ValueError("task_ids must be non-empty when provided")
+        return value
+
 
 HomeworkItem = Annotated[
-    LectureItem | TestVariantItem | TestPartialItem | TestByTypeItem,
+    LectureItem
+    | TestVariantItem
+    | TestPartialItem
+    | TestByTypeItem
+    | CustomThemeHomeworkItem,
     Field(discriminator="kind"),
 ]
 

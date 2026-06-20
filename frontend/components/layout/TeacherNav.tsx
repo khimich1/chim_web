@@ -8,6 +8,7 @@ import { BrandLogo } from "@/components/ui/BrandLogo";
 const NAV_LINKS = [
   { href: "/teacher", label: "Главная", exact: true },
   { href: "/teacher/students", label: "Ученики", exact: false },
+  { href: "/teacher/themes", label: "Темы", exact: false },
   { href: "/teacher/homework", label: "Задания", exact: false },
   { href: "/teacher/notifications", label: "Уведомления", exact: false },
 ] as const;

@@ -6,6 +6,7 @@
 | GET    | /api/tests/sessions/active                    | student | ActiveSessionResponse |
 | GET    | /api/tests/sessions/{id}                      | student | SessionRead       |
 | POST   | /api/tests/sessions/{id}/steps/{n}/check      | student | StepCheckResponse |
+| POST   | /api/tests/sessions/{id}/steps/{n}/compare  | student | StepCompareResponse |
 | POST   | /api/tests/sessions/{id}/complete             | student | SessionSummary    |
 """
 
@@ -27,6 +28,7 @@ from app.schemas.test_session import (
     SessionSummary,
     StepCheckRequest,
     StepCheckResponse,
+    StepCompareResponse,
 )
 from app.services.activity_service import ActivityService
 from app.services.test_session_service import TestSessionService
@@ -58,12 +60,14 @@ async def get_active_session(
     variant_ref: str | None = None,
     homework_assignment_id: uuid.UUID | None = None,
     task_type: int | None = None,
+    custom_theme_id: uuid.UUID | None = None,
 ) -> ActiveSessionResponse:
     return await service.get_active_session(
         student,
         variant_ref=variant_ref,
         homework_assignment_id=homework_assignment_id,
         task_type=task_type,
+        custom_theme_id=custom_theme_id,
     )
 
 
@@ -88,6 +92,20 @@ async def check_step(
     service: Annotated[TestSessionService, Depends(get_test_session_service)],
 ) -> StepCheckResponse:
     return await service.check_step(student, session_id, position, payload.answer)
+
+
+@router.post(
+    "/{session_id}/steps/{position}/compare",
+    response_model=StepCompareResponse,
+)
+async def compare_step(
+    session_id: uuid.UUID,
+    position: int,
+    payload: StepCheckRequest,
+    student: StudentUser,
+    service: Annotated[TestSessionService, Depends(get_test_session_service)],
+) -> StepCompareResponse:
+    return await service.compare_step(student, session_id, position, payload.answer)
 
 
 @router.post("/{session_id}/complete", response_model=SessionSummary)

@@ -107,6 +107,19 @@ class Settings(BaseSettings):
         alias="TUTOR_PROFILE_DIR",
     )
 
+    upload_dir: Path = Field(
+        default=_MONOREPO_ROOT / "backend" / "uploads",
+        alias="UPLOAD_DIR",
+    )
+    upload_max_bytes: int = Field(
+        default=5 * 1024 * 1024,
+        alias="UPLOAD_MAX_BYTES",
+    )
+    upload_allowed_mime: list[str] = Field(
+        default=["image/jpeg", "image/png", "image/webp"],
+        alias="UPLOAD_ALLOWED_MIME",
+    )
+
     def tests_db_path_for_track(self, track: str) -> Path:
         if track == "oge":
             return self.content_oge_db_path
@@ -136,6 +149,7 @@ class Settings(BaseSettings):
     @field_validator(
         "chroma_dir",
         "tutor_profile_dir",
+        "upload_dir",
         mode="before",
     )
     @classmethod

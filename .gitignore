@@ -32,6 +32,7 @@ frontend/.env*.local
 backend/data/rag_index.json
 backend/data/chroma/
 backend/data/tutor_profiles/
+backend/uploads/
 
 # Node / Next.js
 node_modules/

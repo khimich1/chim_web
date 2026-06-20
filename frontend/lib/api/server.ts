@@ -5,10 +5,13 @@ import { cookies } from "next/headers";
 import { API_URL } from "@/lib/api/client";
 import type {
   ChunkSummary,
+  CustomTask,
+  CustomThemeListItem,
   HomeworkAssignment,
   Notification,
   Student,
   TeacherStudentStats,
+  TeacherTheme,
   TestSession,
   TestTaskType,
   TestVariant,
@@ -18,6 +21,7 @@ import type {
   OnboardingStatus,
   OnboardingWelcome,
 } from "@/lib/api/types";
+import type { ThemeListItem } from "@/components/teacher/ThemesList";
 
 /**
  * Server-side current-user lookup for protected layouts. Forwards the incoming
@@ -180,5 +184,45 @@ export async function getTutorSessionDetail(
 ): Promise<TutorSessionDetailServer | null> {
   return fetchWithCookies<TutorSessionDetailServer>(
     `/api/tutor/sessions/${sessionId}`,
+  );
+}
+
+export async function getTeacherThemes(): Promise<TeacherTheme[]> {
+  return (await fetchWithCookies<TeacherTheme[]>("/api/teacher/themes")) ?? [];
+}
+
+export async function getTeacherTheme(id: string): Promise<TeacherTheme | null> {
+  return fetchWithCookies<TeacherTheme>(`/api/teacher/themes/${id}`);
+}
+
+export async function getTeacherThemeTasks(
+  themeId: string,
+): Promise<CustomTask[]> {
+  return (
+    (await fetchWithCookies<CustomTask[]>(
+      `/api/teacher/themes/${themeId}/tasks`,
+    )) ?? []
+  );
+}
+
+export async function getTeacherThemesWithTaskCounts(): Promise<ThemeListItem[]> {
+  const themes = await getTeacherThemes();
+  const withCounts = await Promise.all(
+    themes.map(async (theme) => {
+      const tasks = await getTeacherThemeTasks(theme.id);
+      return {
+        id: theme.id,
+        title: theme.title,
+        is_published: theme.is_published,
+        task_count: tasks.length,
+      };
+    }),
+  );
+  return withCounts;
+}
+
+export async function getCustomThemes(): Promise<CustomThemeListItem[]> {
+  return (
+    (await fetchWithCookies<CustomThemeListItem[]>("/api/custom-themes")) ?? []
   );
 }

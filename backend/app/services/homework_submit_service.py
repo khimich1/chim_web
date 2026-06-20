@@ -47,6 +47,7 @@ _TEST_KINDS = {
     HomeworkItemKind.TEST_VARIANT.value,
     HomeworkItemKind.TEST_PARTIAL.value,
     HomeworkItemKind.TEST_BY_TYPE.value,
+    HomeworkItemKind.CUSTOM_THEME.value,
 }
 
 

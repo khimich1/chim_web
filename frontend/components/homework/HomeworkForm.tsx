@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { createHomework } from "@/lib/api/homework";
 import { ApiError } from "@/lib/api/client";
-import type { HomeworkItem, Student, Track } from "@/lib/api/types";
+import type { CustomTask, HomeworkItem, Student, Track } from "@/lib/api/types";
 
 import {
   estimateTestByTypeSteps,
@@ -15,14 +15,22 @@ import {
 
 type HomeworkKind = HomeworkItem["kind"];
 
+export type TeacherThemeOption = {
+  id: string;
+  title: string;
+  tasks: CustomTask[];
+};
+
 export function HomeworkForm({
   students,
   topics,
   variantsByTrack,
+  teacherThemes,
 }: {
   students: Student[];
   topics: string[];
   variantsByTrack: Record<Track, string[]>;
+  teacherThemes: TeacherThemeOption[];
 }) {
   const router = useRouter();
   const [studentId, setStudentId] = useState(students[0]?.id ?? "");
@@ -33,6 +41,9 @@ export function HomeworkForm({
   const [draftTopic, setDraftTopic] = useState(topics[0] ?? "");
   const [draftVariant, setDraftVariant] = useState("");
   const [draftTypes, setDraftTypes] = useState<number[]>([10, 11]);
+  const [draftThemeId, setDraftThemeId] = useState(teacherThemes[0]?.id ?? "");
+  const [draftTaskIds, setDraftTaskIds] = useState<string[]>([]);
+  const [draftVariants, setDraftVariants] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,6 +54,10 @@ export function HomeworkForm({
   const studentTrack = selectedStudent?.track ?? "ege";
   const variants = variantsByTrack[studentTrack];
   const typeNumbers = typeNumbersForTrack(studentTrack);
+  const selectedTheme = useMemo(
+    () => teacherThemes.find((theme) => theme.id === draftThemeId),
+    [teacherThemes, draftThemeId],
+  );
 
   useEffect(() => {
     if (topics.length > 0 && !topics.includes(draftTopic)) {
@@ -58,11 +73,40 @@ export function HomeworkForm({
     }
   }, [variants, draftVariant]);
 
+  useEffect(() => {
+    if (teacherThemes.length > 0 && !teacherThemes.some((t) => t.id === draftThemeId)) {
+      setDraftThemeId(teacherThemes[0].id);
+    } else if (teacherThemes.length === 0) {
+      setDraftThemeId("");
+    }
+    setDraftTaskIds([]);
+  }, [teacherThemes, draftThemeId]);
+
+  useEffect(() => {
+    setDraftVariants([]);
+  }, [studentTrack]);
+
   function toggleDraftType(type: number) {
     setDraftTypes((current) =>
       current.includes(type)
         ? current.filter((value) => value !== type)
         : [...current, type].sort((a, b) => a - b),
+    );
+  }
+
+  function toggleDraftVariant(variant: string) {
+    setDraftVariants((current) =>
+      current.includes(variant)
+        ? current.filter((value) => value !== variant)
+        : [...current, variant].sort(),
+    );
+  }
+
+  function toggleDraftTask(taskId: string) {
+    setDraftTaskIds((current) =>
+      current.includes(taskId)
+        ? current.filter((value) => value !== taskId)
+        : [...current, taskId],
     );
   }
 
@@ -73,11 +117,28 @@ export function HomeworkForm({
       }
       return { kind: "lecture", topic: draftTopic };
     }
+    if (draftKind === "custom_theme") {
+      if (!draftThemeId) {
+        return null;
+      }
+      const item: HomeworkItem = {
+        kind: "custom_theme",
+        theme_id: draftThemeId,
+      };
+      if (draftTaskIds.length > 0) {
+        item.task_ids = draftTaskIds;
+      }
+      return item;
+    }
     if (draftKind === "test_by_type") {
       if (draftTypes.length === 0) {
         return null;
       }
-      return { kind: "test_by_type", types: draftTypes };
+      const item: HomeworkItem = { kind: "test_by_type", types: draftTypes };
+      if (draftVariants.length > 0) {
+        item.variants = draftVariants;
+      }
+      return item;
     }
     if (!draftVariant) {
       return null;
@@ -91,7 +152,21 @@ export function HomeworkForm({
     return { kind: "test_partial", variant: draftVariant, types: draftTypes };
   }
 
+  function itemDisplayLabel(item: HomeworkItem): string {
+    if (item.kind === "custom_theme") {
+      const theme = teacherThemes.find((row) => row.id === item.theme_id);
+      const title = theme?.title ?? "Тема преподавателя";
+      if (item.task_ids && item.task_ids.length > 0) {
+        return `Тема: ${title} (${item.task_ids.length} зад.)`;
+      }
+      return `Тема: ${title}`;
+    }
+    return formatHomeworkItemLabel(item);
+  }
+
   function renderTypeGrid() {
+    const variantCount =
+      draftVariants.length > 0 ? draftVariants.length : variants.length;
     return (
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium text-zinc-700">
@@ -120,10 +195,83 @@ export function HomeworkForm({
         {draftKind === "test_by_type" && draftTypes.length > 0 ? (
           <p className="text-xs text-zinc-500">
             {studentTrack === "ege"
-              ? `ЕГЭ: задание №${draftTypes.join(", ")} из каждого варианта (≈${estimateTestByTypeSteps(draftTypes, studentTrack)} шагов).`
-              : `ОГЭ: все варианты задания типа ${draftTypes.join(", ")} (≈${estimateTestByTypeSteps(draftTypes, studentTrack)} шагов).`}
+              ? `ЕГЭ: задание №${draftTypes.join(", ")} из ${draftVariants.length > 0 ? "выбранных" : "каждого"} варианта (≈${estimateTestByTypeSteps(draftTypes, studentTrack, variantCount)} шагов).`
+              : `ОГЭ: варианты задания типа ${draftTypes.join(", ")} (≈${estimateTestByTypeSteps(draftTypes, studentTrack, variantCount)} шагов).`}
           </p>
         ) : null}
+      </div>
+    );
+  }
+
+  function renderVariantGrid() {
+    if (variants.length === 0) {
+      return null;
+    }
+    return (
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium text-zinc-700">
+          Варианты (необязательно — пусто = все)
+        </span>
+        <div className="flex flex-wrap gap-2">
+          {variants.map((variant) => {
+            const selected = draftVariants.includes(variant);
+            return (
+              <button
+                key={variant}
+                type="button"
+                aria-pressed={selected ? "true" : "false"}
+                onClick={() => toggleDraftVariant(variant)}
+                className={`rounded-md border px-2 py-1 text-sm transition ${
+                  selected
+                    ? "border-chem-royal bg-chem-royal/10 text-chem-royal"
+                    : "border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400"
+                }`}
+              >
+                {variant.replace(/\.txt$/, "")}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  function renderThemeTaskCheckboxes() {
+    const tasks = selectedTheme?.tasks ?? [];
+    if (tasks.length === 0) {
+      return (
+        <p className="text-sm text-zinc-500">В теме пока нет заданий.</p>
+      );
+    }
+    return (
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium text-zinc-700">
+          Задания (необязательно — пусто = все)
+        </span>
+        <ul className="flex flex-col gap-2">
+          {tasks.map((task) => {
+            const selected = draftTaskIds.includes(task.id);
+            const label = task.title?.trim() || `Задание ${task.sort_order + 1}`;
+            return (
+              <li key={task.id}>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    onChange={() => toggleDraftTask(task.id)}
+                    className="h-4 w-4 rounded border-zinc-300"
+                  />
+                  <span>
+                    {label}
+                    <span className="ml-1 text-zinc-500">
+                      ({task.grading_mode === "self_check" ? "самопроверка" : "авто"})
+                    </span>
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
       </div>
     );
   }
@@ -134,6 +282,8 @@ export function HomeworkForm({
     if (!item) {
       if (draftKind === "lecture") {
         setError("Выберите тему лекции.");
+      } else if (draftKind === "custom_theme") {
+        setError("Выберите тему преподавателя.");
       } else if (draftKind === "test_by_type") {
         setError("Выберите хотя бы один номер задания.");
       } else if (!draftVariant) {
@@ -194,6 +344,7 @@ export function HomeworkForm({
 
   const canAddTestItem = variants.length > 0;
   const canAddLectureItem = topics.length > 0;
+  const canAddCustomTheme = teacherThemes.length > 0;
 
   return (
     <form
@@ -269,6 +420,7 @@ export function HomeworkForm({
             <option value="test_variant">Тест: целый вариант</option>
             <option value="test_partial">Тест: выбранные номера</option>
             <option value="test_by_type">Тест: номер по всем вариантам</option>
+            <option value="custom_theme">Тема преподавателя</option>
           </select>
         </div>
 
@@ -296,6 +448,39 @@ export function HomeworkForm({
               </select>
             )}
           </div>
+        ) : draftKind === "custom_theme" ? (
+          <>
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor="hw-draft-teacher-theme"
+                className="text-sm font-medium text-zinc-700"
+              >
+                Тема преподавателя
+              </label>
+              {!canAddCustomTheme ? (
+                <p className="text-sm text-zinc-500">
+                  Сначала создайте тему на странице «Темы».
+                </p>
+              ) : (
+                <select
+                  id="hw-draft-teacher-theme"
+                  value={draftThemeId}
+                  onChange={(e) => {
+                    setDraftThemeId(e.target.value);
+                    setDraftTaskIds([]);
+                  }}
+                  className="chem-input rounded-md border border-zinc-300 bg-white px-3 py-2"
+                >
+                  {teacherThemes.map((theme) => (
+                    <option key={theme.id} value={theme.id}>
+                      {theme.title} ({theme.tasks.length} зад.)
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {canAddCustomTheme ? renderThemeTaskCheckboxes() : null}
+          </>
         ) : draftKind === "test_by_type" ? (
           <>
             <p className="text-sm text-zinc-600">
@@ -303,6 +488,7 @@ export function HomeworkForm({
               ОГЭ — все варианты задания этого типа.
             </p>
             {renderTypeGrid()}
+            {renderVariantGrid()}
           </>
         ) : (
           <>
@@ -342,9 +528,11 @@ export function HomeworkForm({
           disabled={
             draftKind === "lecture"
               ? !canAddLectureItem
-              : draftKind === "test_by_type"
-                ? false
-                : !canAddTestItem
+              : draftKind === "custom_theme"
+                ? !canAddCustomTheme
+                : draftKind === "test_by_type"
+                  ? false
+                  : !canAddTestItem
           }
           className="inline-flex w-fit rounded-md border border-chem-royal px-4 py-2 text-sm font-medium text-chem-royal transition hover:bg-chem-royal/5 disabled:opacity-60"
         >
@@ -368,7 +556,7 @@ export function HomeworkForm({
                 className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
               >
                 <span>
-                  {index + 1}. {formatHomeworkItemLabel(item)}
+                  {index + 1}. {itemDisplayLabel(item)}
                 </span>
                 <button
                   type="button"

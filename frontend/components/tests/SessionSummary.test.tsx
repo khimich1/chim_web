@@ -84,4 +84,54 @@ describe("SessionSummary", () => {
       "/student/tests",
     );
   });
+
+  it("shows self_check steps separately from score verdicts", () => {
+    const customSession: TestSession = {
+      ...session,
+      source: "custom",
+      custom_theme_id: "theme-1",
+      variant_ref: null,
+      score: 1,
+      max_score: 1,
+      steps: [
+        {
+          position: 0,
+          test_id: null,
+          custom_task_id: "t1",
+          type: null,
+          question: null,
+          options: null,
+          question_blocks: [{ type: "text", content: "Q1" }],
+          grading_mode: "auto",
+          status: "checked",
+          answer: "a",
+          is_correct: true,
+          hint_used: false,
+        },
+        {
+          position: 1,
+          test_id: null,
+          custom_task_id: "t2",
+          type: null,
+          question: null,
+          options: null,
+          question_blocks: [{ type: "text", content: "Q2" }],
+          grading_mode: "self_check",
+          status: "checked",
+          answer: "b",
+          is_correct: null,
+          hint_used: false,
+        },
+      ],
+    };
+
+    render(<SessionSummary session={customSession} />);
+
+    expect(screen.getByText("1 / 1")).toBeInTheDocument();
+    expect(
+      screen.getByText("Задания с самопроверкой не входят в баллы"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Самопроверка")).toBeInTheDocument();
+    expect(screen.getByText("✓ Верно")).toBeInTheDocument();
+  });
 });
