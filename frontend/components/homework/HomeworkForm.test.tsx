@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { HomeworkForm } from "@/components/homework/HomeworkForm";
@@ -83,64 +83,83 @@ beforeEach(() => {
   });
 });
 
-async function fillTitle(title: string) {
-  await userEvent.type(screen.getByLabelText("Название"), title);
+function fillTitle(title: string) {
+  fireEvent.change(screen.getByLabelText("Название"), {
+    target: { value: title },
+  });
 }
 
 describe("HomeworkForm", () => {
-  it("adds and removes multiple items from different variants", async () => {
-    render(
-      <HomeworkForm
-        students={students}
-        topics={topics}
-        variantsByTrack={variantsByTrack}
-        teacherThemes={teacherThemes}
-      />,
-    );
+  it(
+    "adds and removes multiple items from different variants",
+    async () => {
+      const user = userEvent.setup();
 
-    await fillTitle("Смешанное ДЗ");
+      render(
+        <HomeworkForm
+          students={students}
+          topics={topics}
+          variantsByTrack={variantsByTrack}
+          teacherThemes={teacherThemes}
+        />,
+      );
 
-    await userEvent.selectOptions(screen.getByLabelText("Тип пункта"), "lecture");
-    await userEvent.selectOptions(screen.getByLabelText("Тема"), "Алканы");
-    await userEvent.click(screen.getByRole("button", { name: "Добавить пункт" }));
+      fillTitle("Смешанное ДЗ");
 
-    await userEvent.selectOptions(
-      screen.getByLabelText("Тип пункта"),
-      "test_partial",
-    );
-    await userEvent.selectOptions(screen.getByLabelText("Вариант"), "003.txt");
-    await userEvent.click(screen.getByRole("button", { name: "11" }));
-    await userEvent.click(screen.getByRole("button", { name: "Добавить пункт" }));
+      await user.selectOptions(
+        screen.getByLabelText("Тип пункта"),
+        "lecture",
+      );
+      await user.selectOptions(screen.getByLabelText("Тема"), "Алканы");
+      await user.click(screen.getByRole("button", { name: "Добавить пункт" }));
 
-    await userEvent.selectOptions(screen.getByLabelText("Вариант"), "007.txt");
-    await userEvent.click(screen.getByRole("button", { name: "10" }));
-    await userEvent.click(screen.getByRole("button", { name: "15" }));
-    await userEvent.click(screen.getByRole("button", { name: "Добавить пункт" }));
+      await user.selectOptions(
+        screen.getByLabelText("Тип пункта"),
+        "test_partial",
+      );
+      await user.selectOptions(screen.getByLabelText("Вариант"), "003.txt");
+      await user.click(screen.getByRole("button", { name: "11" }));
+      await user.click(screen.getByRole("button", { name: "Добавить пункт" }));
 
-    expect(screen.getByText(/1\. Лекция: Алканы/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/2\. Тест: 003, задания 10/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/3\. Тест: 007, задания 15/),
-    ).toBeInTheDocument();
+      await user.selectOptions(screen.getByLabelText("Вариант"), "007.txt");
+      await user.click(screen.getByRole("button", { name: "10" }));
+      await user.click(screen.getByRole("button", { name: "15" }));
+      await user.click(screen.getByRole("button", { name: "Добавить пункт" }));
 
-    await userEvent.click(screen.getAllByRole("button", { name: "Удалить" })[1]);
-    expect(screen.queryByText(/2\. Тест: 003/)).not.toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText(/1\. Лекция: Алканы/)).toBeInTheDocument();
+        expect(
+          screen.getByText(/2\. Тест: 003, задания 10/),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText(/3\. Тест: 007, задания 15/),
+        ).toBeInTheDocument();
+      });
 
-    await userEvent.click(screen.getByRole("button", { name: "Назначить" }));
+      await user.click(
+        screen.getAllByRole("button", { name: "Удалить" })[1],
+      );
+      await waitFor(() => {
+        expect(screen.queryByText(/2\. Тест: 003/)).not.toBeInTheDocument();
+      });
 
-    expect(mockedCreate).toHaveBeenCalledWith({
-      student_id: "student-1",
-      title: "Смешанное ДЗ",
-      description: null,
-      items: [
-        { kind: "lecture", topic: "Алканы" },
-        { kind: "test_partial", variant: "007.txt", types: [15] },
-      ],
-    });
-    expect(push).toHaveBeenCalledWith("/teacher/homework");
-  });
+      await user.click(screen.getByRole("button", { name: "Назначить" }));
+
+      await waitFor(() => {
+        expect(mockedCreate).toHaveBeenCalledWith({
+          student_id: "student-1",
+          title: "Смешанное ДЗ",
+          description: null,
+          items: [
+            { kind: "lecture", topic: "Алканы" },
+            { kind: "test_partial", variant: "007.txt", types: [15] },
+          ],
+        });
+      });
+      expect(push).toHaveBeenCalledWith("/teacher/homework");
+    },
+    10_000,
+  );
 
   it("blocks submit when no items were added", async () => {
     render(

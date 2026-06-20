@@ -13,7 +13,7 @@ def load_profile(user_id: str | None = None) -> dict[str, Any]:
     uid = user_id or ctx.user_id
     if ctx.profile_service is not None and ctx.run_async is not None:
         try:
-            parsed_id = uuid.UUID(uid)
+            uuid.UUID(uid)
         except ValueError:
             return {}
         return ctx.run_async(ctx.profile_service.load())
@@ -29,10 +29,9 @@ def update_profile(
     uid = user_id or ctx.user_id
     if ctx.profile_service is not None and ctx.run_async is not None:
         try:
-            parsed_id = uuid.UUID(uid)
+            uuid.UUID(uid)
         except ValueError:
             return {}
-        _ = parsed_id
         return ctx.run_async(
             ctx.profile_service.update_key(str(key), str(value)),
         )

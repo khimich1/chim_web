@@ -3,7 +3,7 @@
 **Источник:** [SPEC.md](../SPEC.md) v0.8.0 · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2 · геймификация: [`docs/ideas/student-points-leaderboard.md`](../docs/ideas/student-points-leaderboard.md) · конструктор заданий: [`docs/ideas/teacher-task-constructor.md`](../docs/ideas/teacher-task-constructor.md) · проверка письменных ДЗ: [`docs/ideas/teacher-written-homework-review.md`](../docs/ideas/teacher-written-homework-review.md)  
 **Дата плана:** 2026-06-09  
 **Обновлено:** 2026-06-20  
-**Статус:** MVP core + Phase 12 ✅ (`7804506`); Task 29 ✅ routers ≥80%; Task 41 ✅ RAG accuracy; Task 42 ✅ solve-pipeline этап A; Phase 11 UI redesign ✅ (`9fb016a`, Tasks 48–52); Task 56 ✅ Mendeleev overlay; **далее: Task 57 (solve после неверного ответа, §1.3.4) или Phase 13 (баллы и рейтинг, §1.8)**; tutor Tasks 31–38 в истории `08b418a`
+**Статус:** MVP core + Phase 12 ✅ (`7804506`); Task 29 ✅ coverage gate; Task 41 ✅ RAG accuracy; Task 42 ✅ solve-pipeline этап A; Phase 11 UI redesign ✅ (`9fb016a`, Tasks 48–52); Task 56 ✅ Mendeleev overlay; **далее: Task 30 (Docker CI)** или Phase 9–10 (tutor); tutor Tasks 31–38 в истории `08b418a`
 
 ---
 
@@ -57,9 +57,9 @@
 | 42 | Solve-pipeline v1.5 (срез 16-2) | ✅ local (этап A) | `tutor-rag.md` §17: intent_router/prepare_context/validation/код-критик ✅; этап B (planner + LLM-критик) ⏳ |
 | 43 | Персональный тьютор — student tools (срез 16-3) | ✅ local | §16.2: `get_my_homework`, `analyze_my_mistakes`, `recommend_topics` |
 | 44 | Тренажёр + suggested prompts (срез 16-4) | ⏳ pending | §16.2/16.3: `generate_practice`, `get_selfcheck`, U3/U4 |
-| 45 | Teacher-аналитика — tools (срез 16-5) | ⏳ pending | §16.2: `summarize_student`, `suggest_homework` (черновик), `class_overview` |
+| 45 | Teacher-аналитика — tools (срез 16-5) | ✅ done | `test_teacher_tools.py`: RBAC, черновик ДЗ |
 | 46 | ⏸️ Анти-галлюцинации guards A2/A3 (отложено) | ⏸️ deferred | §16.1: citation guard + порог retrieval. Разморозить, если eval после hybrid (Task 41) покажет остаточные галлюцинации |
-| 47 | UX + профиль в PostgreSQL (срез 16-6) | ⏳ pending | §16.1 A7 + §16.3 U1/U2: streaming SSE, markdown, профиль из JSON → PG |
+| 47 | UX + профиль в PostgreSQL (срез 16-6) | ✅ done | SSE streaming, markdown, `test_memory.py`, PG profile |
 | 48 | Design tokens + базовая тема + логотип + blobs | ✅ done | `9fb016a` |
 | 49 | Редизайн страницы учебника + mobile nav | ✅ done | `9fb016a` |
 | 50 | Кастомный аудиоплеер | ✅ done | `9fb016a` |
@@ -74,7 +74,7 @@
 | 66–75 | Конструктор заданий преподавателя (§1.9, Phase 14) | ✅ local | migration `011`/`012`, teacher themes/tasks API, uploads, custom TestSession, HomeworkForm, §1.9.8 photo submit |
 | 76–84 | Проверка письменных ДЗ (§1.9.9, Phase 15) | ✅ local | `cdca44b` (76–82 + UI 83–84 uncommitted); viewer + QR + feedback |
 
-**Текущий этап:** Phase 15 ✅ local (Tasks 76–84); **Следующий шаг:** закоммитить срез 15C UI → E2E checkpoint Phase 15 → Task 29 (coverage) / Task 30 (Docker CI) или Phase 9–10 (tutor).
+**Текущий этап:** Phase 15 ✅ local (Tasks 76–84); **Следующий шаг:** Task 30 (Docker Compose + CI) или коммит Phase 15 → E2E checkpoint.
 
 ---
 
@@ -929,7 +929,7 @@ Task 3  Content SQLite repos                 ✅
 
 ## Task 29: RBAC & security test suite
 
-> **Статус:** 🟡 тесты добавлены локально; coverage check pending
+> **Статус:** ✅ done (2026-06-20)
 
 **Description:** Интеграционные тесты: 403 cross-user, track isolation, content DB read-only guard, cookie flags.
 
@@ -940,7 +940,9 @@ Task 3  Content SQLite repos                 ✅
 **Verification:**
 - [x] `pytest backend/tests/test_rbac.py`
 - [x] `pytest backend/tests/test_security.py`
-- [ ] `pytest --cov=app` ≥80% на auth, homework, test_sessions, notifications
+- [x] `python backend/scripts/check_coverage.py` — ≥80% per domain (auth 88.5%, homework 82.0%, test_sessions 94.9%, notifications 100%)
+
+**Coverage gate:** `backend/scripts/check_coverage.py` (pytest-cov + per-domain threshold). Config: `backend/pyproject.toml` `[tool.coverage.*]`. Async service unit tests: `backend/tests/services/` (accurate coverage vs TestClient).
 
 **Dependencies:** Task 27
 
@@ -953,11 +955,11 @@ Task 3  Content SQLite repos                 ✅
 
 ## Task 30: Docker Compose + CI (post-MVP slice)
 
-> **Статус:** 🟡 local (2026-06-18)
+> **Статус:** 🟡 local (2026-06-20)
 
-**Верификация:** YAML/`docker-compose` структура (Python yaml); `backend/Dockerfile`, `frontend/Dockerfile`, `nginx/nginx.conf`; local mirror CI: ruff OK, pytest 181 passed, eslint (warnings only), vitest 75 passed, next build OK. **Не проверено:** Docker CLI отсутствует; `docker compose up --build` — вручную; GitHub Actions green — не подтверждён (`gh` нет).
+**Верификация:** `docker-compose.yml` YAML OK (Python yaml); `backend/Dockerfile`, `frontend/Dockerfile`, `nginx/nginx.conf` — ревью; CI workflow включает coverage gate (`check_coverage.py`); local mirror: ruff OK, pytest 395 passed, coverage gate PASS (all domains ≥80%), eslint warnings only, vitest 141/141, next build OK. **Не проверено:** Docker CLI отсутствует локально; `docker compose up --build` — вручную; GitHub Actions green — не подтверждён.
 
-**Description:** `docker-compose.yml` (nginx, next, fastapi, postgres), GitHub Actions: ruff, pytest, frontend lint+build.
+**Description:** `docker-compose.yml` (nginx, next, fastapi, postgres), GitHub Actions: ruff, pytest, coverage gate, frontend lint+test+build.
 
 **Acceptance criteria:**
 - [ ] `docker compose up` поднимает stack (блокер: нет Docker локально)
@@ -965,7 +967,8 @@ Task 3  Content SQLite repos                 ✅
 
 **Verification:**
 - [x] Compose/Dockerfiles/nginx + `.github/workflows/ci.yml` ревью
-- [x] Local CI mirror: backend ruff+pytest; frontend lint+vitest+build
+- [x] CI workflow: ruff + pytest + `check_coverage.py` + frontend lint/vitest/build
+- [x] Local CI mirror: backend ruff+pytest+coverage; frontend lint+vitest+build
 - [ ] Local `docker compose up --build`
 - [ ] CI run green on `main`
 
@@ -983,10 +986,10 @@ Task 3  Content SQLite repos                 ✅
 
 - [ ] Все acceptance criteria SPEC §7 (US-1…US-5) — US-3/US-4 ждут финальной верификации
 - [ ] **SPEC §1.3.1–1.3.2:** AC-2.10–2.12, AC-3.8 — Tasks 53–55
-- [x] `pytest` + `vitest` зелёные
-- [ ] `npm run build` — проверить перед merge
-- [ ] Task 29 coverage check
-- [ ] Task 30 Docker + CI
+- [x] `pytest` + `vitest` зелёные (141/141)
+- [x] `npm run build` — OK (2026-06-20)
+- [x] Task 29 coverage check
+- [ ] Task 30 Docker + CI (CI workflow готов; Docker up + GH Actions — вручную)
 - [ ] Готово к code review (`code-review-and-quality`)
 - [ ] ADR по content SQLite vs PostgreSQL — опционально (`documentation-and-adrs`)
 

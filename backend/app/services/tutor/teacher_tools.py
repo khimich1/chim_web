@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from collections import defaultdict
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession

@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.models.enums import ExamTrack, HomeworkItemKind
+from app.models.enums import ExamTrack
 from app.repositories.app.teacher_theme_repo import TeacherThemeRepository
 from app.repositories.content.base import ContentDbError
 from app.repositories.content.tests import ExamContentRepo
