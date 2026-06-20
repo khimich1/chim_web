@@ -9,6 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from app.services.rag.theory import TheoryHit, search_theory
 from app.services.tutor.context import TutorRunContext, get_tutor_context
+from app.services.tutor.solve.planner import needs_planner
 from app.services.tutor.solve.state import SolveState
 from app.services.tutor.solve.task_flow import build_theory_query, extract_task_id
 from app.services.tutor.tasks import get_task, question_requires_image
@@ -137,4 +138,7 @@ def route_after_prepare_context(state: SolveState) -> str:
         return "end"
     if state.get("task_context") is None:
         return "end"
+    task_type = (state.get("task_context") or {}).get("type")
+    if needs_planner(task_type):
+        return "planner"
     return "solver"

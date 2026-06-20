@@ -30,6 +30,12 @@ def _build_solver_messages(state: SolveState) -> list[SystemMessage | HumanMessa
     correct_ans = state.get("correct_ans") or ""
     answer_format = state.get("answer_format") or "digit_string"
     fix_instructions = (state.get("fix_instructions") or "").strip()
+    plan = state.get("plan") or {}
+    sub_steps = plan.get("sub_steps") or []
+    plan_block = ""
+    if sub_steps:
+        steps = "\n".join(f"{idx + 1}. {step}" for idx, step in enumerate(sub_steps))
+        plan_block = f"\n## План разбора (следуй шагам)\n{steps}\n"
 
     requires_image = bool(task_context.get("requires_image"))
     image_note = (
@@ -67,6 +73,7 @@ def _build_solver_messages(state: SolveState) -> list[SystemMessage | HumanMessa
             f"## Задание (id={task_context.get('id')}, type={task_context.get('type')})\n"
             f"{task_context.get('question', '')}\n\n"
             f"## Учебник\n{_format_theory_block(theory_hits)}\n"
+            f"{plan_block}"
             f"{student_block}"
         )
         + (f"\n## Исправления после проверки\n{fix_instructions}\n" if fix_instructions else "")

@@ -27,6 +27,7 @@ from app.services.tutor.solve.critic import (
     route_after_critic,
 )
 from app.services.tutor.solve.intent_router import route_intent
+from app.services.tutor.solve.planner import make_planner_node
 from app.services.tutor.solve.prepare_context import (
     make_prepare_context_node,
     route_after_prepare_context,
@@ -103,8 +104,9 @@ def build_graph(
     builder.add_node("tools", ToolNode(tools))
     builder.add_node("tool_output_guard", tool_output_guard)
     builder.add_node("prepare_context", make_prepare_context_node(ctx))
+    builder.add_node("planner", make_planner_node(llm, ctx))
     builder.add_node("solver", make_solver_node(llm, ctx))
-    builder.add_node("critic", make_critic_node())
+    builder.add_node("critic", make_critic_node(llm, ctx))
     builder.add_node("answer_finalize", make_answer_finalize_node())
 
     builder.add_edge(START, "input_guard")
@@ -120,8 +122,9 @@ def build_graph(
     builder.add_conditional_edges(
         "prepare_context",
         route_after_prepare_context,
-        {"end": END, "solver": "solver"},
+        {"end": END, "planner": "planner", "solver": "solver"},
     )
+    builder.add_edge("planner", "solver")
     builder.add_edge("solver", "critic")
     builder.add_conditional_edges(
         "critic",
