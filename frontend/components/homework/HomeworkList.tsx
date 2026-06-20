@@ -68,6 +68,11 @@ export function HomeworkList({
               >
                 {STATUS_LABELS[assignment.status]}
               </span>
+              {assignment.has_teacher_feedback ? (
+                <span className="shrink-0 rounded-full bg-chem-navy px-2.5 py-0.5 text-xs font-semibold text-white">
+                  Есть разбор
+                </span>
+              ) : null}
             </div>
 
             <div className="space-y-1 px-4 py-4 sm:px-5">

@@ -8,6 +8,12 @@ vi.mock("@/components/homework/ImageViewer", () => ({
   ImageViewer: ({ alt }: { alt: string }) => <div data-testid="image-viewer">{alt}</div>,
 }));
 
+vi.mock("@/components/homework/StepFeedbackForm", () => ({
+  StepFeedbackForm: ({ title }: { title: string }) => (
+    <div data-testid="feedback-form">{title}</div>
+  ),
+}));
+
 vi.mock("@/components/tests/CustomQuestionContent", () => ({
   CustomQuestionContent: ({ blocks }: { blocks: { content?: string }[] }) => (
     <div data-testid="question-content">{blocks[0]?.content}</div>
@@ -28,7 +34,9 @@ const step: HomeworkSubmissionStep = {
 
 describe("WrittenAnswerReview", () => {
   it("renders split review layout for self_check steps", () => {
-    render(<WrittenAnswerReview steps={[step]} />);
+    render(
+      <WrittenAnswerReview homeworkId="hw-1" steps={[step]} />,
+    );
 
     expect(screen.getByText("Проверка письменных ответов")).toBeInTheDocument();
     expect(screen.getByText("Уравнение")).toBeInTheDocument();
@@ -37,11 +45,14 @@ describe("WrittenAnswerReview", () => {
     expect(screen.getByText("Эталон")).toBeInTheDocument();
     expect(screen.getByTestId("image-viewer")).toBeInTheDocument();
     expect(screen.getByText("x = 2")).toBeInTheDocument();
+    expect(screen.getAllByTestId("feedback-form")).toHaveLength(2);
+    expect(screen.getByText("Общий комментарий к сдаче")).toBeInTheDocument();
   });
 
   it("renders nothing without photo steps", () => {
     const { container } = render(
       <WrittenAnswerReview
+        homeworkId="hw-1"
         steps={[{ ...step, answer_image_url: null }]}
       />,
     );

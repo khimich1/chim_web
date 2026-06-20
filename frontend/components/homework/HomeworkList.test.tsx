@@ -56,10 +56,10 @@ describe("HomeworkList", () => {
       status: "submitted",
       submission: {
         id: "sub-1",
-        homework_id: "hw-1",
+        submitted_at: "2026-06-17T12:00:00Z",
+        test_session_id: null,
         score: 8,
         max_score: 10,
-        submitted_at: "2026-06-17T12:00:00Z",
       },
     };
 
@@ -69,5 +69,26 @@ describe("HomeworkList", () => {
 
     expect(screen.getByText("Сдано")).toBeInTheDocument();
     expect(screen.getByText(/Балл: 8 \/ 10/)).toBeInTheDocument();
+  });
+
+  it("shows teacher feedback badge when has_teacher_feedback", () => {
+    const withFeedback: HomeworkAssignment = {
+      ...assignment,
+      status: "submitted",
+      has_teacher_feedback: true,
+      submission: {
+        id: "sub-1",
+        submitted_at: "2026-06-17T12:00:00Z",
+        test_session_id: null,
+        score: null,
+        max_score: null,
+      },
+    };
+
+    render(
+      <HomeworkList assignments={[withFeedback]} detailBasePath="/student/homework" />,
+    );
+
+    expect(screen.getByText("Есть разбор")).toBeInTheDocument();
   });
 });

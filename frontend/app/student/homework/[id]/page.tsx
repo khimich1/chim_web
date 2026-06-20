@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { HomeworkFeedbackPanel } from "@/components/homework/HomeworkFeedbackPanel";
 import { HomeworkItemsPanel } from "@/components/homework/HomeworkItemsPanel";
 import { getHomework } from "@/lib/api/server";
 
@@ -43,6 +44,10 @@ export default async function StudentHomeworkDetailPage({
         </h2>
         <HomeworkItemsPanel homework={homework} />
       </section>
+
+      {homework.status === "submitted" ? (
+        <HomeworkFeedbackPanel homeworkId={homework.id} />
+      ) : null}
     </main>
   );
 }

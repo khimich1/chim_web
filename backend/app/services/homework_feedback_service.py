@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -97,7 +97,7 @@ class HomeworkFeedbackService:
 
         await self._validate_assets(teacher, data)
 
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         row = await self._feedback.upsert_step_feedback(
             test_session_step_id=step.id,
             teacher_text=(data.teacher_text or "").strip() or None,
@@ -149,7 +149,7 @@ class HomeworkFeedbackService:
 
         await self._validate_assets(teacher, data)
 
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         row = await self._feedback.upsert_submission_feedback(
             homework_submission_id=assignment.submission.id,
             teacher_text=(data.teacher_text or "").strip() or None,

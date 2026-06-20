@@ -90,7 +90,11 @@ export default async function TeacherHomeworkDetailPage({
           </ol>
         </div>
 
-        <WrittenAnswerReview steps={homework.submission_steps ?? []} />
+        <WrittenAnswerReview
+          homeworkId={homework.id}
+          steps={homework.submission_steps ?? []}
+          submissionFeedback={homework.submission_feedback}
+        />
       </section>
     </main>
   );

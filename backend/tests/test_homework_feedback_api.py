@@ -257,6 +257,11 @@ def test_step_feedback_upsert_and_student_read(client: TestClient) -> None:
     assert save.json()["teacher_voice_url"] == f"/api/uploads/audio/{audio_id}"
     assert save.json()["teacher_image_urls"] == [f"/api/uploads/images/{image_id}"]
 
+    _login(client, STUDENT_EMAIL, STUDENT_PASS)
+    audio_get = client.get(f"/api/uploads/audio/{audio_id}")
+    assert audio_get.status_code == 200
+
+    _login(client, TEACHER_EMAIL, TEACHER_PASS)
     update = client.put(
         f"/api/homework/{assignment_id}/steps/0/feedback",
         json={"teacher_text": "Обновлённый разбор"},
@@ -280,9 +285,6 @@ def test_step_feedback_upsert_and_student_read(client: TestClient) -> None:
     assert fb["has_feedback"] is True
     assert len(fb["steps"]) == 1
     assert fb["steps"][0]["teacher_text"] == "Обновлённый разбор"
-
-    audio_get = client.get(f"/api/uploads/audio/{audio_id}")
-    assert audio_get.status_code == 200
 
 
 def test_submission_feedback_optional(client: TestClient) -> None:

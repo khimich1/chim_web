@@ -11,7 +11,7 @@ from app.core.config import Settings
 from app.models import UploadedAudio, UploadedImage, User, UserRole
 from app.repositories.app.upload_repo import UploadedAudioRepository, UploadedImageRepository
 from app.schemas.uploads import UploadAudioResponse, UploadImageResponse
-from app.utils.audio_duration import parse_audio_duration
+from app.utils.audio_duration import parse_audio_duration_sec as parse_audio_duration
 
 _MIME_EXTENSIONS: dict[str, str] = {
     "image/jpeg": ".jpg",
