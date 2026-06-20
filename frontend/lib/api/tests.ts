@@ -118,6 +118,20 @@ export function compareStep(
   );
 }
 
+export function attachAnswerImage(
+  sessionId: string,
+  position: number,
+  answerImageId: string,
+): Promise<{ position: number; answer_image_id: string; answer_image_url: string }> {
+  return apiFetch(
+    `/api/tests/sessions/${sessionId}/steps/${position}/answer-image`,
+    {
+      method: "POST",
+      body: JSON.stringify({ answer_image_id: answerImageId }),
+    },
+  );
+}
+
 export function completeSession(sessionId: string): Promise<unknown> {
   return apiFetch(`/api/tests/sessions/${sessionId}/complete`, {
     method: "POST",

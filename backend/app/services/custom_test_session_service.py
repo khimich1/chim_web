@@ -24,12 +24,14 @@ from app.models import (
 from app.models.enums import GradingMode
 from app.repositories.app.teacher_theme_repo import TeacherThemeRepository
 from app.repositories.app.test_session_repo import TestSessionRepository
+from app.repositories.app.upload_repo import UploadedImageRepository
 from app.schemas.custom_theme import CustomThemeListItem
 from app.schemas.test_session import (
     SessionCreate,
     SessionRead,
     SessionSummary,
     SessionSummaryStep,
+    StepAttachAnswerImageResponse,
     StepCompareResponse,
     StepCheckResponse,
     StepRead,
@@ -55,6 +57,12 @@ def _session_duration_minutes(created_at: datetime, completed_at: datetime) -> i
     return int(seconds // 60)
 
 
+def _answer_image_url(image_id: uuid.UUID | None) -> str | None:
+    if image_id is None:
+        return None
+    return f"/api/uploads/images/{image_id}"
+
+
 class CustomTestSessionService:
     """Create, read, check, compare, and complete custom-theme sessions."""
 
@@ -68,6 +76,7 @@ class CustomTestSessionService:
         self._settings = settings
         self._repo = TestSessionRepository(session)
         self._theme_repo = TeacherThemeRepository(session)
+        self._upload_repo = UploadedImageRepository(session)
         self._grading = GradingService()
         self._activity = activity or ActivityService(session)
 
@@ -195,6 +204,59 @@ class CustomTestSessionService:
             status=step.status,
         )
 
+    async def attach_answer_image(
+        self,
+        student: User,
+        session_id: uuid.UUID,
+        position: int,
+        answer_image_id: uuid.UUID,
+    ) -> StepAttachAnswerImageResponse:
+        test_session = await self._load_owned_session(student, session_id)
+        if test_session.status == TestSessionStatus.COMPLETED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Session already completed",
+            )
+        if test_session.homework_assignment_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Answer image upload is only required for homework sessions",
+            )
+
+        step = self._find_step(test_session, position)
+        task = await self._require_task(step)
+        if task.grading_mode != GradingMode.SELF_CHECK:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Answer image is only for self_check steps",
+            )
+        if step.status == StepStatus.CHECKED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot replace photo after compare",
+            )
+
+        image = await self._upload_repo.get_by_id(answer_image_id)
+        if image is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Image not found",
+            )
+        if image.owner_id != student.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not your image",
+            )
+
+        step.answer_image_id = answer_image_id
+        await self._session.commit()
+
+        return StepAttachAnswerImageResponse(
+            position=step.position,
+            answer_image_id=answer_image_id,
+            answer_image_url=_answer_image_url(answer_image_id),
+        )
+
     async def compare_step(
         self,
         student: User,
@@ -219,6 +281,16 @@ class CustomTestSessionService:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Task has no reference answer",
+            )
+        if step.status == StepStatus.CHECKED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Step already checked",
+            )
+        if test_session.homework_assignment_id is not None and step.answer_image_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Answer image is required for self_check homework steps",
             )
 
         step.answer = answer
@@ -297,6 +369,8 @@ class CustomTestSessionService:
                     grading_mode=task.grading_mode,
                     status=step.status,
                     answer=step.answer,
+                    answer_image_id=step.answer_image_id,
+                    answer_image_url=_answer_image_url(step.answer_image_id),
                     is_correct=step.is_correct,
                     hint_used=step.hint_used,
                 )

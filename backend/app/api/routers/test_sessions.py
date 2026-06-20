@@ -6,7 +6,9 @@
 | GET    | /api/tests/sessions/active                    | student | ActiveSessionResponse |
 | GET    | /api/tests/sessions/{id}                      | student | SessionRead       |
 | POST   | /api/tests/sessions/{id}/steps/{n}/check      | student | StepCheckResponse |
+| POST   | /api/tests/sessions/{id}/steps/{n}/answer-image | student | StepAttachAnswerImageResponse |
 | POST   | /api/tests/sessions/{id}/steps/{n}/compare  | student | StepCompareResponse |
+| POST   | /api/tests/sessions/{id}/steps/{n}/handoff  | student | HandoffCreateResponse |
 | POST   | /api/tests/sessions/{id}/complete             | student | SessionSummary    |
 """
 
@@ -21,17 +23,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import StudentUser, get_activity_service, get_app_settings
 from app.core.config import Settings
 from app.db.session import get_db
+from app.schemas.handoff import HandoffCreateResponse
 from app.schemas.test_session import (
     ActiveSessionResponse,
     SessionCreate,
     SessionRead,
     SessionSummary,
+    StepAttachAnswerImageRequest,
+    StepAttachAnswerImageResponse,
     StepCheckRequest,
     StepCheckResponse,
     StepCompareResponse,
 )
 from app.services.activity_service import ActivityService
 from app.services.test_session_service import TestSessionService
+from app.services.upload_handoff_service import UploadHandoffService
 
 router = APIRouter(prefix="/api/tests/sessions", tags=["test-sessions"])
 
@@ -42,6 +48,13 @@ def get_test_session_service(
     activity: Annotated[ActivityService, Depends(get_activity_service)],
 ) -> TestSessionService:
     return TestSessionService(db, settings, activity)
+
+
+def get_upload_handoff_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
+) -> UploadHandoffService:
+    return UploadHandoffService(db, settings)
 
 
 @router.post("", response_model=SessionRead, status_code=status.HTTP_201_CREATED)
@@ -92,6 +105,38 @@ async def check_step(
     service: Annotated[TestSessionService, Depends(get_test_session_service)],
 ) -> StepCheckResponse:
     return await service.check_step(student, session_id, position, payload.answer)
+
+
+@router.post(
+    "/{session_id}/steps/{position}/answer-image",
+    response_model=StepAttachAnswerImageResponse,
+)
+async def attach_answer_image(
+    session_id: uuid.UUID,
+    position: int,
+    payload: StepAttachAnswerImageRequest,
+    student: StudentUser,
+    service: Annotated[TestSessionService, Depends(get_test_session_service)],
+) -> StepAttachAnswerImageResponse:
+    return await service.attach_answer_image(
+        student,
+        session_id,
+        position,
+        payload.answer_image_id,
+    )
+
+
+@router.post(
+    "/{session_id}/steps/{position}/handoff",
+    response_model=HandoffCreateResponse,
+)
+async def create_handoff(
+    session_id: uuid.UUID,
+    position: int,
+    student: StudentUser,
+    service: Annotated[UploadHandoffService, Depends(get_upload_handoff_service)],
+) -> HandoffCreateResponse:
+    return await service.create_handoff(student, session_id, position)
 
 
 @router.post(

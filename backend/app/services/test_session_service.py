@@ -42,12 +42,16 @@ from app.schemas.test_session import (
     SessionRead,
     SessionSummary,
     SessionSummaryStep,
+    StepAttachAnswerImageResponse,
     StepCheckResponse,
     StepCompareResponse,
     StepRead,
 )
 from app.services.activity_service import ActivityService
-from app.services.custom_test_session_service import CustomTestSessionService
+from app.services.custom_test_session_service import (
+    CustomTestSessionService,
+    _answer_image_url,
+)
 from app.services.grading_service import GradingService
 from app.services.image_substitution import substitute_image_placeholders
 from app.services.onboarding_service import OnboardingService
@@ -463,6 +467,27 @@ class TestSessionService:
             status=step.status,
         )
 
+    async def attach_answer_image(
+        self,
+        student: User,
+        session_id: uuid.UUID,
+        position: int,
+        answer_image_id: uuid.UUID,
+    ) -> StepAttachAnswerImageResponse:
+        test_session = await self._load_owned_session(student, session_id)
+        step = self._find_step(test_session, position)
+        if step.custom_task_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Answer image is only for custom self_check steps",
+            )
+        return await self._custom.attach_answer_image(
+            student,
+            session_id,
+            position,
+            answer_image_id,
+        )
+
     async def compare_step(
         self,
         student: User,
@@ -588,6 +613,8 @@ class TestSessionService:
                         grading_mode=task.grading_mode,
                         status=step.status,
                         answer=step.answer,
+                        answer_image_id=step.answer_image_id,
+                        answer_image_url=_answer_image_url(step.answer_image_id),
                         is_correct=step.is_correct,
                         hint_used=step.hint_used,
                     )

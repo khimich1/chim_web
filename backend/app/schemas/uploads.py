@@ -12,3 +12,11 @@ class UploadImageResponse(BaseModel):
     url: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UploadAudioResponse(BaseModel):
+    id: uuid.UUID
+    url: str
+    duration_sec: float | None = None
+
+    model_config = ConfigDict(from_attributes=True)

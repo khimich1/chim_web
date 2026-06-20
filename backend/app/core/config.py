@@ -54,6 +54,10 @@ class Settings(BaseSettings):
         default=["http://localhost:3000"],
         alias="CORS_ORIGINS",
     )
+    frontend_url: str = Field(
+        default="http://localhost:3000",
+        alias="FRONTEND_URL",
+    )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     content_ege_db_path: Path = Field(
@@ -118,6 +122,18 @@ class Settings(BaseSettings):
     upload_allowed_mime: list[str] = Field(
         default=["image/jpeg", "image/png", "image/webp"],
         alias="UPLOAD_ALLOWED_MIME",
+    )
+    upload_audio_max_bytes: int = Field(
+        default=15 * 1024 * 1024,
+        alias="UPLOAD_AUDIO_MAX_BYTES",
+    )
+    upload_audio_max_duration_sec: int = Field(
+        default=600,
+        alias="UPLOAD_AUDIO_MAX_DURATION_SEC",
+    )
+    upload_audio_allowed_mime: list[str] = Field(
+        default=["audio/webm", "audio/ogg"],
+        alias="UPLOAD_AUDIO_ALLOWED_MIME",
     )
 
     def tests_db_path_for_track(self, track: str) -> Path:

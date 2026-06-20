@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.enums import HomeworkItemKind, HomeworkStatus
+from app.models.enums import HomeworkItemKind, HomeworkStatus, GradingMode, StepStatus
 
 
 class LectureItem(BaseModel):
@@ -98,6 +98,30 @@ class HomeworkSubmissionRead(BaseModel):
     max_score: int | None = None
 
 
+class StepFeedbackEmbeddedRead(BaseModel):
+    """Existing teacher feedback embedded in homework review (§1.9.9)."""
+
+    teacher_text: str | None = None
+    teacher_voice_url: str | None = None
+    teacher_image_urls: list[str] = Field(default_factory=list)
+    published_at: datetime | None = None
+
+
+class HomeworkSubmissionStepRead(BaseModel):
+    """Self-check step photo for teacher review (SPEC §1.9.8–1.9.9, AC-7.9, AC-7.11)."""
+
+    position: int
+    custom_task_id: uuid.UUID | None = None
+    title: str | None = None
+    grading_mode: GradingMode | None = None
+    question_blocks: list[dict] = Field(default_factory=list)
+    reference_answer: list[dict] | None = None
+    answer: str | None = None
+    answer_image_url: str | None = None
+    status: StepStatus
+    feedback: StepFeedbackEmbeddedRead | None = None
+
+
 class HomeworkItemProgressRead(BaseModel):
     """Per-item completion state for a multi-item assignment (SPEC §1.7)."""
 
@@ -123,6 +147,9 @@ class HomeworkRead(BaseModel):
     submission: HomeworkSubmissionRead | None = None
     progress: list[HomeworkItemProgressRead] = Field(default_factory=list)
     active_test_session_id: uuid.UUID | None = None
+    submission_steps: list[HomeworkSubmissionStepRead] = Field(default_factory=list)
+    submission_feedback: StepFeedbackEmbeddedRead | None = None
+    has_teacher_feedback: bool = False
 
 
 class HomeworkSubmitRequest(BaseModel):

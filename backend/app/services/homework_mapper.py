@@ -14,6 +14,8 @@ from app.schemas.homework import (
     HomeworkItemProgressRead,
     HomeworkRead,
     HomeworkSubmissionRead,
+    HomeworkSubmissionStepRead,
+    StepFeedbackEmbeddedRead,
 )
 
 
@@ -22,6 +24,9 @@ def to_homework_read(
     *,
     include_student_email: bool = False,
     active_test_session_id: uuid.UUID | None = None,
+    submission_steps: list[HomeworkSubmissionStepRead] | None = None,
+    submission_feedback: StepFeedbackEmbeddedRead | None = None,
+    has_teacher_feedback: bool = False,
 ) -> HomeworkRead:
     submission = None
     if assignment.submission is not None:
@@ -45,4 +50,7 @@ def to_homework_read(
         submission=submission,
         progress=progress,
         active_test_session_id=active_test_session_id,
+        submission_steps=submission_steps or [],
+        submission_feedback=submission_feedback,
+        has_teacher_feedback=has_teacher_feedback,
     )

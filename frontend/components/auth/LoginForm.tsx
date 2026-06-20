@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation";
 import { login } from "@/lib/api/auth";
 import { ApiError, formatFetchError } from "@/lib/api/client";
 
-export function LoginForm() {
+interface LoginFormProps {
+  redirectTo?: string | null;
+}
+
+export function LoginForm({ redirectTo = null }: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,7 +23,11 @@ export function LoginForm() {
     setSubmitting(true);
     try {
       const user = await login(email, password);
-      router.replace(user.role === "teacher" ? "/teacher" : "/student");
+      if (redirectTo) {
+        router.replace(redirectTo);
+      } else {
+        router.replace(user.role === "teacher" ? "/teacher" : "/student");
+      }
       router.refresh();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {

@@ -22,6 +22,13 @@ from app.core.config import Settings
 from app.db.session import get_db
 from app.models.enums import UserRole
 from app.schemas.homework import HomeworkCreate, HomeworkRead, HomeworkSubmitRequest
+from app.schemas.homework_feedback import (
+    FeedbackContentRead,
+    StepFeedbackRead,
+    StepFeedbackUpsert,
+    SubmissionFeedbackUpsert,
+)
+from app.services.homework_feedback_service import HomeworkFeedbackService
 from app.services.activity_service import ActivityService
 from app.services.homework_service import HomeworkService
 from app.services.homework_submit_service import HomeworkSubmitService
@@ -95,4 +102,40 @@ async def complete_homework_item(
 ) -> HomeworkRead:
     return await service.complete_item(
         student, assignment_id, item_index
+    )
+
+
+@router.put(
+    "/{assignment_id}/steps/{position}/feedback",
+    response_model=StepFeedbackRead,
+)
+async def upsert_step_feedback(
+    assignment_id: uuid.UUID,
+    position: int,
+    payload: StepFeedbackUpsert,
+    teacher: TeacherUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> StepFeedbackRead:
+    return await HomeworkFeedbackService(db).upsert_step_feedback(
+        teacher,
+        assignment_id,
+        position,
+        payload,
+    )
+
+
+@router.put(
+    "/{assignment_id}/submission-feedback",
+    response_model=FeedbackContentRead,
+)
+async def upsert_submission_feedback(
+    assignment_id: uuid.UUID,
+    payload: SubmissionFeedbackUpsert,
+    teacher: TeacherUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> FeedbackContentRead:
+    return await HomeworkFeedbackService(db).upsert_submission_feedback(
+        teacher,
+        assignment_id,
+        payload,
     )

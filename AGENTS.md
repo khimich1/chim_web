@@ -50,6 +50,7 @@ chim_web/
 
 | Задача | Rule |
 |--------|------|
+| Размытая идея, нужны варианты | `idea-refine` |
 | Новая фича без spec | `spec-driven-development` |
 | Spec → план задач | `planning-and-task-breakdown` |
 | Логика / поведение | `test-driven-development` |
@@ -65,7 +66,8 @@ chim_web/
 ## Full-stack lifecycle
 
 ```
-DEFINE  → spec-driven-development        (экран + API + acceptance)
+DEFINE  → idea-refine (опционально)       (варианты + stress-test)
+          spec-driven-development        (экран + API + acceptance)
 PLAN    → planning-and-task-breakdown     (backend + frontend tasks)
 BUILD   → incremental-implementation
           + api-and-interface-design     (контракт первым)
@@ -126,6 +128,9 @@ npm run build
 | `references/testing-patterns-frontend.md` | Vitest, RTL, MSW, Playwright |
 | `references/security-checklist.md` | OWASP, pre-commit |
 | `references/accessibility-checklist.md` | WCAG 2.1 AA |
+| `references/idea-refine-frameworks.md` | SCAMPER, HMW, JTBD и др. |
+| `references/idea-refine-criteria.md` | Rubric для фазы Evaluate |
+| `docs/ideas/written-homework-photo-submit.md` | Фото рукописи в ДЗ vs compare в практике (§1.9.8) |
 
 ## Конвенции
 
@@ -152,6 +157,7 @@ npm run build
 
 | Файл | Когда |
 |------|-------|
+| `docs/ideas/*.md` | После idea-refine (one-pager) |
 | `SPEC.md` | После spec |
 | `tasks/plan.md` | После plan |
 | `docs/decisions/ADR-*.md` | Архитектурные решения |

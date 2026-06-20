@@ -100,6 +100,8 @@ export interface TestStep {
   grading_mode?: GradingMode | null;
   status: StepStatus;
   answer: string | null;
+  answer_image_id?: string | null;
+  answer_image_url?: string | null;
   is_correct: boolean | null;
   hint_used: boolean;
 }
@@ -165,6 +167,33 @@ export interface StepCompareResult {
 export interface UploadImageResponse {
   id: string;
   url: string;
+}
+
+export interface UploadAudioResponse {
+  id: string;
+  url: string;
+  duration_sec: number | null;
+}
+
+export interface StepFeedbackRead {
+  position: number;
+  title?: string | null;
+  teacher_text: string | null;
+  teacher_voice_url: string | null;
+  teacher_image_urls: string[];
+  published_at: string | null;
+}
+
+export interface StudentHomeworkFeedback {
+  has_feedback: boolean;
+  steps: StepFeedbackRead[];
+  submission: StepFeedbackContent | null;
+}
+
+export interface StepFeedbackInput {
+  teacher_text?: string | null;
+  teacher_voice_id?: string | null;
+  teacher_image_ids?: string[];
 }
 
 export interface TeacherTheme {
@@ -279,6 +308,26 @@ export interface HomeworkSubmission {
   max_score: number | null;
 }
 
+export interface HomeworkSubmissionStep {
+  position: number;
+  custom_task_id: string | null;
+  title?: string | null;
+  grading_mode: GradingMode | null;
+  question_blocks?: ContentBlock[];
+  reference_answer?: ContentBlock[] | null;
+  answer: string | null;
+  answer_image_url: string | null;
+  status: StepStatus;
+  feedback?: StepFeedbackContent | null;
+}
+
+export interface StepFeedbackContent {
+  teacher_text: string | null;
+  teacher_voice_url: string | null;
+  teacher_image_urls: string[];
+  published_at: string | null;
+}
+
 export interface HomeworkItemProgress {
   item_index: number;
   kind: HomeworkItemKind;
@@ -298,6 +347,9 @@ export interface HomeworkAssignment {
   submission: HomeworkSubmission | null;
   progress: HomeworkItemProgress[];
   active_test_session_id: string | null;
+  submission_steps?: HomeworkSubmissionStep[];
+  submission_feedback?: StepFeedbackContent | null;
+  has_teacher_feedback?: boolean;
 }
 
 export interface CreateHomeworkInput {

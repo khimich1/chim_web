@@ -1,8 +1,8 @@
 # SPEC — Chemistry (chim_web)
 
-**Версия:** 0.7.8  
+**Версия:** 0.8.0  
 **Дата:** 2026-06-09 (обновлено 2026-06-20)  
-**Статус:** частично согласован (§1.6 AI-советчик — адаптация `RAG_chemistry`; §14 UI redesign — визуальный язык согласован по референсам; §1.3.1 — step-dots + возобновление сессии; §1.3.3 — справочник таблицы Менделеева при тестах; §1.3.4 — solve-разбор после неверного ответа; §1.8 — баллы, streak и рейтинг — Phase 13; §1.9 — конструктор заданий преподавателя — Phase 14; AC-6.2 — sources только из учебника, v0.7.3)  
+**Статус:** частично согласован (§1.6 AI-советчик — адаптация `RAG_chemistry`; §14 UI redesign — визуальный язык согласован по референсам; §1.3.1 — step-dots + возобновление сессии; §1.3.3 — справочник таблицы Менделеева при тестах; §1.3.4 — solve-разбор после неверного ответа; §1.8 — баллы, streak и рейтинг — Phase 13; §1.9 — конструктор заданий преподавателя — Phase 14; §1.9.8 — фото рукописи в ДЗ vs сравнение в практике; §1.9.9 — проверка письменных ДЗ преподавателем (viewer, QR, feedback); AC-6.2 — sources только из учебника, v0.7.3)  
 **Стек:** FastAPI + Next.js (monorepo `chim_web`, см. `AGENTS.md`)
 
 ---
@@ -41,7 +41,7 @@
 | Роль | MVP-возможности |
 |------|-----------------|
 | **Ученик** | Учебник (лекции по темам), тесты ЕГЭ/ОГЭ, выполнение домашних заданий |
-| **Преподаватель** | Список учеников, **конструктор тем и заданий** (§1.9), назначение ДЗ, просмотр статуса/результатов, уведомления о сдаче |
+| **Преподаватель** | Список учеников, **конструктор тем и заданий** (§1.9), назначение ДЗ, просмотр статуса/результатов, **проверка письменных с feedback** (§1.9.9), уведомления о сдаче |
 
 ### Зачем
 
@@ -444,7 +444,7 @@ homework_submit_service.submit()   → activity_service.record_homework_complete
 ### 1.9 Конструктор заданий преподавателя (кастомные темы)
 
 > **Идея и обоснование:** [`docs/ideas/teacher-task-constructor.md`](docs/ideas/teacher-task-constructor.md)  
-> **План реализации:** Phase 14 в `tasks/plan.md` (Tasks 66–74).
+> **План реализации:** Phase 14 в `tasks/plan.md` (Tasks 66–75); Phase 15 — §1.9.9 (teacher review + QR + feedback).
 
 #### Цели
 
@@ -460,9 +460,9 @@ homework_submit_service.submit()   → activity_service.record_homework_complete
 | Режим | Описание | Проверка | В `score` сессии |
 |-------|----------|----------|------------------|
 | `auto` | Краткий ответ (число или текст) | Авто: нормализация + сравнение с `correct_value` (как ЕГЭ) | Да: верно/неверно |
-| `self_check` | Письменный ответ | Кнопка **«Сравнить ответ»** → показ **полного эталона** (`reference_answer`: текст, число, картинки) | **Нет** — шаг помечается `viewed` / `answered`, не влияет на `score/max_score` |
+| `self_check` | Письменный ответ | Кнопка **«Сравнить ответ»** → показ **полного эталона** (`reference_answer`: текст, число, картинки). Поведение зависит от контекста сессии — §1.9.8 | **Нет** — шаг помечается `checked`, не влияет на `score/max_score` |
 
-Преподаватель выбирает `grading_mode` при создании задания. AI-проверка письменных (§1.5) — **не** используется; `self_check` — осознанная самопроверка ученика.
+Преподаватель выбирает `grading_mode` при создании задания. AI-проверка письменных (§1.5) — **не** используется. В **свободной практике** (`homework_assignment_id = null`) — самопроверка; в **ДЗ** — обязательное фото рукописи для преподавателя (§1.9.8).
 
 #### 1.9.2 Контент-блоки
 
@@ -473,7 +473,14 @@ homework_submit_service.submit()   → activity_service.record_homework_complete
 { "type": "image", "url": "/api/uploads/images/{id}" }
 ```
 
-**Ответ ученика:** текст (обязателен для отправки шага) + **опциональная** загрузка картинки (`POST /api/uploads/images`, role: student).
+**Ответ ученика** (`POST /api/uploads/images`, role: student) — зависит от контекста (§1.9.8):
+
+| Контекст | Текст | Фото рукописи |
+|----------|-------|---------------|
+| Практика («Темы», `homework_assignment_id = null`) | Опционален | **Нет** — upload скрыт |
+| ДЗ (`homework_assignment_id` задан) | Опционален | **Обязательно** до «Сравнить ответ» |
+
+Фото хранится в `TestSessionStep.answer_image_id`, не в строке `answer`.
 
 **Редактирование:** преподаватель может менять задание **в любой момент**; версионирования нет. Активная `in_progress` сессия может показывать старый текст до перезагрузки страницы — приемлемо для MVP.
 
@@ -525,6 +532,180 @@ TestSession
 | Хранение | `settings.upload_dir` (локально; S3 — вне MVP) |
 | Доступ | RBAC: teacher — свои uploads; student — свои ответы; чтение — участники сессии/ДЗ |
 
+#### 1.9.8 Письменные ответы: практика vs ДЗ
+
+> **Решено (v0.7.9, 2026-06-20).** Идея: `docs/ideas/written-homework-photo-submit.md`.
+
+Различие по `TestSession.homework_assignment_id`, без отдельного `grading_mode` и без флага на задании.
+
+**Свободная практика** (вкладка «Темы», `homework_assignment_id = null`):
+
+- Upload фото **скрыт**.
+- «Сравнить ответ» доступна сразу (опциональный текст).
+- Преподаватель **не** видит ответ ученика.
+
+**Сдача в составе ДЗ** (`homework_assignment_id` задан, пункт `custom_theme`):
+
+- Фото рукописного решения **обязательно** (`answer_image_id` на шаге).
+- «Сравнить ответ» **disabled**, пока upload не завершён успешно.
+- Отдельной кнопки «Отправить» нет — upload сохраняет работу на сервере.
+- Текстовое поле — **опционально** (подпись «Комментарий (необязательно)»).
+- Замена фото разрешена **до** `compare`; после `status = checked` — фото и ответ заблокированы.
+- Backend: `POST .../compare` без `answer_image_id` при `homework_assignment_id` → `422`.
+- При полной сдаче ДЗ преподаватель видит фото по каждому `self_check` шагу (AC-7.9).
+
+**Teacher review (расширенный):** §1.9.9 — viewer, эталон, QR-съёмка, обратная связь голосом/фото/текстом.
+
+#### 1.9.9 Проверка письменных ДЗ преподавателем
+
+> **Решено (v0.8.0, 2026-06-20).** Идея: `docs/ideas/teacher-written-homework-review.md`.  
+> **Зависит от:** §1.9.8 (`answer_image_id`, блокировка фото после `compare`).
+
+**Objective:** преподаватель удобно проверяет письменные `self_check` шаги в сданном ДЗ; ученик сдаёт фото с телефона через QR, занимаясь на ПК; ученик получает разбор (голос, фото, текст) без пересдачи и без статусов «принято/на доработку».
+
+| Роль | Успех |
+|------|--------|
+| **Преподаватель** | Видит фото с zoom/pan/поворотом и `reference_answer` рядом; сохраняет отзыв по шагу за &lt; 3 мин на задание |
+| **Ученик (ПК)** | QR → фото на телефоне → «Сравнить» на ПК без повторного upload |
+| **Ученик (после сдачи)** | Бейдж **«Есть разбор»** в списке ДЗ; при открытии — голос/фото/текст по шагам |
+
+##### Съёмка с телефона (QR handoff)
+
+На `StepView` для `self_check` в ДЗ (`homework_assignment_id` задан):
+
+1. Блок **«Сфотографировать с телефона»**: `POST /api/tests/sessions/{id}/steps/{position}/handoff` → `{ token, capture_url, expires_at }` + QR-код `capture_url`.
+2. **Fallback:** «Прикрепить с этого устройства» — как §1.9.8 (`POST /api/uploads/images` + attach).
+3. **ПК polling:** `GET /api/tests/sessions/{id}/steps/{position}` каждые 2–3 с, пока нет `answer_image_id` (без WebSocket в v1).
+4. После `answer_image_id` — «Сравнить ответ» активна (§1.9.8).
+
+**Мобильная страница** `GET /student/capture/{token}`:
+
+| Шаг UI | Содержание |
+|--------|------------|
+| Auth | Если httpOnly cookie валиден — сразу съёмка; иначе экран входа **или** одноразовый token в URL (достаточен только для upload на этот шаг) |
+| Чеклист | «Весь лист в кадре», «Хорошее освещение», «Без размытия» — галочки перед съёмкой |
+| Съёмка | `<input capture="environment">` или `getUserMedia`; превью перед отправкой |
+| Отправка | `POST /api/capture/{token}` (multipart image) → attach к `TestSessionStep`; token **одноразовый** |
+
+**Handoff token:**
+
+| Поле | Правило |
+|------|---------|
+| TTL | 15 мин (`expires_at`) |
+| Scope | Один `session_id` + `position`; только `student_id` владельца сессии |
+| Повтор | Новый `POST .../handoff` инвалидирует предыдущий неиспользованный token для того же шага |
+| После `used_at` | Повторный upload по token → `410 Gone` |
+| После `checked` | Создание handoff → `409` (фото заблокировано) |
+
+##### Экран проверки преподавателя
+
+Заменяет простой список `<img>` в `HomeworkSubmissionPhotos` на **`WrittenAnswerReview`**:
+
+| Элемент | Поведение |
+|---------|-----------|
+| Layout | **Адаптивный:** ≥ `md` — split-view (фото ученика \| эталон); &lt; `md` — столбик (фото сверху) |
+| Фото ученика | `ImageViewer`: zoom (колёсико/пинч), pan, поворот на 90° (кнопки ↻), reset |
+| Эталон | `reference_answer` из `CustomTask` (текст + картинки), read-only — тот же рендер, что в `CustomQuestionContent` |
+| Навигация | По одному `self_check` шагу на экран или аккордеон — на усмотрение UI; данные — все шаги с `answer_image_id` в сдаче |
+
+**Authenticated images:** прямой `<img src="http://localhost:8000/api/uploads/...">` **не использовать** (cookies не уходят cross-origin). Варианты (выбрать один в реализации):
+
+- Next.js Route Handler `GET /api/uploads/images/[id]` — proxy к FastAPI с cookie forward; **или**
+- Client `fetch(url, { credentials: 'include' })` → `blob:` URL для `<img>` / viewer.
+
+##### Обратная связь преподавателя
+
+**Per-step** (`TestSessionStepFeedback`, 1:1 с `test_session_step_id`):
+
+| Поле | Правило |
+|------|---------|
+| `teacher_text` | Опционально, до 4000 символов |
+| `teacher_voice_id` | Опционально; FK → `UploadedAudio`; запись в браузере (`MediaRecorder`) |
+| `teacher_image_ids` | Опционально; 0–5 изображений (jpeg/png/webp, ≤5 МБ каждое) |
+| `published_at` | Устанавливается при первом сохранении; обновление перезаписывает контент |
+| Валидация save | Хотя бы одно из: text, voice, images — иначе `422` |
+
+**Submission-level** (`HomeworkSubmissionFeedback`, 1:1 с `homework_submission_id`) — опциональный общий комментарий (те же типы полей).
+
+**Статусы проверки:** только факт **«есть разбор»** (`has_teacher_feedback`). Без «принято», «на доработку», без пересдачи фото.
+
+**Голос:**
+
+| Параметр | Значение |
+|----------|----------|
+| MIME | `audio/webm` (предпочтительно), `audio/ogg` |
+| Max size | 15 МБ |
+| Soft duration | ~10 мин — предупреждение в UI при записи; сервер отклоняет &gt; 10 мин → `422` |
+| Stream | `GET /api/uploads/audio/{id}` — RBAC как у images |
+
+**Ученик после разбора:**
+
+- `HomeworkRead.has_teacher_feedback: bool` в списке ДЗ (AC-3.9).
+- На странице сданного ДЗ — секция «Разбор преподавателя»: per-step (аудиоплеер + фото + текст) + общий комментарий если есть.
+- Push/email — вне scope (§1.9.9).
+
+##### API (§1.9.9)
+
+| Method | Path | Role | Описание |
+|--------|------|------|----------|
+| POST | `/api/tests/sessions/{id}/steps/{position}/handoff` | student | Создать QR-token для шага |
+| GET | `/api/capture/{token}` | student | Метаданные шага (заголовок задания) для mobile UI |
+| POST | `/api/capture/{token}` | student | Upload фото → attach; помечает token used |
+| GET | `/api/homework/{id}/review` | teacher | Сдача + `self_check` шаги: фото, `reference_answer`, существующий feedback |
+| PUT | `/api/homework/{id}/steps/{position}/feedback` | teacher | Создать/обновить per-step feedback |
+| PUT | `/api/homework/{id}/submission-feedback` | teacher | Создать/обновить общий feedback |
+| GET | `/api/student/homework/{id}/feedback` | student | Только опубликованный feedback (после `submitted`) |
+| POST | `/api/uploads/audio` | teacher | Upload голосового отзыва |
+| GET | `/api/uploads/audio/{id}` | auth | Stream audio (RBAC) |
+
+Существующие `GET /api/homework/{id}` (teacher) и student homework list — расширить полями `reference_answer`, `has_teacher_feedback` где применимо.
+
+##### Модель данных (§1.9.9)
+
+```
+UploadHandoffToken
+  ├── token (uuid, PK)
+  ├── session_id, position, student_id
+  ├── expires_at, used_at?
+  └── created_at
+
+UploadedAudio (или kind на UploadedFile — решение в миграции)
+  ├── id, owner_id, mime_type, file_path, duration_sec?
+  └── created_at
+
+TestSessionStepFeedback
+  ├── test_session_step_id (unique, FK)
+  ├── teacher_text?, teacher_voice_id?, teacher_image_ids (jsonb uuid[])
+  └── published_at, updated_at
+
+HomeworkSubmissionFeedback
+  ├── homework_submission_id (unique, FK)
+  ├── teacher_text?, teacher_voice_id?, teacher_image_ids?
+  └── published_at, updated_at
+
+HomeworkRead (API, student) — доп. поле
+  └── has_teacher_feedback: bool
+```
+
+##### Вне scope §1.9.9
+
+| Исключено | Причина |
+|-----------|---------|
+| Пересдача / замена фото после feedback | Упрощение; фото locked после `compare` (§1.9.8) |
+| Статусы «принято» / «на доработку» | Достаточно `has_teacher_feedback` |
+| OCR / AI-проверка рукописи | Roadmap v2 |
+| Рисование на фото ученика | Feedback-фото преподавателя |
+| WebSocket для QR | Polling достаточен |
+| Push / email о разборе | Бейдж в списке ДЗ |
+| Баллы за письменный шаг | `self_check` вне `score` |
+
+##### Success criteria (§1.9.9)
+
+- [ ] Преподаватель видит фото ученика с zoom/pan/поворотом и эталон рядом (AC-7.11, AC-7.12).
+- [ ] Ученик с ПК: QR → телефон → фото на шаге → polling разблокирует «Сравнить» (AC-7.13, AC-7.14).
+- [ ] Преподаватель сохраняет голос/фото/текст по шагу; ученик видит бейдж и разбор (AC-7.15, AC-7.16, AC-3.9).
+- [ ] `pytest` + `vitest` зелёные для handoff, feedback RBAC, `has_teacher_feedback`.
+
 #### API (планируемые)
 
 | Method | Path | Role | Описание |
@@ -557,6 +738,21 @@ TestSession (расширение)
   ├── source: exam | custom
   └── custom_theme_id?, custom_task_ids[]?
 
+TestSessionStep (расширение, §1.9.8)
+  └── answer_image_id? (uuid, FK upload)   # обязателен для self_check в ДЗ
+
+UploadHandoffToken (§1.9.9)
+  └── token, session_id, position, student_id, expires_at, used_at?
+
+TestSessionStepFeedback (§1.9.9)
+  └── test_session_step_id, teacher_text?, teacher_voice_id?, teacher_image_ids[], published_at
+
+HomeworkSubmissionFeedback (§1.9.9)
+  └── homework_submission_id, teacher_text?, teacher_voice_id?, teacher_image_ids?, published_at
+
+HomeworkRead (API, student) — доп. поле (§1.9.9)
+  └── has_teacher_feedback: bool
+
 HomeworkItem (расширение)
   ├── custom_theme: { theme_id, task_ids? }
   └── test_by_type: { types[], variants? }
@@ -567,6 +763,11 @@ HomeworkItem (расширение)
 - [ ] Преподаватель создаёт тему, добавляет задания `auto` и `self_check` с текстом и картинками.
 - [ ] Ученик видит опубликованные темы во вкладке «Темы» и проходит сессию в `StepView`.
 - [ ] `auto`: «Проверить» → верно/неверно; `self_check`: «Сравнить ответ» → полный эталон; self_check не влияет на score.
+- [ ] Практика: `self_check` без upload; ДЗ: обязательное фото до «Сравнить» (§1.9.8).
+- [ ] Преподаватель видит фото рукописных ответов в сдаче ДЗ (AC-7.9).
+- [ ] Преподаватель проверяет письменные шаги: viewer + эталон + feedback (§1.9.9, AC-7.11–7.16).
+- [ ] Ученик сдаёт фото с телефона через QR (§1.9.9, AC-7.13–7.14).
+- [ ] Ученик видит бейдж «Есть разбор» при `has_teacher_feedback` (AC-3.9).
 - [ ] Преподаватель назначает ДЗ с пунктом `custom_theme` и `test_by_type` с выбранными `variants`.
 - [ ] Кружки: переход на любой шаг, включая нерешённые.
 - [ ] `pytest` + `vitest` зелёные для новых сценариев.
@@ -574,6 +775,7 @@ HomeworkItem (расширение)
 #### Вне scope §1.9
 
 - Версионирование заданий; OCR; AI-grading письменных
+- Пересдача письменных после feedback; статусы «принято/на доработку» (§1.9.9)
 - Общий банк между преподавателями; варианты A/B/C/D
 - S3/CDN; случайная выборка N из пула (`max_steps`)
 
@@ -748,7 +950,7 @@ TestSession                          # пошаговое прохождение
   ├── custom_theme_id, custom_task_ids[] (nullable)
   ├── homework_assignment_id (nullable)
   ├── status: in_progress | completed
-  └── steps[]: { test_id, answer, is_correct, hint_used, status, checked_at }
+  └── steps[]: { test_id, answer, answer_image_id?, is_correct, hint_used, status, checked_at }
   # для мульти-вариантного ДЗ test_ids[] собирается из всех test_* items;
   # variant_ref = null, когда задания из нескольких вариантов
 
@@ -935,6 +1137,7 @@ CustomTask (Phase 14, §1.9)
 | AC-3.6 | ДЗ может содержать **несколько** тестовых пунктов **из разных вариантов** (§1.7); удобный конструктор выбора в UI преподавателя |
 | AC-3.7 | Статус и score ДЗ — **агрегат** по всем `items`; `submitted` только когда выполнены все пункты; одно уведомление преподавателю при полной сдаче |
 | AC-3.8 | Если тестовая сессия ДЗ `in_progress` — на экране ДЗ кнопка **«Продолжить тест»** ведёт на `/student/tests/sessions/{id}`; иначе **«Начать тест»** |
+| AC-3.9 | Ученик: в списке ДЗ бейдж **«Есть разбор»**, если `has_teacher_feedback = true` (§1.9.9); при открытии сданного ДЗ — голос/фото/текст разбора |
 
 ### US-4: Уведомления (преподаватель)
 
@@ -963,9 +1166,17 @@ CustomTask (Phase 14, §1.9)
 |----|----------|
 | AC-7.1 | Преподаватель: CRUD тем (`title`, `description`, `is_published`) и заданий внутри темы |
 | AC-7.2 | Задание: `grading_mode` = `auto` \| `self_check`; блоки вопроса (текст, картинка); эталон для `self_check`; `correct_value` для `auto` |
-| AC-7.3 | Upload картинок: ≤5 МБ, jpeg/png/webp; преподаватель — в вопрос/эталон; ученик — опционально в ответ |
+| AC-7.3 | Upload картинок: ≤5 МБ, jpeg/png/webp; преподаватель — в вопрос/эталон; ученик — фото ответа **только в ДЗ** (§1.9.8) |
 | AC-7.4 | Ученик: вкладка **«Темы»** в `TestsPicker` — только `is_published` темы своего `teacher_id` |
-| AC-7.5 | `auto`: кнопка «Проверить» → авто-оценка; `self_check`: «Сравнить ответ» → полный эталон; self_check **не** в `score` |
+| AC-7.5 | `auto`: «Проверить» → авто-оценка; `self_check`: «Сравнить ответ» → полный эталон; self_check **не** в `score`; в ДЗ — compare только после upload |
+| AC-7.9 | Преподаватель: в деталях сдачи ДЗ видит фото `self_check` шагов (`answer_image_id` → URL) |
+| AC-7.10 | Backend: `compare` для `self_check` в сессии с `homework_assignment_id` без `answer_image_id` → `422`; замена фото после `checked` → `409` |
+| AC-7.11 | Преподаватель: authenticated отображение фото ответа (не broken `<img>` cross-origin); эталон `reference_answer` в UI проверки (§1.9.9) |
+| AC-7.12 | `ImageViewer`: zoom, pan, поворот 90° для фото рукописи ученика |
+| AC-7.13 | Ученик: `POST .../handoff` → QR; mobile `/student/capture/{token}` с чеклистом и превью; attach фото к шагу |
+| AC-7.14 | Ученик на ПК: polling шага до `answer_image_id`; handoff после `checked` → `409`; used token → `410` |
+| AC-7.15 | Преподаватель: `PUT .../steps/{position}/feedback` — голос и/или фото и/или текст (≥1); soft limit голоса 10 мин |
+| AC-7.16 | Преподаватель: опциональный `PUT .../submission-feedback`; ученик: `GET .../feedback` только после `submitted` |
 | AC-7.6 | ДЗ: пункт `custom_theme`; `test_by_type` с опциональным `variants[]` — чекбоксы в UI |
 | AC-7.7 | Редактирование задания без версионирования; опубликованные темы сразу видны ученикам |
 | AC-7.8 | Навигация: клик по любому кружку шага (§1.9.6, AC-2.11) |
@@ -1251,6 +1462,8 @@ CustomTask (Phase 14, §1.9)
 ---
 
 *Changelog:*  
+- 0.8.0 — §1.9.9 **проверка письменных ДЗ преподавателем**: `ImageViewer` + эталон; QR handoff для съёмки с телефона; feedback голос/фото/текст per-step + опционально на сдачу; `has_teacher_feedback` / бейдж «Есть разбор»; без пересдачи и без статусов принято/доработка; AC-3.9, AC-7.11–7.16; идея — `docs/ideas/teacher-written-homework-review.md`; план — Phase 15.  
+- 0.7.9 — §1.9.8 **письменные ответы: практика vs ДЗ**: в свободной практике `self_check` — только «Сравнить» (без upload); в ДЗ — обязательное фото рукописи до compare, teacher review фото при сдаче; `TestSessionStep.answer_image_id`; AC-7.9–7.10; обновлены AC-7.3/7.5; идея — `docs/ideas/written-homework-photo-submit.md`; план — Task 72 (доработка) + Task 75.  
 - 0.7.8 — §1.9 **конструктор заданий преподавателя**: темы + кастомные задания (`auto` / `self_check`), upload картинок, вкладка «Темы» у ученика, ДЗ `custom_theme`, `test_by_type.variants[]`, свободная навигация по кружочкам (AC-2.11, §1.9.6); US-7, AC-7.1–7.8; идея — `docs/ideas/teacher-task-constructor.md`; план — Phase 14 (`tasks/plan.md`, Tasks 66–74).  
 - 0.7.7 — §1.8 **баллы, streak и рейтинг**: ledger-first (`student_activity_events` + `student_stats`), правила v1, API, хуки в `test_session_service` / `homework_submit_service`; «Рейтинги, геймификация» убраны из «Вне scope v1» → Phase 13 (`tasks/plan.md` Tasks 58–65); идея — `docs/ideas/student-points-leaderboard.md`.  
 - 0.7.6 — §1.3.4 **«Спросить советчика» после неверного ответа**: кнопка только при `checked` + `is_correct=false`; solve-pipeline с `get_task` + сверка `correct_ans`; точечный gating на сервере (`explain_incorrect_step` в `page_context`). Обновлены §1.6, AC-2.7/2.14, AC-6.7/6.9, §11. План: **Task 57**; синхронизация `tutor-rag.md` §17 — в Task 57.  

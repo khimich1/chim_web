@@ -1,6 +1,6 @@
 # Implementation Plan: Chemistry (chim_web) MVP
 
-**Источник:** [SPEC.md](../SPEC.md) v0.7.8 · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2 · геймификация: [`docs/ideas/student-points-leaderboard.md`](../docs/ideas/student-points-leaderboard.md) · конструктор заданий: [`docs/ideas/teacher-task-constructor.md`](../docs/ideas/teacher-task-constructor.md)  
+**Источник:** [SPEC.md](../SPEC.md) v0.8.0 · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2 · геймификация: [`docs/ideas/student-points-leaderboard.md`](../docs/ideas/student-points-leaderboard.md) · конструктор заданий: [`docs/ideas/teacher-task-constructor.md`](../docs/ideas/teacher-task-constructor.md) · проверка письменных ДЗ: [`docs/ideas/teacher-written-homework-review.md`](../docs/ideas/teacher-written-homework-review.md)  
 **Дата плана:** 2026-06-09  
 **Обновлено:** 2026-06-20  
 **Статус:** MVP core + Phase 12 ✅ (`7804506`); Task 29 ✅ routers ≥80%; Task 41 ✅ RAG accuracy; Task 42 ✅ solve-pipeline этап A; Phase 11 UI redesign ✅ (`9fb016a`, Tasks 48–52); Task 56 ✅ Mendeleev overlay; **далее: Task 57 (solve после неверного ответа, §1.3.4) или Phase 13 (баллы и рейтинг, §1.8)**; tutor Tasks 31–38 в истории `08b418a`
@@ -71,9 +71,10 @@
 | 56 | Таблица Менделеева — overlay при тестах | ✅ done | `PeriodicTableOverlay`, asset в `assets/` + `public/images/` |
 | 57 | «Спросить советчика» после неверного ответа (§1.3.4) | ✅ local | `solve_gating.py`, StepView + TutorChatContext, pytest + vitest |
 | 58–65 | Баллы, streak, рейтинг (§1.8, Phase 13) | ✅ local | миграции `008`/`009`, activity layer, API, student dashboard + leaderboard, teacher stats UI |
-| 66–74 | Конструктор заданий преподавателя (§1.9, Phase 14) | ✅ local | migration `011`, teacher themes/tasks API, uploads, custom TestSession, HomeworkForm, StepProgressDots free nav |
+| 66–75 | Конструктор заданий преподавателя (§1.9, Phase 14) | ✅ local | migration `011`/`012`, teacher themes/tasks API, uploads, custom TestSession, HomeworkForm, §1.9.8 photo submit |
+| 76–84 | Проверка письменных ДЗ (§1.9.9, Phase 15) | ⏳ pending | viewer + QR handoff + teacher feedback; после Task 75 |
 
-**Текущий этап:** Phase 12 ✅; **Task 57** ✅ local; **Phase 13 (58–65)** ✅ local; **Phase 14 (66–74)** ✅ local; **Следующий шаг:** E2E teacher→student flow или Task 44 / Task 42 этап B.
+**Текущий этап:** Phase 14 ✅ local; **Следующий шаг:** **Phase 15 (Tasks 76–84)** — §1.9.9 teacher review + QR + feedback (`docs/ideas/teacher-written-homework-review.md`).
 
 ---
 
@@ -1949,7 +1950,7 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ### Phase 14: Конструктор заданий преподавателя (§1.9)
 
-> **Источник:** [`docs/ideas/teacher-task-constructor.md`](../docs/ideas/teacher-task-constructor.md) · SPEC §1.9  
+> **Источник:** [`docs/ideas/teacher-task-constructor.md`](../docs/ideas/teacher-task-constructor.md) · [`docs/ideas/written-homework-photo-submit.md`](../docs/ideas/written-homework-photo-submit.md) · SPEC §1.9, §1.9.8  
 > **Стратегия:** срезы A → B → C (кастомный контент → ДЗ → UX кружочков)
 
 ---
@@ -2100,16 +2101,17 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ## Task 72: StepView — custom tasks + self_check
 
-**Description:** Рендер jsonb-блоков; «Сравнить ответ»; опциональный upload картинки в ответе.
+**Description:** Рендер jsonb-блоков; «Сравнить ответ»; **контекстный** upload фото (§1.9.8, `docs/ideas/written-homework-photo-submit.md`).
 
 **Acceptance criteria:**
 - [ ] AC-7.5: разный UI для `auto` vs `self_check`
-- [ ] AC-7.3: опциональный file input у ученика
+- [ ] AC-7.3, AC-7.10: upload **только** при `homework_assignment_id`; «Сравнить» disabled до upload в ДЗ; в практике upload скрыт
+- [ ] Замена фото до `compare`; после `checked` — заблокировано
 - [ ] Итог сессии: self_check шаги вне score
 
 **Verification:**
-- [ ] vitest: `StepView` custom mode
-- [ ] pytest: summary score excludes self_check
+- [ ] vitest: `StepView` practice vs homework modes
+- [ ] pytest: compare без photo в ДЗ → 422; summary score excludes self_check
 
 **Dependencies:** Task 69, Task 18
 
@@ -2117,6 +2119,36 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 - `frontend/components/tests/StepView.tsx`
 - `frontend/components/tests/CustomQuestionContent.tsx`
 - `frontend/components/tests/AnswerInput.tsx`
+- `backend/app/services/custom_test_session_service.py`
+
+**Scope:** M
+
+---
+
+## Task 75: Teacher review — фото письменных ответов в ДЗ
+
+**Description:** `TestSessionStep.answer_image_id`; teacher видит фото self_check шагов в деталях сдачи ДЗ. Submit ДЗ блокируется, если self_check шаг без фото.
+
+**Acceptance criteria:**
+- [ ] AC-7.9: teacher `GET /api/homework/{id}` — URL фото по self_check шагам
+- [ ] AC-7.10: backend validation на compare и submit
+- [ ] Migration: `answer_image_id` на `test_session_steps`
+- [ ] RBAC: teacher видит только фото своих учеников/ДЗ
+
+**Verification:**
+- [ ] `pytest backend/tests/test_homework_written_photo.py`
+- [ ] vitest: teacher homework detail shows photo thumbnails
+- [ ] Ручная проверка: ДЗ с self_check → upload → compare → teacher sees photo
+
+**Dependencies:** Task 69, Task 72, Task 73
+
+**Files:**
+- `backend/alembic/versions/012_test_step_answer_image.py`
+- `backend/app/models/test_session.py`
+- `backend/app/services/homework_service.py`
+- `backend/app/schemas/homework.py`
+- `frontend/components/homework/HomeworkDetail.tsx` (teacher)
+- `backend/tests/test_homework_written_photo.py`
 
 **Scope:** M
 
@@ -2169,12 +2201,272 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ---
 
-### Checkpoint: Конструктор заданий (после Tasks 66–74)
+### Checkpoint: Конструктор заданий (после Tasks 66–75)
 
 - [ ] Преподаватель создаёт тему с auto + self_check заданиями
-- [ ] Ученик проходит во вкладке «Темы»; self_check не в score
+- [ ] Ученик проходит во вкладке «Темы»; self_check без upload, только compare
+- [ ] ДЗ с `custom_theme`: self_check требует фото; teacher видит фото в сдаче
 - [ ] ДЗ с `custom_theme` и `test_by_type` + выбранные variants
 - [ ] Свободная навигация по кружочкам во всех тестах
+- [ ] `pytest` + `vitest` зелёные
+
+---
+
+### Phase 15: Проверка письменных ДЗ преподавателем (§1.9.9)
+
+> **Источник:** [`docs/ideas/teacher-written-homework-review.md`](../docs/ideas/teacher-written-homework-review.md) · SPEC §1.9.9  
+> **Зависит от:** Phase 14 Task 75 (§1.9.8, `answer_image_id`)  
+> **Стратегия:** срез A (viewer) → B (QR handoff) → C (feedback)
+
+---
+
+## Task 76: Authenticated image delivery
+
+**Description:** Убрать broken `<img>` cross-origin: Next.js Route Handler proxy **или** client `fetch` + blob URL для всех authenticated uploads в UI.
+
+**Acceptance criteria:**
+- [ ] AC-7.11 (часть): teacher/student UI показывает фото из `/api/uploads/images/{id}` с cookie auth
+- [ ] Переиспользуемый хук/компонент `AuthenticatedImage` (не дублировать fetch в каждом месте)
+- [ ] `HomeworkSubmissionPhotos` использует новый паттерн
+
+**Verification:**
+- [ ] vitest: `AuthenticatedImage` / proxy route
+- [ ] Ручная проверка: teacher homework detail — фото видно (не placeholder)
+
+**Dependencies:** Task 75
+
+**Files:**
+- `frontend/app/api/uploads/images/[id]/route.ts` (или `frontend/lib/api/authenticated-image.ts`)
+- `frontend/components/common/AuthenticatedImage.tsx`
+- `frontend/components/homework/HomeworkSubmissionPhotos.tsx`
+
+**Scope:** S
+
+---
+
+## Task 77: Teacher homework review API — reference + steps
+
+**Description:** Расширить teacher `GET /api/homework/{id}`: per `self_check` шаг — `reference_answer`, `question_blocks`, метаданные для review UI.
+
+**Acceptance criteria:**
+- [ ] AC-7.11: в ответе teacher homework — `submission_steps[]` с `reference_answer` для `self_check`
+- [ ] RBAC: только teacher владелец ученика
+- [ ] Только для `submitted` / существующей submission
+
+**Verification:**
+- [ ] `pytest backend/tests/test_homework_review_api.py`
+
+**Dependencies:** Task 75, Task 68
+
+**Files:**
+- `backend/app/schemas/homework.py`
+- `backend/app/services/homework_service.py`
+- `backend/tests/test_homework_review_api.py`
+
+**Scope:** S
+
+---
+
+## Task 78: ImageViewer + WrittenAnswerReview (teacher UI)
+
+**Description:** Компонент просмотра фото (zoom, pan, rotate 90°) + адаптивный split-view с эталоном (`CustomQuestionContent`).
+
+**Acceptance criteria:**
+- [ ] AC-7.12: zoom, pan, поворот, reset
+- [ ] AC-7.11: layout — split на `md+`, столбик на узком экране
+- [ ] Заменяет плоский список в `HomeworkSubmissionPhotos` на `WrittenAnswerReview`
+
+**Verification:**
+- [ ] vitest: `ImageViewer.test.tsx`, `WrittenAnswerReview.test.tsx`
+- [ ] Ручная проверка на teacher homework detail
+
+**Dependencies:** Task 76, Task 77
+
+**Files:**
+- `frontend/components/homework/ImageViewer.tsx`
+- `frontend/components/homework/WrittenAnswerReview.tsx`
+- `frontend/app/teacher/homework/[id]/page.tsx`
+- `frontend/lib/api/types.ts`
+
+**Scope:** M
+
+---
+
+### Checkpoint: Phase 15 срез A (после Tasks 76–78)
+
+- [ ] Преподаватель видит фото ученика и эталон рядом с zoom/поворотом
+- [ ] Нет broken images на teacher page
+- [ ] `pytest` + `vitest` зелёные
+
+---
+
+## Task 79: QR handoff — backend (token + capture API)
+
+**Description:** `UploadHandoffToken`; `POST .../handoff`; `GET/POST /api/capture/{token}`; attach фото к шагу.
+
+**Acceptance criteria:**
+- [ ] AC-7.13, AC-7.14 (backend): TTL 15 мин; одноразовый token; scope session+position
+- [ ] Handoff после `checked` → `409`; used token → `410`
+- [ ] Только владелец сессии создаёт handoff
+- [ ] Migration `013_upload_handoff_token.py`
+
+**Verification:**
+- [ ] `pytest backend/tests/test_upload_handoff.py`
+
+**Dependencies:** Task 75, Task 72
+
+**Files:**
+- `backend/app/models/upload_handoff_token.py`
+- `backend/alembic/versions/013_upload_handoff_token.py`
+- `backend/app/api/routers/capture.py`
+- `backend/app/services/upload_handoff_service.py`
+- `backend/tests/test_upload_handoff.py`
+
+**Scope:** M
+
+---
+
+## Task 80: QR handoff — frontend (StepView + mobile capture)
+
+**Description:** QR-блок в `StepView` (ДЗ + self_check); polling шага; mobile `/student/capture/[token]` с чеклистом и превью.
+
+**Acceptance criteria:**
+- [ ] AC-7.13: QR + «Сфотографировать с телефона»; fallback upload с ПК сохранён
+- [ ] AC-7.14: polling каждые 2–3 с до `answer_image_id`; UI «фото получено»
+- [ ] Mobile: чеклист (3 пункта) + превью перед отправкой
+- [ ] Auth hybrid: cookie → сразу камера; иначе login с redirect на capture
+
+**Verification:**
+- [ ] vitest: `StepView` handoff + polling mocks
+- [ ] vitest: `CapturePage.test.tsx`
+- [ ] Ручная проверка: ПК + телефон (или DevTools mobile)
+
+**Dependencies:** Task 79
+
+**Files:**
+- `frontend/components/tests/StepView.tsx`
+- `frontend/app/student/capture/[token]/page.tsx`
+- `frontend/components/homework/CaptureChecklist.tsx`
+- `frontend/lib/api/handoff.ts`
+
+**Scope:** M
+
+---
+
+### Checkpoint: Phase 15 срез B (после Tasks 79–80)
+
+- [ ] Ученик: QR → фото на телефоне → «Сравнить» на ПК
+- [ ] Handoff edge cases (expired, used, after checked) покрыты pytest
+- [ ] `pytest` + `vitest` зелёные
+
+---
+
+## Task 81: Feedback — models + audio upload API
+
+**Description:** `TestSessionStepFeedback`, `HomeworkSubmissionFeedback`; `POST/GET /api/uploads/audio` (teacher).
+
+**Acceptance criteria:**
+- [ ] AC-7.15 (часть): модели 1:1 с step / submission
+- [ ] Audio: webm/ogg, ≤15 МБ, soft reject &gt;10 мин → `422`
+- [ ] RBAC: teacher — upload; student/teacher — read по ДЗ
+- [ ] Migration `014_homework_feedback.py`
+
+**Verification:**
+- [ ] `pytest backend/tests/test_feedback_uploads.py`
+
+**Dependencies:** Task 67, Task 75
+
+**Files:**
+- `backend/app/models/homework_feedback.py`
+- `backend/alembic/versions/014_homework_feedback.py`
+- `backend/app/api/routers/uploads.py` (audio routes)
+- `backend/app/services/upload_service.py`
+- `backend/tests/test_feedback_uploads.py`
+
+**Scope:** M
+
+---
+
+## Task 82: Feedback — teacher/student API
+
+**Description:** `PUT` per-step и submission feedback; `GET` student feedback; `has_teacher_feedback` в student homework list.
+
+**Acceptance criteria:**
+- [ ] AC-7.15: save требует ≥1 из text/voice/images; upsert per step
+- [ ] AC-7.16: submission-level feedback опционален; student GET только после `submitted`
+- [ ] AC-3.9: `has_teacher_feedback: bool` в `HomeworkRead` list/detail
+- [ ] `published_at` при первом save
+
+**Verification:**
+- [ ] `pytest backend/tests/test_homework_feedback_api.py`
+
+**Dependencies:** Task 81, Task 77
+
+**Files:**
+- `backend/app/schemas/homework_feedback.py`
+- `backend/app/services/homework_feedback_service.py`
+- `backend/app/api/routers/homework.py` (feedback routes)
+- `backend/tests/test_homework_feedback_api.py`
+
+**Scope:** M
+
+---
+
+## Task 83: Teacher feedback UI
+
+**Description:** Форма отзыва в `WrittenAnswerReview`: запись голоса (`MediaRecorder`), upload фото, текст; общий комментарий к сдаче.
+
+**Acceptance criteria:**
+- [ ] AC-7.15, AC-7.16 (UI): сохранение per-step + опциональный блок «Общий комментарий»
+- [ ] Предупреждение при записи голоса &gt;10 мин
+- [ ] Аудиоплеер для превью перед save
+
+**Verification:**
+- [ ] vitest: `StepFeedbackForm.test.tsx`
+- [ ] Ручная проверка: teacher записывает голос → save → reload shows feedback
+
+**Dependencies:** Task 78, Task 82
+
+**Files:**
+- `frontend/components/homework/StepFeedbackForm.tsx`
+- `frontend/components/homework/VoiceRecorder.tsx`
+- `frontend/components/homework/WrittenAnswerReview.tsx`
+- `frontend/lib/api/homework-feedback.ts`
+
+**Scope:** M
+
+---
+
+## Task 84: Student feedback UI + badge
+
+**Description:** Бейдж **«Есть разбор»** в списке ДЗ; секция разбора на странице сданного ДЗ.
+
+**Acceptance criteria:**
+- [ ] AC-3.9: бейдж при `has_teacher_feedback`
+- [ ] Per-step: аудио + фото + текст; общий комментарий если есть
+- [ ] Authenticated audio/images через паттерн Task 76
+
+**Verification:**
+- [ ] vitest: `HomeworkList.test.tsx`, student homework detail feedback
+- [ ] Ручная проверка: teacher save → student видит бейдж и разбор
+
+**Dependencies:** Task 76, Task 82, Task 83
+
+**Files:**
+- `frontend/components/homework/HomeworkList.tsx`
+- `frontend/components/homework/HomeworkFeedbackPanel.tsx`
+- `frontend/app/student/homework/[id]/page.tsx`
+- `frontend/lib/api/homework.ts`
+
+**Scope:** M
+
+---
+
+### Checkpoint: Phase 15 полный (после Tasks 76–84)
+
+- [ ] E2E: ученик QR → сдача ДЗ → преподаватель review + голос → ученик бейдж + разбор
+- [ ] Нет пересдачи; нет статусов принято/доработка
+- [ ] AC-3.9, AC-7.11–7.16 закрыты
 - [ ] `pytest` + `vitest` зелёные
 
 ---
@@ -2194,4 +2486,5 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 11. После MVP → Phase 9 (Tasks 31–38, AI-советчик).
 12. После базового советчика → Phase 10 (Tasks 41–47). Начать с **Task 41**. ✅
 13. **Phase 11 (UI redesign, SPEC §14)** — параллельно с Phase 12 или после. ✅ Task 48 → Task 49. Task 51 опирается на Task 54 (кружки).
-14. **Phase 14 (Tasks 66–74)** — конструктор заданий преподавателя (SPEC §1.9, `docs/ideas/teacher-task-constructor.md`). **← рекомендуется после Phase 13.** Срез A: Tasks 66–72; срез B: Task 73; срез C: Task 74.
+14. **Phase 14 (Tasks 66–75)** — конструктор заданий преподавателя (SPEC §1.9, §1.9.8). ✅ local
+15. **Phase 15 (Tasks 76–84)** — проверка письменных ДЗ (SPEC §1.9.9, `docs/ideas/teacher-written-homework-review.md`). **← рекомендуется следующим.** Срез A: 76–78; B: 79–80; C: 81–84.

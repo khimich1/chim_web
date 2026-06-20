@@ -1,14 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import QRCode from "react-qr-code";
 
 import { CustomQuestionContent } from "@/components/tests/CustomQuestionContent";
 import { QuestionContent } from "@/components/tests/QuestionContent";
 import { StepProgressDots } from "@/components/tests/StepProgressDots";
 import { ApiError } from "@/lib/api/client";
+import { createHandoff } from "@/lib/api/handoff";
 import { uploadImage } from "@/lib/api/uploads";
-import { checkStep, compareStep, completeSession } from "@/lib/api/tests";
+import {
+  attachAnswerImage,
+  checkStep,
+  compareStep,
+  completeSession,
+  getSession,
+} from "@/lib/api/tests";
 import type { ContentBlock, TestSession, TestStep } from "@/lib/api/types";
 import { useTutorChat } from "@/lib/tutor/TutorChatContext";
 
@@ -55,8 +63,17 @@ export function StepView({ session }: { session: TestSession }) {
   const [referenceAnswer, setReferenceAnswer] = useState<ContentBlock[] | null>(
     null,
   );
-  const [answerImageUrl, setAnswerImageUrl] = useState<string | null>(null);
+  const [answerImageId, setAnswerImageId] = useState<string | null>(
+    session.steps[initialIndex]?.answer_image_id ?? null,
+  );
+  const [answerImageUrl, setAnswerImageUrl] = useState<string | null>(
+    session.steps[initialIndex]?.answer_image_url ?? null,
+  );
   const [uploadingAnswerImage, setUploadingAnswerImage] = useState(false);
+  const [handoffUrl, setHandoffUrl] = useState<string | null>(null);
+  const [handoffLoading, setHandoffLoading] = useState(false);
+  const [handoffPolling, setHandoffPolling] = useState(false);
+  const [photoReceivedFromPhone, setPhotoReceivedFromPhone] = useState(false);
   const [checking, setChecking] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +81,9 @@ export function StepView({ session }: { session: TestSession }) {
   const step = steps[current];
   const isLast = current === steps.length - 1;
   const isSelfCheck = step?.grading_mode === "self_check";
+  const isHomeworkSession = session.homework_assignment_id != null;
+  const requiresPhoto = isHomeworkSession && isSelfCheck;
+  const isChecked = step?.status === "checked";
 
   const checkedCount = useMemo(
     () => steps.filter((s) => s.status === "checked").length,
@@ -79,24 +99,114 @@ export function StepView({ session }: { session: TestSession }) {
     setCurrent(index);
     setAnswer(steps[index]?.answer ?? "");
     setReferenceAnswer(null);
-    setAnswerImageUrl(null);
+    setAnswerImageId(steps[index]?.answer_image_id ?? null);
+    setAnswerImageUrl(steps[index]?.answer_image_url ?? null);
+    setHandoffUrl(null);
+    setHandoffPolling(false);
+    setPhotoReceivedFromPhone(false);
     setError(null);
   }
 
-  function buildAnswerPayload(): string {
-    const text = answer.trim();
-    if (answerImageUrl) {
-      return text ? `${text}\n${answerImageUrl}` : answerImageUrl;
+  const pollHandoffPhoto = useCallback(async () => {
+    if (!step) {
+      return;
     }
-    return text;
+    try {
+      const updated = await getSession(session.id);
+      const updatedStep = updated.steps.find((item) => item.position === step.position);
+      if (!updatedStep?.answer_image_id) {
+        return;
+      }
+      setAnswerImageId(updatedStep.answer_image_id);
+      setAnswerImageUrl(updatedStep.answer_image_url ?? null);
+      setSteps((prev) =>
+        prev.map((item) =>
+          item.position === step.position
+            ? {
+                ...item,
+                answer_image_id: updatedStep.answer_image_id,
+                answer_image_url: updatedStep.answer_image_url,
+              }
+            : item,
+        ),
+      );
+      setPhotoReceivedFromPhone(true);
+      setHandoffUrl(null);
+      setHandoffPolling(false);
+    } catch {
+      // polling is best-effort until photo arrives or handoff expires
+    }
+  }, [session.id, step]);
+
+  useEffect(() => {
+    if (!requiresPhoto || !handoffPolling || answerImageId || isChecked) {
+      return;
+    }
+    const intervalId = window.setInterval(() => {
+      void pollHandoffPhoto();
+    }, 2500);
+    void pollHandoffPhoto();
+    return () => window.clearInterval(intervalId);
+  }, [
+    requiresPhoto,
+    handoffPolling,
+    answerImageId,
+    isChecked,
+    pollHandoffPhoto,
+  ]);
+
+  async function handleStartHandoff() {
+    if (!step) {
+      return;
+    }
+    setError(null);
+    setHandoffLoading(true);
+    try {
+      const result = await createHandoff(session.id, step.position);
+      setHandoffUrl(result.capture_url);
+      setHandoffPolling(true);
+      setPhotoReceivedFromPhone(false);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Не удалось создать QR для съёмки.",
+      );
+    } finally {
+      setHandoffLoading(false);
+    }
+  }
+
+  function buildAnswerPayload(): string {
+    return answer.trim();
   }
 
   async function handleAnswerImageUpload(file: File) {
+    if (!step) {
+      return;
+    }
     setError(null);
     setUploadingAnswerImage(true);
     try {
       const result = await uploadImage(file);
-      setAnswerImageUrl(result.url);
+      const attached = await attachAnswerImage(
+        session.id,
+        step.position,
+        result.id,
+      );
+      setAnswerImageId(attached.answer_image_id);
+      setAnswerImageUrl(attached.answer_image_url);
+      setSteps((prev) =>
+        prev.map((s) =>
+          s.position === step.position
+            ? {
+                ...s,
+                answer_image_id: attached.answer_image_id,
+                answer_image_url: attached.answer_image_url,
+              }
+            : s,
+        ),
+      );
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -193,7 +303,6 @@ export function StepView({ session }: { session: TestSession }) {
     return <p className="text-sm text-zinc-500">В этом тесте нет заданий.</p>;
   }
 
-  const isChecked = step.status === "checked";
   const showAskTutor =
     !customSession &&
     isChecked &&
@@ -214,10 +323,15 @@ export function StepView({ session }: { session: TestSession }) {
     });
   }
 
-  const actionDisabled =
-    checking ||
-    (isSelfCheck ? buildAnswerPayload() === "" : answer.trim() === "") ||
-    isChecked;
+  const actionDisabled = (() => {
+    if (checking || isChecked) {
+      return true;
+    }
+    if (isSelfCheck) {
+      return requiresPhoto ? !answerImageId : false;
+    }
+    return answer.trim() === "";
+  })();
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -267,29 +381,58 @@ export function StepView({ session }: { session: TestSession }) {
               disabled={isChecked}
               className="chem-input min-h-[44px] w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 disabled:bg-zinc-50"
             />
-            {customSession ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="cursor-pointer rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:border-zinc-400">
-                  {uploadingAnswerImage ? "Загрузка…" : "Прикрепить изображение"}
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="sr-only"
-                    disabled={isChecked || uploadingAnswerImage}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        void handleAnswerImageUpload(file);
-                      }
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
-                {answerImageUrl ? (
-                  <span className="text-xs text-chem-teal-dark">
-                    Изображение прикреплено
-                  </span>
+            {requiresPhoto ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleStartHandoff()}
+                    disabled={isChecked || handoffLoading || !!answerImageId}
+                    className="rounded-md border border-chem-teal bg-chem-teal-soft px-3 py-1.5 text-sm text-chem-teal-dark hover:border-chem-teal disabled:opacity-60"
+                  >
+                    {handoffLoading
+                      ? "Создание QR…"
+                      : "Сфотографировать с телефона"}
+                  </button>
+                  <label className="cursor-pointer rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:border-zinc-400">
+                    {uploadingAnswerImage ? "Загрузка…" : "Прикрепить с этого устройства"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="sr-only"
+                      disabled={isChecked || uploadingAnswerImage}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          void handleAnswerImageUpload(file);
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {handoffUrl ? (
+                  <div className="flex flex-col items-start gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                    <p className="text-xs text-zinc-600">
+                      Отсканируйте QR на телефоне. Фото появится здесь автоматически.
+                    </p>
+                    <QRCode value={handoffUrl} size={128} />
+                    {handoffPolling ? (
+                      <p className="text-xs text-zinc-500">Ожидание фото с телефона…</p>
+                    ) : null}
+                  </div>
                 ) : null}
+
+                {answerImageUrl || photoReceivedFromPhone ? (
+                  <span className="text-xs text-chem-teal-dark">
+                    {photoReceivedFromPhone ? "Фото получено с телефона" : "Фото прикреплено"}
+                  </span>
+                ) : (
+                  <span className="text-xs text-zinc-500">
+                    Фото обязательно перед сравнением
+                  </span>
+                )}
               </div>
             ) : null}
           </div>

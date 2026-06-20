@@ -12,9 +12,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routers import capture as capture_router
 from app.api.routers import custom_themes as custom_themes_router
 from app.api.routers import auth as auth_router
 from app.api.routers import homework as homework_router
+from app.api.routers import student_homework as student_homework_router
 from app.api.routers import leaderboard as leaderboard_router
 from app.api.routers import notifications as notifications_router
 from app.api.routers import students as students_router
@@ -61,10 +63,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(teacher_stats_router.router)
     application.include_router(leaderboard_router.router)
     application.include_router(homework_router.router)
+    application.include_router(student_homework_router.router)
     application.include_router(notifications_router.router)
     application.include_router(textbook_router.router)
     application.include_router(tests_router.router)
     application.include_router(test_sessions_router.router)
+    application.include_router(capture_router.router)
     application.include_router(custom_themes_router.router)
     application.include_router(tutor_router.router)
     application.include_router(uploads_router.router)

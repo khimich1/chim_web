@@ -184,6 +184,17 @@ def _student_id(client: TestClient) -> str:
 def _complete_custom_session(client: TestClient, session_id: str, body: dict) -> None:
     for index, step in enumerate(body["steps"]):
         if step.get("grading_mode") == "self_check":
+            upload = client.post(
+                "/api/uploads/images",
+                files={"file": ("answer.png", _PNG_BYTES, "image/png")},
+            )
+            assert upload.status_code == 201, upload.text
+            image_id = upload.json()["id"]
+            attach = client.post(
+                f"/api/tests/sessions/{session_id}/steps/{index}/answer-image",
+                json={"answer_image_id": image_id},
+            )
+            assert attach.status_code == 200, attach.text
             client.post(
                 f"/api/tests/sessions/{session_id}/steps/{index}/compare",
                 json={"answer": "my answer"},
@@ -195,6 +206,14 @@ def _complete_custom_session(client: TestClient, session_id: str, body: dict) ->
             )
     complete = client.post(f"/api/tests/sessions/{session_id}/complete")
     assert complete.status_code == 200, complete.text
+
+
+_PNG_BYTES = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+    b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde"
+    b"\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N"
+    b"\x00\x00\x00\x00IEND\xaeB`\x82"
+)
 
 
 def test_create_homework_with_custom_theme(client: TestClient) -> None:

@@ -1,59 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
+import { AuthenticatedImage } from "@/components/common/AuthenticatedImage";
 import { Formula } from "@/components/textbook/Formula";
-import { API_URL } from "@/lib/api/client";
 import type { ContentBlock } from "@/lib/api/types";
 import { splitTextWithFormulas } from "@/lib/tests/question-text";
-
-function UploadImage({ path }: { path: string }) {
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let objectUrl: string | null = null;
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const response = await fetch(`${API_URL}${path}`, {
-          credentials: "include",
-        });
-        if (!response.ok || cancelled) {
-          return;
-        }
-        const blob = await response.blob();
-        objectUrl = URL.createObjectURL(blob);
-        if (!cancelled) {
-          setSrc(objectUrl);
-        }
-      } catch {
-        // image optional
-      }
-    }
-
-    void load();
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [path]);
-
-  if (!src) {
-    return null;
-  }
-
-  return (
-    <img
-      src={src}
-      alt="Иллюстрация к заданию"
-      className="my-3 block h-auto max-w-full rounded-md border border-zinc-200 object-contain"
-    />
-  );
-}
 
 function TextBlock({ text }: { text: string }) {
   const segments = splitTextWithFormulas(text);
@@ -87,10 +37,14 @@ export function CustomQuestionContent({
           return <TextBlock key={index} text={block.content} />;
         }
         if (block.type === "image" && block.url) {
-          const path = block.url.startsWith("http")
-            ? new URL(block.url).pathname
-            : block.url;
-          return <UploadImage key={index} path={path} />;
+          return (
+            <AuthenticatedImage
+              key={index}
+              src={block.url}
+              alt="Иллюстрация к заданию"
+              className="my-3 block h-auto max-w-full rounded-md border border-zinc-200 object-contain"
+            />
+          );
         }
         return null;
       })}

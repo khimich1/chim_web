@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { WrittenAnswerReview } from "@/components/homework/WrittenAnswerReview";
 import { formatHomeworkItemLabel } from "@/components/homework/homework-utils";
 import { getHomework } from "@/lib/api/server";
 
@@ -88,6 +89,8 @@ export default async function TeacherHomeworkDetailPage({
             ))}
           </ol>
         </div>
+
+        <WrittenAnswerReview steps={homework.submission_steps ?? []} />
       </section>
     </main>
   );

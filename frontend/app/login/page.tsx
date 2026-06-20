@@ -2,7 +2,14 @@ import { LoginForm } from "@/components/auth/LoginForm";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { DecorativeBlobs } from "@/components/ui/DecorativeBlobs";
 
-export default function LoginPage() {
+interface LoginPageProps {
+  searchParams: Promise<{ redirect?: string }>;
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const params = await searchParams;
+  const redirectTo = params.redirect ?? null;
+
   return (
     <main className="relative isolate flex min-h-screen items-center justify-center px-4 py-16 sm:px-6">
       <DecorativeBlobs scoped />
@@ -17,7 +24,7 @@ export default function LoginPage() {
             <h1 className="mt-1 text-2xl font-semibold text-white">Вход</h1>
           </header>
           <div className="px-6 py-6 sm:px-8 sm:py-8">
-            <LoginForm />
+            <LoginForm redirectTo={redirectTo} />
           </div>
         </div>
       </div>

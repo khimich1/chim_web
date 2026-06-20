@@ -69,6 +69,8 @@ class StepRead(BaseModel):
     grading_mode: GradingMode | None = None
     status: StepStatus
     answer: str | None = None
+    answer_image_id: uuid.UUID | None = None
+    answer_image_url: str | None = None
     is_correct: bool | None = None
     hint_used: bool
 
@@ -92,6 +94,16 @@ class SessionRead(BaseModel):
 
 class StepCheckRequest(BaseModel):
     answer: str = Field(max_length=512)
+
+
+class StepAttachAnswerImageRequest(BaseModel):
+    answer_image_id: uuid.UUID
+
+
+class StepAttachAnswerImageResponse(BaseModel):
+    position: int
+    answer_image_id: uuid.UUID
+    answer_image_url: str
 
 
 class StepCheckResponse(BaseModel):

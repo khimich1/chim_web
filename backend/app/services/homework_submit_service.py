@@ -31,9 +31,10 @@ from app.models import (
     TestSessionStatus,
     User,
 )
-from app.models.enums import HomeworkItemKind
+from app.models.enums import GradingMode, HomeworkItemKind
 from app.repositories.app.homework_repo import HomeworkRepository
 from app.repositories.app.notification_repo import NotificationRepository
+from app.repositories.app.teacher_theme_repo import TeacherThemeRepository
 from app.repositories.app.test_session_repo import TestSessionRepository
 from app.schemas.homework import HomeworkRead, HomeworkSubmitRequest
 from app.services.activity_service import ActivityService
@@ -60,6 +61,7 @@ class HomeworkSubmitService:
         self._session = session
         self._homework = HomeworkRepository(session)
         self._sessions = TestSessionRepository(session)
+        self._theme_repo = TeacherThemeRepository(session)
         self._notifications = NotificationRepository(session)
         self._activity = activity or ActivityService(session)
 
@@ -232,6 +234,7 @@ class HomeworkSubmitService:
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail="Complete the test session before submitting homework",
                 )
+            await self._validate_self_check_photos(test_session)
             return test_session
 
         # No explicit id: use the latest completed session linked to this homework.
@@ -250,7 +253,25 @@ class HomeworkSubmitService:
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Complete the test session before submitting homework",
             )
-        return test_session
+        reloaded = await self._sessions.get_with_steps(test_session.id)
+        assert reloaded is not None
+        await self._validate_self_check_photos(reloaded)
+        return reloaded
+
+    async def _validate_self_check_photos(self, test_session: TestSession) -> None:
+        if test_session.homework_assignment_id is None:
+            return
+        for step in test_session.steps:
+            if step.custom_task_id is None:
+                continue
+            task = await self._theme_repo.get_task_by_id(step.custom_task_id)
+            if task is None or task.grading_mode != GradingMode.SELF_CHECK:
+                continue
+            if step.answer_image_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="All self_check steps must include an answer photo before submit",
+                )
 
     async def _load_owned_assignment(
         self,

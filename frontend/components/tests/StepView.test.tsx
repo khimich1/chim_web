@@ -3,7 +3,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { StepView } from "@/components/tests/StepView";
-import { checkStep, compareStep, completeSession } from "@/lib/api/tests";
+import { uploadImage } from "@/lib/api/uploads";
+import { attachAnswerImage, checkStep, compareStep, completeSession, getSession } from "@/lib/api/tests";
+import { createHandoff } from "@/lib/api/handoff";
 import type { TestSession } from "@/lib/api/types";
 
 const push = vi.fn();
@@ -21,6 +23,16 @@ vi.mock("@/lib/api/tests", () => ({
   checkStep: vi.fn(),
   compareStep: vi.fn(),
   completeSession: vi.fn(),
+  attachAnswerImage: vi.fn(),
+  getSession: vi.fn(),
+}));
+
+vi.mock("@/lib/api/handoff", () => ({
+  createHandoff: vi.fn(),
+}));
+
+vi.mock("react-qr-code", () => ({
+  default: ({ value }: { value: string }) => <div data-testid="qr-code">{value}</div>,
 }));
 
 vi.mock("@/lib/api/uploads", () => ({
@@ -40,6 +52,10 @@ vi.mock("@/components/tests/CustomQuestionContent", () => ({
 const mockedCheck = vi.mocked(checkStep);
 const mockedCompare = vi.mocked(compareStep);
 const mockedComplete = vi.mocked(completeSession);
+const mockedAttach = vi.mocked(attachAnswerImage);
+const mockedUpload = vi.mocked(uploadImage);
+const mockedGetSession = vi.mocked(getSession);
+const mockedCreateHandoff = vi.mocked(createHandoff);
 
 const session: TestSession = {
   id: "sess-1",
@@ -264,5 +280,175 @@ describe("StepView", () => {
     );
     expect(await screen.findByText("Эталон")).toBeInTheDocument();
     expect(mockedCheck).not.toHaveBeenCalled();
+  });
+
+  it("hides photo upload in practice self_check mode", () => {
+    const customSession: TestSession = {
+      id: "sess-custom",
+      track: "ege",
+      source: "custom",
+      variant_ref: null,
+      homework_assignment_id: null,
+      custom_theme_id: "theme-1",
+      status: "in_progress",
+      score: null,
+      max_score: null,
+      total_steps: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      steps: [
+        {
+          position: 0,
+          test_id: null,
+          custom_task_id: "task-1",
+          type: null,
+          question: null,
+          options: null,
+          question_blocks: [{ type: "text", content: "Опишите реакцию" }],
+          grading_mode: "self_check",
+          status: "unseen",
+          answer: null,
+          is_correct: null,
+          hint_used: false,
+        },
+      ],
+    };
+
+    render(<StepView session={customSession} />);
+
+    expect(
+      screen.queryByRole("button", { name: /Прикрепить фото решения/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Сравнить ответ" }),
+    ).not.toBeDisabled();
+  });
+
+  it("requires photo before compare in homework self_check mode", async () => {
+    const homeworkSession: TestSession = {
+      id: "sess-hw",
+      track: "ege",
+      source: "custom",
+      variant_ref: null,
+      homework_assignment_id: "hw-1",
+      custom_theme_id: "theme-1",
+      status: "in_progress",
+      score: null,
+      max_score: null,
+      total_steps: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      steps: [
+        {
+          position: 0,
+          test_id: null,
+          custom_task_id: "task-1",
+          type: null,
+          question: null,
+          options: null,
+          question_blocks: [{ type: "text", content: "Решение" }],
+          grading_mode: "self_check",
+          status: "unseen",
+          answer: null,
+          is_correct: null,
+          hint_used: false,
+        },
+      ],
+    };
+
+    mockedUpload.mockResolvedValue({
+      id: "img-1",
+      url: "/api/uploads/images/img-1",
+    });
+    mockedAttach.mockResolvedValue({
+      position: 0,
+      answer_image_id: "img-1",
+      answer_image_url: "/api/uploads/images/img-1",
+    });
+    mockedCompare.mockResolvedValue({
+      position: 0,
+      status: "checked",
+      reference_answer: [{ type: "text", content: "Эталон" }],
+    });
+
+    render(<StepView session={homeworkSession} />);
+
+    const compareButton = screen.getByRole("button", { name: "Сравнить ответ" });
+    expect(compareButton).toBeDisabled();
+
+    const fileInput = screen.getByLabelText(/Прикрепить с этого устройства/i);
+    const file = new File(["photo"], "work.jpg", { type: "image/jpeg" });
+    await userEvent.upload(fileInput, file);
+
+    await waitFor(() => {
+      expect(mockedUpload).toHaveBeenCalled();
+      expect(mockedAttach).toHaveBeenCalledWith("sess-hw", 0, "img-1");
+    });
+
+    expect(compareButton).not.toBeDisabled();
+    await userEvent.click(compareButton);
+    expect(mockedCompare).toHaveBeenCalledWith("sess-hw", 0, "");
+  });
+
+  it("creates handoff QR and polls until photo arrives", async () => {
+    const homeworkSession: TestSession = {
+      id: "sess-hw",
+      track: "ege",
+      source: "custom",
+      variant_ref: null,
+      homework_assignment_id: "hw-1",
+      custom_theme_id: "theme-1",
+      status: "in_progress",
+      score: null,
+      max_score: null,
+      total_steps: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      steps: [
+        {
+          position: 0,
+          test_id: null,
+          custom_task_id: "task-1",
+          type: null,
+          question: null,
+          options: null,
+          question_blocks: [{ type: "text", content: "Решение" }],
+          grading_mode: "self_check",
+          status: "unseen",
+          answer: null,
+          is_correct: null,
+          hint_used: false,
+        },
+      ],
+    };
+
+    mockedCreateHandoff.mockResolvedValue({
+      token: "handoff-token",
+      capture_url: "http://localhost:3000/student/capture/handoff-token",
+      expires_at: "2026-06-20T12:00:00Z",
+    });
+    mockedGetSession.mockResolvedValue({
+      ...homeworkSession,
+      steps: [
+        {
+          ...homeworkSession.steps[0],
+          answer_image_id: "img-phone",
+          answer_image_url: "/api/uploads/images/img-phone",
+        },
+      ],
+    });
+
+    render(<StepView session={homeworkSession} />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Сфотографировать с телефона" }),
+    );
+
+    expect(mockedCreateHandoff).toHaveBeenCalledWith("sess-hw", 0);
+    expect(screen.getByTestId("qr-code")).toHaveTextContent(
+      "http://localhost:3000/student/capture/handoff-token",
+    );
+
+    await waitFor(() => {
+      expect(mockedGetSession).toHaveBeenCalledWith("sess-hw");
+      expect(screen.getByText("Фото получено с телефона")).toBeInTheDocument();
+    });
   });
 });
