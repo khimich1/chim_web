@@ -83,25 +83,23 @@ jobs:
           sed -i 's/^JWT_SECRET=.*/JWT_SECRET=ci-test-jwt-secret-at-least-32-bytes-long/' .env
 
       - name: Build and start stack
-        run: docker compose up --build -d
+        run: docker compose up --build -d --wait
 
-      - name: Wait for nginx /health
+      - name: Smoke test via nginx
         run: |
-          for attempt in $(seq 1 36); do
-            if curl -sf http://localhost:8080/health; then
-              echo "Stack is healthy"
+          for attempt in $(seq 1 12); do
+            if curl -sf http://localhost:8080/health >/dev/null \
+              && curl -sf -o /dev/null -w "%{http_code}" http://localhost:8080/ | grep -q '^200$'; then
+              echo "Stack smoke test passed (backend /health + frontend /)"
               exit 0
             fi
-            echo "Waiting for stack... (${attempt}/36)"
-            sleep 10
+            echo "Waiting for nginx routes... (${attempt}/12)"
+            sleep 5
           done
-          echo "Stack failed to become healthy"
+          echo "Stack failed smoke test"
           docker compose ps
           docker compose logs
           exit 1
-
-      - name: Smoke test frontend via nginx
-        run: curl -sf -o /dev/null -w "%{http_code}\n" http://localhost:8080/ | grep -q '^200$'
 
       - name: Tear down
         if: always()
