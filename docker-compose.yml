@@ -10,7 +10,8 @@
 
 services:
   postgres:
-    image: postgres:16-alpine
+    # pgvector required by alembic migration 007_rag_embeddings (CREATE EXTENSION vector)
+    image: pgvector/pgvector:pg16
     container_name: chim-postgres
     restart: unless-stopped
     ports:

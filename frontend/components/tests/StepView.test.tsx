@@ -424,7 +424,7 @@ describe("StepView", () => {
       capture_url: "http://localhost:3000/student/capture/handoff-token",
       expires_at: "2026-06-20T12:00:00Z",
     });
-    mockedGetSession.mockResolvedValue({
+    const sessionWithPhoto: TestSession = {
       ...homeworkSession,
       steps: [
         {
@@ -433,7 +433,10 @@ describe("StepView", () => {
           answer_image_url: "/api/uploads/images/img-phone",
         },
       ],
-    });
+    };
+    mockedGetSession
+      .mockResolvedValueOnce(homeworkSession)
+      .mockResolvedValue(sessionWithPhoto);
 
     render(<StepView session={homeworkSession} />);
 
@@ -442,13 +445,18 @@ describe("StepView", () => {
     );
 
     expect(mockedCreateHandoff).toHaveBeenCalledWith("sess-hw", 0);
-    expect(screen.getByTestId("qr-code")).toHaveTextContent(
-      "http://localhost:3000/student/capture/handoff-token",
-    );
-
     await waitFor(() => {
-      expect(mockedGetSession).toHaveBeenCalledWith("sess-hw");
-      expect(screen.getByText("Фото получено с телефона")).toBeInTheDocument();
+      expect(screen.getByTestId("qr-code")).toHaveTextContent(
+        "http://localhost:3000/student/capture/handoff-token",
+      );
     });
+
+    await waitFor(
+      () => {
+        expect(mockedGetSession).toHaveBeenCalledWith("sess-hw");
+        expect(screen.getByText("Фото получено с телефона")).toBeInTheDocument();
+      },
+      { timeout: 5000 },
+    );
   });
 });
