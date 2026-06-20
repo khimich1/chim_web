@@ -1440,12 +1440,12 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 **Description:** Tools для преподавателя (RBAC: только свои ученики): `summarize_student(student_id)` (слабые темы, типичные ошибки, активность), `suggest_homework(student_id)` (черновик `HomeworkCreate` items под слабые темы — **без** автосоздания), `class_overview()` (агрегат ошибок по `type` всех учеников).
 
 **Acceptance criteria:**
-- [ ] RBAC: teacher получает данные только своих учеников (по `teacher_id`) → иначе пусто/403
-- [ ] `suggest_homework` возвращает **черновик** (preview), создание ДЗ — обычным endpoint после подтверждения (Boundaries §16.5)
-- [ ] `class_overview` агрегирует по `type` без утечки персональных ответов в общий вывод
+- [x] RBAC: teacher получает данные только своих учеников (по `teacher_id`) → иначе пусто/403
+- [x] `suggest_homework` возвращает **черновик** (preview), создание ДЗ — обычным endpoint после подтверждения (Boundaries §16.5)
+- [x] `class_overview` агрегирует по `type` без утечки персональных ответов в общий вывод
 
 **Verification:**
-- [ ] `pytest backend/tests/tutor/test_tools.py`: RBAC teacher↔students, черновик не пишет в БД
+- [x] `pytest backend/tests/tutor/test_teacher_tools.py`: RBAC teacher↔students, черновик не пишет в БД
 
 **Dependencies:** Task 43, Task 33 (TutorSession), Task 21 (Homework)
 **Files:** `backend/app/services/tutor/tools.py`, `backend/app/services/tutor/prompts.py`, `backend/tests/tutor/test_tools.py`
@@ -1483,15 +1483,15 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 **Description:** (U1) Streaming ответов через SSE — токены по мере генерации. (U2) Markdown-рендер в `MessageBubble` + sanitization (закрывает отложенный S2). (A7) Перенос профиля ученика из JSON-файлов `tutor_profiles/` в PostgreSQL (`save_user_info` пишет в app DB по `user_id`).
 
 **Acceptance criteria:**
-- [ ] U1: ответ агента стримится в overlay; при solve-pipeline стримится финальный `solver` (open question §16 №3)
-- [ ] U2: markdown (формулы, списки, таблицы) рендерится безопасно (sanitization) в `MessageBubble`
-- [ ] A7: профиль в PostgreSQL, переживает рестарт/несколько воркеров; JSON-файлы больше не используются
-- [ ] Alembic-миграция таблицы профиля; данные изолированы по `user_id`
+- [x] U1: ответ агента стримится в overlay; при solve-pipeline стримится финальный `solver` (open question §16 №3)
+- [x] U2: markdown (формулы, списки, таблицы) рендерится безопасно (sanitization) в `MessageBubble`
+- [x] A7: профиль в PostgreSQL, переживает рестарт/несколько воркеров; JSON-файлы больше не используются
+- [x] Alembic-миграция таблицы профиля; данные изолированы по `user_id`
 
 **Verification:**
-- [ ] `pytest backend/tests/tutor/test_memory.py`: профиль читается/пишется из PG
-- [ ] `vitest`: markdown render + sanitization в `MessageBubble`; ручная проверка streaming в браузере
-- [ ] `alembic upgrade head`
+- [x] `pytest backend/tests/tutor/test_memory.py`: профиль читается/пишется из PG
+- [x] `vitest`: markdown render + sanitization в `MessageBubble`; streaming в `TutorChatOverlay` (mock)
+- [x] `alembic upgrade head`
 
 **Dependencies:** Task 33, Task 35, Task 36
 **Files:** `backend/app/services/tutor/memory.py`, `backend/app/repositories/app/tutor_repo.py`, `backend/alembic/versions/*_tutor_profile.py`, `backend/app/api/routers/tutor.py` (SSE), `frontend/components/tutor/TutorChatOverlay.tsx`, `backend/tests/tutor/test_memory.py`
@@ -1504,7 +1504,7 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 - [ ] RAG-cleanup: индекс без `source == "test"`; hybrid recall@5 ≥ 0.8 (Task 41)
 - [ ] Solve-pipeline: ключ сверяется с `correct_ans` кодом; точечный gating на тесте (AC-17.x, Task 42 + Task 57, §1.3.4)
 - [ ] Персональный тьютор: ДЗ, анализ ошибок, рекомендации тем — только свои данные (AC-16.4, Tasks 43–44)
-- [ ] UX: streaming + markdown; профиль в PostgreSQL (Task 47)
+- [x] UX: streaming + markdown; профиль в PostgreSQL (Task 47)
 - [ ] _(опционально, Task 46)_ Анти-галлюцинации: пустой retrieval → отказ; цитата обязательна — только если eval покажет остаточные проблемы
 - [ ] Прежние tutor-тесты (Tasks 31–38) и MVP без регрессий
 

@@ -8,8 +8,15 @@ from typing import Any
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from sqlalchemy.orm.attributes import flag_modified
 
-from app.models import TutorMessage, TutorMessageRole, TutorSession, UserRole
+from app.models import (
+    TutorMessage,
+    TutorMessageRole,
+    TutorSession,
+    TutorUserProfile,
+    UserRole,
+)
 
 
 class TutorRepository:
@@ -94,3 +101,26 @@ class TutorRepository:
         await self._session.flush()
         await self._session.refresh(message)
         return message
+
+    async def get_profile_data(self, user_id: uuid.UUID) -> dict[str, Any]:
+        row = await self._session.get(TutorUserProfile, user_id)
+        if row is None or not isinstance(row.data, dict):
+            return {}
+        return dict(row.data)
+
+    async def upsert_profile_key(
+        self,
+        user_id: uuid.UUID,
+        key: str,
+        value: str,
+    ) -> dict[str, Any]:
+        row = await self._session.get(TutorUserProfile, user_id)
+        if row is None:
+            row = TutorUserProfile(user_id=user_id, data={})
+            self._session.add(row)
+        data = dict(row.data) if isinstance(row.data, dict) else {}
+        data[str(key)] = value
+        row.data = data
+        flag_modified(row, "data")
+        await self._session.flush()
+        return data

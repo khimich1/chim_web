@@ -46,6 +46,14 @@ class FakeLLM:
             return AIMessage(content="да")
         return AIMessage(content="Алканы — предельные углеводороды (мок-ответ).")
 
+    def stream(self, messages):  # noqa: ANN001
+        from langchain_core.messages import AIMessageChunk
+
+        response = self.invoke(messages)
+        text = response.content if isinstance(response.content, str) else str(response.content)
+        for piece in text.split():
+            yield AIMessageChunk(content=f"{piece} ")
+
 
 class RecordingLLM(FakeLLM):
     """FakeLLM that records the message lists passed to each invoke()."""
@@ -235,6 +243,34 @@ def test_create_session_and_send_message(tutor_client: TestClient) -> None:
     messages = detail.json()["messages"]
     assert len(messages) == 2
     assert messages[0]["role"] == "user"
+    assert messages[1]["role"] == "assistant"
+
+
+def test_stream_message_returns_sse_tokens(tutor_client: TestClient) -> None:
+    _login(tutor_client, STUDENT_EMAIL, STUDENT_PASS)
+
+    create = tutor_client.post(
+        "/api/tutor/sessions",
+        json={"page_context": {"topic": "Алканы"}},
+    )
+    session_id = create.json()["id"]
+
+    with tutor_client.stream(
+        "POST",
+        f"/api/tutor/sessions/{session_id}/messages/stream",
+        json={"content": "Что такое алканы?"},
+    ) as response:
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers.get("content-type", "")
+        body = response.read().decode("utf-8")
+
+    assert "event: token" in body
+    assert "event: done" in body
+    assert "алкан" in body.lower()
+
+    detail = tutor_client.get(f"/api/tutor/sessions/{session_id}")
+    messages = detail.json()["messages"]
+    assert len(messages) == 2
     assert messages[1]["role"] == "assistant"
 
 

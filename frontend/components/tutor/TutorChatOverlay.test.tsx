@@ -7,7 +7,7 @@ import {
   createTutorSession,
   getTutorHealth,
   getTutorSession,
-  sendTutorMessage,
+  streamTutorMessage,
 } from "@/lib/api/tutor";
 import { ApiError } from "@/lib/api/client";
 import { TutorChatProvider } from "@/lib/tutor/TutorChatContext";
@@ -22,13 +22,13 @@ vi.mock("@/lib/api/tutor", () => ({
   getTutorHealth: vi.fn(),
   createTutorSession: vi.fn(),
   getTutorSession: vi.fn(),
-  sendTutorMessage: vi.fn(),
+  streamTutorMessage: vi.fn(),
 }));
 
 const mockedHealth = vi.mocked(getTutorHealth);
 const mockedCreate = vi.mocked(createTutorSession);
 const mockedGet = vi.mocked(getTutorSession);
-const mockedSend = vi.mocked(sendTutorMessage);
+const mockedStream = vi.mocked(streamTutorMessage);
 
 function primeHappyPath() {
   mockedHealth.mockResolvedValue({
@@ -85,13 +85,17 @@ describe("TutorChatOverlay", () => {
     ).toBeInTheDocument();
   });
 
-  it("sends a message and renders the assistant reply", async () => {
+  it("sends a message and renders the streaming assistant reply", async () => {
     primeHappyPath();
-    mockedSend.mockResolvedValue({
-      message_id: "m1",
-      role: "assistant",
-      content: "Алканы малореакционны.",
-      sources: [],
+    mockedStream.mockImplementation(async (_sessionId, _content, handlers) => {
+      handlers.onToken("Алканы ");
+      handlers.onToken("малореакционны.");
+      handlers.onDone({
+        message_id: "m1",
+        role: "assistant",
+        content: "Алканы малореакционны.",
+        sources: [],
+      });
     });
     renderOverlay();
 
@@ -114,7 +118,7 @@ describe("TutorChatOverlay", () => {
 
   it("rolls back the optimistic message and restores input on error", async () => {
     primeHappyPath();
-    mockedSend.mockRejectedValue(new ApiError(503, "Агент недоступен"));
+    mockedStream.mockRejectedValue(new ApiError(503, "Агент недоступен"));
     renderOverlay();
 
     await userEvent.click(

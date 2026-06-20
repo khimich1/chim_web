@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api/client";
+import { API_URL, ApiError, apiFetch } from "@/lib/api/client";
 
 export interface TutorPageContext {
   topic?: string | null;
@@ -81,6 +81,101 @@ export function sendTutorMessage(
       body: JSON.stringify({ content }),
     },
   );
+}
+
+export interface TutorStreamHandlers {
+  onToken: (text: string) => void;
+  onDone: (response: TutorMessageResponse) => void;
+  onError?: (message: string) => void;
+}
+
+function parseSseBlock(block: string): { event: string; data: string } | null {
+  const lines = block.split("\n").filter(Boolean);
+  let event = "message";
+  let data = "";
+  for (const line of lines) {
+    if (line.startsWith("event:")) {
+      event = line.slice(6).trim();
+    } else if (line.startsWith("data:")) {
+      data += line.slice(5).trim();
+    }
+  }
+  if (!data) return null;
+  return { event, data };
+}
+
+/** Stream assistant reply via SSE (Task 47 U1). */
+export async function streamTutorMessage(
+  sessionId: string,
+  content: string,
+  handlers: TutorStreamHandlers,
+): Promise<void> {
+  const response = await fetch(
+    `${API_URL}/api/tutor/sessions/${sessionId}/messages/stream`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    },
+  );
+
+  if (!response.ok) {
+    let detail = response.statusText;
+    try {
+      const payload = await response.json();
+      if (typeof payload?.detail === "string") {
+        detail = payload.detail;
+      }
+    } catch {
+      // non-JSON error body
+    }
+    throw new ApiError(response.status, detail);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("Streaming not supported");
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const block = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      const parsed = parseSseBlock(block);
+      if (parsed) {
+        const payload = JSON.parse(parsed.data) as Record<string, unknown>;
+        if (parsed.event === "token" && typeof payload.text === "string") {
+          handlers.onToken(payload.text);
+        } else if (parsed.event === "done") {
+          handlers.onDone({
+            message_id: String(payload.message_id),
+            role: "assistant",
+            content: String(payload.content ?? ""),
+            sources: Array.isArray(payload.sources)
+              ? (payload.sources as TutorMessageResponse["sources"])
+              : [],
+          });
+        } else if (parsed.event === "error") {
+          const message =
+            typeof payload.detail === "string"
+              ? payload.detail
+              : "Ошибка стриминга";
+          handlers.onError?.(message);
+          throw new ApiError(503, message);
+        }
+      }
+      boundary = buffer.indexOf("\n\n");
+    }
+  }
 }
 
 export function listStudentTutorSessions(

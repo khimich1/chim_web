@@ -1,21 +1,24 @@
 """Tutor chat API (v2+ AI advisor).
 
-| Method | Path                              | Role            | Description              |
-|--------|-----------------------------------|-----------------|--------------------------|
-| GET    | /api/tutor/health/tutor           | student/teacher | Tutor readiness check    |
-| POST   | /api/tutor/sessions               | student/teacher | Create session           |
-| GET    | /api/tutor/sessions               | student/teacher | List own sessions        |
-| GET    | /api/tutor/sessions/{id}          | student/teacher | Session + messages       |
-| POST   | /api/tutor/sessions/{id}/messages | student/teacher | Send message → agent     |
-| GET    | /api/tutor/students/{id}/sessions | teacher         | Student sessions (RBAC)  |
+| Method | Path                                      | Role            | Description              |
+|--------|-------------------------------------------|-----------------|--------------------------|
+| GET    | /api/tutor/health/tutor                   | student/teacher | Tutor readiness check    |
+| POST   | /api/tutor/sessions                       | student/teacher | Create session           |
+| GET    | /api/tutor/sessions                       | student/teacher | List own sessions        |
+| GET    | /api/tutor/sessions/{id}                  | student/teacher | Session + messages       |
+| POST   | /api/tutor/sessions/{id}/messages         | student/teacher | Send message → agent     |
+| POST   | /api/tutor/sessions/{id}/messages/stream  | student/teacher | Send message → SSE stream|
+| GET    | /api/tutor/students/{id}/sessions         | teacher         | Student sessions (RBAC)  |
 """
 
 from __future__ import annotations
 
+import json
 import uuid
-from typing import Annotated
+from typing import Annotated, Any, AsyncIterator
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, TeacherUser, get_app_settings
@@ -88,6 +91,32 @@ async def send_tutor_message(
     service: Annotated[TutorService, Depends(get_tutor_service)],
 ) -> TutorMessageResponse:
     return await service.send_message(user, session_id, payload)
+
+
+def _format_sse(event: dict[str, Any]) -> str:
+    return f"event: {event['event']}\ndata: {json.dumps(event['data'], ensure_ascii=False)}\n\n"
+
+
+@router.post("/sessions/{session_id}/messages/stream")
+async def stream_tutor_message(
+    session_id: uuid.UUID,
+    payload: TutorMessageCreate,
+    user: CurrentUser,
+    service: Annotated[TutorService, Depends(get_tutor_service)],
+) -> StreamingResponse:
+    async def event_generator() -> AsyncIterator[str]:
+        async for event in service.stream_message(user, session_id, payload):
+            yield _format_sse(event)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get(

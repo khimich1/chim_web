@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END
@@ -66,27 +67,68 @@ def test_build_tools_include_student_tools_when_wired() -> None:
     assert {"generate_practice", "get_selfcheck"} <= names
 
 
-def test_save_user_info_persists(tmp_path, monkeypatch) -> None:
-    from app.core.config import Settings
+def test_save_user_info_persists_in_postgres(tmp_path: Path) -> None:
+    import asyncio
+    import uuid
 
-    settings = Settings(
-        database_url="postgresql+asyncpg://user:pass@localhost:5432/chemistry",
-        jwt_secret="test-secret",
-        tutor_profile_dir=tmp_path,
-    )
-    monkeypatch.setattr("app.services.tutor.memory.get_settings", lambda: settings)
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-    ctx = TutorRunContext(track="ege", user_id="student-1")
-    tools = build_tools(ctx)
-    save_tool = next(t for t in tools if t.name == "save_user_info")
-    raw = save_tool.invoke({"key": "grade", "value": "11 класс"})
-    data = json.loads(raw)
+    from app.db.base import Base
+    from app.models import User, UserRole
+    from app.services.tutor.memory import update_profile
+    from app.services.tutor.profile_service import TutorProfileService
 
-    assert data["status"] == "saved"
-    profile_file = tmp_path / "student-1.json"
-    assert profile_file.is_file()
-    saved = json.loads(profile_file.read_text(encoding="utf-8"))
-    assert saved["grade"] == "11 класс"
+    async def _run() -> None:
+        db_url = f"sqlite+aiosqlite:///{(tmp_path / 'profile_tool.db').as_posix()}"
+        engine = create_async_engine(db_url)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        session_maker = async_sessionmaker(engine, expire_on_commit=False)
+        user_id = uuid.uuid4()
+
+        async with session_maker() as db:
+            db.add(
+                User(
+                    id=user_id,
+                    email="graph@test.com",
+                    password_hash="hash",
+                    role=UserRole.STUDENT,
+                )
+            )
+            await db.flush()
+            service = TutorProfileService(db, user_id=user_id)
+            loop = asyncio.get_running_loop()
+
+            def run_async(coro):  # type: ignore[no-untyped-def]
+                future = asyncio.run_coroutine_threadsafe(coro, loop)
+                return future.result(timeout=5)
+
+            ctx = TutorRunContext(
+                track="ege",
+                user_id=str(user_id),
+                run_async=run_async,
+                profile_service=service,
+            )
+            from app.services.tutor.context import set_tutor_context
+
+            set_tutor_context(ctx)
+            result = await asyncio.to_thread(
+                update_profile,
+                "grade",
+                "11 класс",
+                str(user_id),
+            )
+            assert result["grade"] == "11 класс"
+            await db.commit()
+
+        async with session_maker() as db:
+            profile = await TutorProfileService(db, user_id=user_id).load()
+            assert profile["grade"] == "11 класс"
+
+        await engine.dispose()
+
+    asyncio.run(_run())
 
 
 def test_get_task_blocked_during_active_test_session() -> None:

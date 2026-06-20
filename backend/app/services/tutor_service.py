@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import uuid
+from collections.abc import AsyncIterator
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -38,6 +39,7 @@ from app.schemas.tutor import (
 )
 from app.services.tutor.context import TutorRunContext
 from app.services.tutor.graph import build_graph
+from app.services.tutor.profile_service import TutorProfileService
 from app.services.tutor.solve_gating import resolve_incorrect_step_gate
 from app.services.tutor.student_tools import StudentTutorToolsService
 from app.services.tutor.teacher_tools import TeacherTutorToolsService
@@ -159,12 +161,14 @@ class TutorService:
             if user.role == UserRole.TEACHER
             else None
         )
+        profile_service = TutorProfileService(self._db, user_id=user.id)
         ctx = await self._build_run_context(
             user,
             session.page_context,
             run_async=run_async,
             student_tools_service=student_service,
             teacher_tools_service=teacher_service,
+            profile_service=profile_service,
         )
         graph = build_graph(ctx, llm=self._llm, settings=self._settings)
         invoke_input = {
@@ -224,6 +228,163 @@ class TutorService:
             sources=sources,
         )
 
+    async def stream_message(
+        self,
+        user: User,
+        session_id: uuid.UUID,
+        payload: TutorMessageCreate,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Stream assistant tokens via SSE events (Task 47 U1)."""
+        session = await self._load_session(session_id)
+        self._ensure_session_access(user, session)
+
+        if self._llm is None and not self._settings.openai_api_key.strip():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "OPENAI_API_KEY не задан. Добавьте ключ в backend/.env "
+                    "и перезапустите сервер."
+                ),
+            )
+
+        history = await self._repo.list_messages(session.id)
+        user_message = await self._repo.add_message(
+            session_id=session.id,
+            role=TutorMessageRole.USER,
+            content=payload.content,
+        )
+        user_message_id = user_message.id
+        await self._db.commit()
+
+        loop = asyncio.get_running_loop()
+        invoke_timeout = self._settings.tutor_invoke_timeout
+        token_queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+        result_holder: dict[str, Any] = {}
+        error_holder: dict[str, BaseException] = {}
+
+        def run_async(coro):  # type: ignore[no-untyped-def]
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=invoke_timeout)
+
+        def stream_sink(text: str) -> None:
+            loop.call_soon_threadsafe(
+                token_queue.put_nowait,
+                {"event": "token", "data": {"text": text}},
+            )
+
+        student_service = (
+            StudentTutorToolsService(self._db, user=user)
+            if user.role == UserRole.STUDENT
+            else None
+        )
+        teacher_service = (
+            TeacherTutorToolsService(self._db, user=user)
+            if user.role == UserRole.TEACHER
+            else None
+        )
+        profile_service = TutorProfileService(self._db, user_id=user.id)
+        ctx = await self._build_run_context(
+            user,
+            session.page_context,
+            run_async=run_async,
+            student_tools_service=student_service,
+            teacher_tools_service=teacher_service,
+            profile_service=profile_service,
+            stream_sink=stream_sink,
+        )
+        graph = build_graph(ctx, llm=self._llm, settings=self._settings)
+        invoke_input = {
+            "messages": [
+                *self._history_to_lc_messages(history),
+                HumanMessage(content=payload.content),
+            ]
+        }
+        timeout = self._settings.tutor_invoke_timeout
+
+        async def run_agent() -> None:
+            try:
+                result_holder["result"] = await asyncio.wait_for(
+                    asyncio.to_thread(graph.invoke, invoke_input),
+                    timeout=timeout,
+                )
+            except BaseException as exc:  # noqa: BLE001
+                error_holder["error"] = exc
+            finally:
+                await token_queue.put(None)
+
+        agent_task = asyncio.create_task(run_agent())
+
+        yield {
+            "event": "user_message",
+            "data": {"message_id": str(user_message_id)},
+        }
+
+        while True:
+            item = await token_queue.get()
+            if item is None:
+                break
+            yield item
+
+        await agent_task
+
+        if "error" in error_holder:
+            exc = error_holder["error"]
+            await self._discard_message(user_message_id)
+            if isinstance(exc, asyncio.TimeoutError):
+                yield {
+                    "event": "error",
+                    "data": {
+                        "detail": (
+                            "Агент-советчик не ответил вовремя. "
+                            "Попробуйте ещё раз."
+                        ),
+                    },
+                }
+                return
+            logger.exception(
+                "Tutor agent stream failed for session %s",
+                session.id,
+            )
+            yield {
+                "event": "error",
+                "data": {
+                    "detail": (
+                        "Ошибка агента-советчика. Повторите запрос позже."
+                    ),
+                },
+            }
+            return
+
+        result = result_holder["result"]
+        assistant_text = self._extract_assistant_text(result["messages"])
+        sources = self._extract_sources(
+            result["messages"],
+            theory_hits=result.get("theory_hits"),
+        )
+        assistant_message = await self._repo.add_message(
+            session_id=session.id,
+            role=TutorMessageRole.ASSISTANT,
+            content=assistant_text,
+            sources=[
+                source.model_dump(mode="json", exclude_none=True)
+                for source in sources
+            ],
+        )
+        session.updated_at = assistant_message.created_at
+        await self._db.commit()
+
+        yield {
+            "event": "done",
+            "data": {
+                "message_id": str(assistant_message.id),
+                "content": assistant_text,
+                "sources": [
+                    source.model_dump(mode="json", exclude_none=True)
+                    for source in sources
+                ],
+            },
+        }
+
     async def _discard_message(self, message_id: uuid.UUID) -> None:
         """Remove a just-persisted message after an agent failure and commit."""
         await self._repo.delete_message(message_id)
@@ -280,6 +441,8 @@ class TutorService:
         run_async=None,
         student_tools_service: StudentTutorToolsService | None = None,
         teacher_tools_service: TeacherTutorToolsService | None = None,
+        profile_service: TutorProfileService | None = None,
+        stream_sink=None,
     ) -> TutorRunContext:
         track: ExamTrack = ExamTrack.EGE
         active_test_session_id: uuid.UUID | None = None
@@ -322,6 +485,8 @@ class TutorService:
             run_async=run_async,
             student_tools_service=student_tools_service,
             teacher_tools_service=teacher_tools_service,
+            profile_service=profile_service,
+            stream_sink=stream_sink,
         )
 
     async def _get_active_test_session_id(self, student_id: uuid.UUID) -> uuid.UUID | None:

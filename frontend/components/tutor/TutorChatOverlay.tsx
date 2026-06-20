@@ -8,7 +8,7 @@ import {
   createTutorSession,
   getTutorHealth,
   getTutorSession,
-  sendTutorMessage,
+  streamTutorMessage,
   type TutorMessage,
   type TutorPageContext,
 } from "@/lib/api/tutor";
@@ -132,22 +132,57 @@ export function TutorChatOverlay() {
         content: trimmed,
         created_at: new Date().toISOString(),
       };
+      const streamingAssistantId = `tmp-assistant-${Date.now()}`;
       setMessages((prev) => [...prev, optimisticUser]);
 
       try {
         const id = await ensureSession();
-        const response = await sendTutorMessage(id, trimmed);
-        const assistant: TutorMessage = {
-          id: response.message_id,
-          role: "assistant",
-          content: response.content,
-          sources: response.sources,
-          created_at: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, assistant]);
+        let streamedContent = "";
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: streamingAssistantId,
+            role: "assistant",
+            content: "",
+            created_at: new Date().toISOString(),
+          },
+        ]);
+
+        await streamTutorMessage(id, trimmed, {
+          onToken: (text) => {
+            streamedContent += text;
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === streamingAssistantId
+                  ? { ...message, content: streamedContent }
+                  : message,
+              ),
+            );
+          },
+          onDone: (response) => {
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === streamingAssistantId
+                  ? {
+                      id: response.message_id,
+                      role: "assistant",
+                      content: response.content,
+                      sources: response.sources,
+                      created_at: new Date().toISOString(),
+                    }
+                  : message,
+              ),
+            );
+          },
+        });
       } catch (err) {
         setError(formatFetchError(err, "Ошибка отправки сообщения"));
-        setMessages((prev) => prev.filter((m) => m.id !== optimisticUser.id));
+        setMessages((prev) =>
+          prev.filter(
+            (m) => m.id !== optimisticUser.id && !m.id.startsWith("tmp-assistant-"),
+          ),
+        );
         setInput(trimmed);
       } finally {
         setLoading(false);

@@ -18,6 +18,7 @@ from app.services.tutor.guards import (
     make_is_on_topic_checker,
     tool_output_guard,
 )
+from app.services.tutor.llm_utils import invoke_llm
 from app.services.tutor.memory import load_profile
 from app.services.tutor.prompts import build_system_prompt
 from app.services.tutor.solve.critic import (
@@ -55,7 +56,7 @@ def make_agent_node(llm: ChatOpenAI, ctx: TutorRunContext, tools: list):
         profile = load_profile(ctx.user_id)
         system_prompt = build_system_prompt(ctx, profile)
         messages = [SystemMessage(content=system_prompt)] + list(state["messages"])
-        response = bound.invoke(messages)
+        response = invoke_llm(bound, messages, ctx)
         return {"messages": [response]}
 
     return agent_node

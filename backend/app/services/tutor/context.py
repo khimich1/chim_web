@@ -11,12 +11,14 @@ from typing import TYPE_CHECKING, Literal, TypeVar
 from app.services.rag.documents import ExamTrack
 
 if TYPE_CHECKING:
+    from app.services.tutor.profile_service import TutorProfileService
     from app.services.tutor.student_tools import StudentTutorToolsService
     from app.services.tutor.teacher_tools import TeacherTutorToolsService
 
 TutorRole = Literal["student", "teacher"]
 T = TypeVar("T")
 AsyncRunner = Callable[[Awaitable[T]], T]
+StreamSink = Callable[[str], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +36,16 @@ class TutorRunContext:
         repr=False,
     )
     teacher_tools_service: TeacherTutorToolsService | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+    profile_service: TutorProfileService | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+    stream_sink: StreamSink | None = field(
         default=None,
         compare=False,
         repr=False,
