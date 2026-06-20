@@ -46,6 +46,7 @@ npm-debug.log*
 htmlcov/
 .coverage
 coverage/
+backend/coverage.json
 test-results/
 playwright-report/
 blob-report/

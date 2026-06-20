@@ -35,6 +35,13 @@ jobs:
           JWT_SECRET: "test-jwt-secret-at-least-32-bytes-long"
           CORS_ORIGINS: "http://localhost:3000"
 
+      - name: Coverage gate (Task 29)
+        run: python scripts/check_coverage.py
+        env:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+          JWT_SECRET: "test-jwt-secret-at-least-32-bytes-long"
+          CORS_ORIGINS: "http://localhost:3000"
+
   frontend:
     name: Frontend (lint + test + build)
     runs-on: ubuntu-latest
