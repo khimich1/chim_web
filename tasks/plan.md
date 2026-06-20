@@ -3,7 +3,7 @@
 **Источник:** [SPEC.md](../SPEC.md) v0.8.0 · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2 · геймификация: [`docs/ideas/student-points-leaderboard.md`](../docs/ideas/student-points-leaderboard.md) · конструктор заданий: [`docs/ideas/teacher-task-constructor.md`](../docs/ideas/teacher-task-constructor.md) · проверка письменных ДЗ: [`docs/ideas/teacher-written-homework-review.md`](../docs/ideas/teacher-written-homework-review.md)  
 **Дата плана:** 2026-06-09  
 **Обновлено:** 2026-06-20  
-**Статус:** MVP core + Phase 12 ✅ (`7804506`); Task 29 ✅ coverage gate; Task 41 ✅ RAG accuracy; Task 42 ✅ solve-pipeline этап A; Phase 11 UI redesign ✅ (`9fb016a`, Tasks 48–52); Task 56 ✅ Mendeleev overlay; **далее: Task 30 (Docker CI)** или Phase 9–10 (tutor); tutor Tasks 31–38 в истории `08b418a`
+**Статус:** MVP core + Phase 12 ✅ (`7804506`); Task 29 ✅ coverage gate; Task 41 ✅ RAG accuracy; Task 42 ✅ solve-pipeline (этап A+B local); Phase 11 UI redesign ✅ (`9fb016a`, Tasks 48–52); Task 56 ✅ Mendeleev overlay; **далее: Task 30 (Docker CI)** или Phase 9–10 (tutor); tutor Tasks 31–38 в истории `08b418a`
 
 ---
 
@@ -54,7 +54,7 @@
 | 39 | Homework мульти-item submit + hardening | ✅ local | SPEC §1.7: агрегация всех items (одна `TestSession`, `variant_ref=null`), `HomeworkItemProgress`, per-item прогресс, submit при 100%; общий `homework_mapper`; tutor settings-инъекция (баг реального LLM в pytest) |
 | 40 | Homework UI — конструктор выбора заданий | ✅ local | мульти-item форма; gap AC-3.8 → Task 55 |
 | 41 | ⭐ Точность RAG: cleanup + hybrid (pgvector) + eval + query rewrite (срез 16-1/16-1b) | ✅ local | 41.1 ✅ `46cd6d1`; 41.2 hybrid pgvector ✅; 41.3 eval recall@5 ✅; 41.4 query rewrite + multi-query ✅ |
-| 42 | Solve-pipeline v1.5 (срез 16-2) | ✅ local (этап A) | `tutor-rag.md` §17: intent_router/prepare_context/validation/код-критик ✅; этап B (planner + LLM-критик) ⏳ |
+| 42 | Solve-pipeline v1.5 (срез 16-2) | ✅ local (этап A+B) | `tutor-rag.md` §17: planner + LLM-критик для типов 7,8,26–28 ✅ local |
 | 43 | Персональный тьютор — student tools (срез 16-3) | ✅ local | §16.2: `get_my_homework`, `analyze_my_mistakes`, `recommend_topics` |
 | 44 | Тренажёр + suggested prompts (срез 16-4) | ⏳ pending | §16.2/16.3: `generate_practice`, `get_selfcheck`, U3/U4 |
 | 45 | Teacher-аналитика — tools (срез 16-5) | ✅ done | `test_teacher_tools.py`: RBAC, черновик ДЗ |
@@ -957,7 +957,7 @@ Task 3  Content SQLite repos                 ✅
 
 > **Статус:** 🟡 local (2026-06-20)
 
-**Верификация:** `docker-compose.yml` YAML OK (Python yaml); `backend/Dockerfile`, `frontend/Dockerfile`, `nginx/nginx.conf` — ревью; CI workflow включает coverage gate (`check_coverage.py`); local mirror: ruff OK, pytest 395 passed, coverage gate PASS (all domains ≥80%), eslint warnings only, vitest 141/141, next build OK. **Не проверено:** Docker CLI отсутствует локально; `docker compose up --build` — вручную; GitHub Actions green — не подтверждён.
+**Верификация:** `docker-compose.yml` YAML OK (Python yaml); `backend/Dockerfile`, `frontend/Dockerfile`, `nginx/nginx.conf` — ревью; CI workflow включает coverage gate (`check_coverage.py`) и **docker-compose smoke job** (build + `/health` + frontend 200); local mirror: ruff OK, pytest 395 passed, coverage gate PASS (all domains ≥80%), eslint warnings only, vitest 141/141, next build OK. **Не проверено:** Docker CLI отсутствует локально; `docker compose up --build` — вручную; GitHub Actions green — ждём push CI job.
 
 **Description:** `docker-compose.yml` (nginx, next, fastapi, postgres), GitHub Actions: ruff, pytest, coverage gate, frontend lint+test+build.
 
@@ -967,7 +967,7 @@ Task 3  Content SQLite repos                 ✅
 
 **Verification:**
 - [x] Compose/Dockerfiles/nginx + `.github/workflows/ci.yml` ревью
-- [x] CI workflow: ruff + pytest + `check_coverage.py` + frontend lint/vitest/build
+- [x] CI workflow: ruff + pytest + `check_coverage.py` + frontend lint/vitest/build + docker-compose smoke
 - [x] Local CI mirror: backend ruff+pytest+coverage; frontend lint+vitest+build
 - [ ] Local `docker compose up --build`
 - [ ] CI run green on `main`
@@ -1379,11 +1379,11 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 - [x] `intent_router` (regex задание+номер) + `prepare_context` (код) + код-критик
 
 **Acceptance criteria (этап B):**
-- [ ] AC-17.3: критик отбраковывает ключ ≠ `correct_ans` → retry; цикл ≤2; `answer_finalize` с эталоном при провале
-- [ ] `planner` (`SolvePlan`) только для сложных типов 7,8,26–28; LLM-критик химической согласованности
+- [x] AC-17.3: критик отбраковывает ключ ≠ `correct_ans` → retry; цикл ≤2; `answer_finalize` с эталоном при провале
+- [x] `planner` (`SolvePlan`) только для сложных типов 7,8,26–28; LLM-критик химической согласованности
 
 **Verification:**
-- [x] `pytest backend/tests/tutor/test_solve.py` (mock LLM): gating, routing критика, лимит ретраев
+- [x] `pytest backend/tests/tutor/test_solve.py` (mock LLM): gating, routing критика, planner, LLM-критик, лимит ретраев
 - [x] `pytest backend/tests/tutor/test_validation.py`: ключ/цитата/формат (вкл. соответствия, число с «хвостом»)
 - [x] AC-17.6: прежние tutor-тесты зелёные (нет регрессий общего чата) — 74 passed
 
