@@ -5,6 +5,7 @@
 **Связанные документы:**
 - [PRD: онбординг](../specs/prd-student-onboarding.md)
 - [SEO-стратегия](./seo-strategy.md)
+- [Монетизация и сеть учителей](./monetization-teacher-network.md)
 - [Custdev-скрипт](../research/custdev-interview-script.md)
 
 ---
