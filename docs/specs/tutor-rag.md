@@ -679,7 +679,7 @@ _Нет._
 Срез 16-1b: Адаптация запроса — query rewriting + multi-query (A8); eval-кейс «сера + металлы»
 Срез 16-2: Solve-pipeline v1.5 — A1 + validation.py (порт RAG_chemistry), этап A → этап B
 Срез 16-3: Персональный тьютор (ученик) — get_my_homework, analyze_my_mistakes, recommend_topics
-Срез 16-4: Тренажёр — generate_practice + get_selfcheck + U3/U4 (suggested prompts)
+Срез 16-4: Тренажёр — generate_practice + get_selfcheck + U3/U4 (suggested prompts) ✅ local (Task 44)
 Срез 16-5: Преподаватель — summarize_student, suggest_homework (черновик)
 Срез 16-6: UX — streaming (U1) + markdown (U2); профиль → PostgreSQL (A7)
 Отложено:  A2 (citation guard) + A3 (порог retrieval) — вернуть после оценки hybrid на eval
