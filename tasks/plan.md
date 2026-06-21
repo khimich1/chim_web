@@ -1,9 +1,9 @@
 # Implementation Plan: Chemistry (chim_web) MVP
 
-**Источник:** [SPEC.md](../SPEC.md) v0.8.0 · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2 · геймификация: [`docs/ideas/student-points-leaderboard.md`](../docs/ideas/student-points-leaderboard.md) · конструктор заданий: [`docs/ideas/teacher-task-constructor.md`](../docs/ideas/teacher-task-constructor.md) · проверка письменных ДЗ: [`docs/ideas/teacher-written-homework-review.md`](../docs/ideas/teacher-written-homework-review.md)  
+**Источник:** [SPEC.md](../SPEC.md) v0.8.2 · production hardening: [`docs/ideas/production-hardening.md`](../docs/ideas/production-hardening.md) · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2 · геймификация: [`docs/ideas/student-points-leaderboard.md`](../docs/ideas/student-points-leaderboard.md) · конструктор заданий: [`docs/ideas/teacher-task-constructor.md`](../docs/ideas/teacher-task-constructor.md) · проверка письменных ДЗ: [`docs/ideas/teacher-written-homework-review.md`](../docs/ideas/teacher-written-homework-review.md) · ЕГЭ 29–34: SPEC §1.10 (`ege (копия).db`)  
 **Дата плана:** 2026-06-09  
-**Обновлено:** 2026-06-20  
-**Статус:** MVP core + Phase 12 ✅ (`7804506`); Task 29 ✅ coverage gate; Task 41 ✅ RAG accuracy; Task 42 ✅ solve-pipeline (этап A+B local); Phase 11 UI redesign ✅ (`9fb016a`, Tasks 48–52); Task 56 ✅ Mendeleev overlay; **далее: Task 30 (Docker CI)** или Phase 9–10 (tutor); tutor Tasks 31–38 в истории `08b418a`
+**Обновлено:** 2026-06-21  
+**Статус:** MVP core + Phase 12 ✅; Phase 15 ✅ local; Phase 16 🟡 (Task 85 ✅); **Phase 17 (Production Hardening + Multi-teacher A)** — Tasks 92–93 🟡 in progress; см. [`docs/ideas/production-hardening.md`](../docs/ideas/production-hardening.md)
 
 ---
 
@@ -73,8 +73,17 @@
 | 58–65 | Баллы, streak, рейтинг (§1.8, Phase 13) | ✅ local | миграции `008`/`009`, activity layer, API, student dashboard + leaderboard, teacher stats UI |
 | 66–75 | Конструктор заданий преподавателя (§1.9, Phase 14) | ✅ local | migration `011`/`012`, teacher themes/tasks API, uploads, custom TestSession, HomeworkForm, §1.9.8 photo submit |
 | 76–84 | Проверка письменных ДЗ (§1.9.9, Phase 15) | ✅ local | `cdca44b` (76–82 + UI 83–84 uncommitted); viewer + QR + feedback |
+| 85–91 | ЕГЭ 29–34 в content DB (§1.10, Phase 16) | 🟡 in progress | Task 85 ✅; OQ §1.10 закрыты 2026-06-20; **далее Task 86** |
+| 92 | Multi-teacher docs (SPEC §3, seed_teacher, AGENTS) | 🟡 in progress | Variant A |
+| 93 | IDOR suite `tests/multi_teacher/` | 🟡 in progress | 12 tests green; themes/tutor/notifications/feedback/stats added |
+| 94 | Teacher themes `task_count` (17a) | ✅ done | backend API + frontend N+1 removed |
+| 95 | CI: mypy + openapi-typescript (17b) | ✅ done | scoped mypy + schema.d.ts drift check |
+| 96 | RAG pg-only hot path (17c) | ⏳ pending | ADR-002 update |
+| 97 | TestSession adapters (17d) | ⏳ pending | **после Task 93** |
+| 98 | Auth rate limit + TTL (17e) | ⏳ pending | |
+| 99 | Playwright smoke E2E (17f) | ⏳ pending | login → test step → submit ДЗ |
 
-**Текущий этап:** Phase 15 ✅ local (Tasks 76–84); **Следующий шаг:** Task 30 (Docker Compose + CI) или коммит Phase 15 → E2E checkpoint.
+**Текущий этап:** Phase 17 Track A (Tasks 92–93) **in progress**; Phase 16 (Task 86+) параллельно по необходимости.
 
 ---
 
@@ -95,6 +104,7 @@
 | UI redesign teal + mobile-first (§14) | Phase 11, Tasks 48–52 | ✅ `9fb016a` |
 | Мульти-item ДЗ (§1.7) | Tasks 39–40 | ✅ local |
 | Баллы, streak, рейтинг (§1.8) | Phase 13, Tasks 58–65 | ✅ local |
+| ЕГЭ 29–34, `self_check` в content DB (§1.10) | Phase 16, Tasks 85–91 | ⏳ planned |
 
 **Расхождения spec ↔ подспеки:** закрыты в SPEC v0.7.3 и tutor-rag v0.8.1 (AC-6.2, tools §3, `TutorSourceCitation` без `test`).
 
@@ -110,7 +120,7 @@
 | `TestSession` в app DB для Stepik-flow | Spec §1.3; один UI для свободной практики и ДЗ |
 | `TestSession.status=in_progress` персистентна | Spec §1.3.2; возобновление по `session_id` + кнопка «Продолжить» |
 | `StepProgressDots` вместо progress bar | Spec §1.3.1, §14.2; цвет = статус шага |
-| `grading_mode=exact` в v1 | Spec §1.4; письменные скрыты до v2 |
+| `grading_mode=exact` в v1 | Spec §1.4; письменные ЕГЭ 29–34 — `self_check` после Phase 16 (§1.10) |
 | Первый teacher — Alembic seed / CLI | Один преподаватель на MVP; self-registration учеников нет |
 | Tailwind + `.chem-*` в `globals.css` (без shadcn) | Spec §14.0; mobile-first для экранов ученика (§14.5) |
 | CI / Docker — после первого E2E-среза | Spec §8, допущение 8 |
@@ -2474,6 +2484,388 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ---
 
+### Phase 16: Письменная часть ЕГЭ в content DB (§1.10)
+
+> **Источник:** SPEC §1.10 · файл `ege (копия).db` (корень monorepo)  
+> **Зависит от:** Phase 14–15 (§1.9.8 `self_check` + compare/upload; §1.9.9 handoff/feedback)  
+> **Стратегия:** срез A (миграция + dry-run) → B (`content_grading` + `test_session_service`) → C (homework + validation) → D (frontend + E2E)
+
+**Данные (из анализа источника):** 126 строк в `tasks`; 108 с `variant_number`, **18 NULL — не мигрировать** (dry-run + optional export); варианты 1–13, 15–18, 20; типы 29–34; **score включает 29–34** (решение PO).
+
+---
+
+## Task 85: Idea/spec alignment — ЕГЭ 29–34 в content DB
+
+**Description:** Зафиксировать в SPEC §1.10 и плане Phase 16: маппинг `ege (копия).db` → `test_ege.db`, `grading_mode=self_check`, UX как §1.9.8–1.9.9, открытые вопросы. **Без feature-кода.**
+
+**Acceptance criteria:**
+- [x] SPEC §1.10, §1.4–1.5, AC-2.1; версия 0.8.1
+- [x] Открытые вопросы §1.10 закрыты (2026-06-20)
+- [x] Преждевременная реализация откачена (нет `content_grading.py`, migration scripts, diff в homework/test_session)
+
+**Verification:**
+- [x] `git diff backend/` пустой относительно `main`
+
+**Dependencies:** Phase 15 (концептуально)
+
+**Files:** `SPEC.md`, `tasks/plan.md`
+
+**Scope:** S
+
+**Status:** ✅ done (2026-06-20)
+
+---
+
+## Task 86: Миграция ЕГЭ 29–34 — скрипт + dry-run
+
+**Description:** Offline-скрипт `migrate_ege_written_tasks.py`: чтение `ege (копия).db`, запись в `test_ege.db` (`tests` + `images`). Режимы `--dry-run`, `--apply`, `--export-skipped` (JSON/CSV для 18 NULL-строк).
+
+**Acceptance criteria:**
+- [ ] Маппинг: `variant_number` N → `filename` `{N:03d}.txt`; `type` = `task_number` (29–34)
+- [ ] BLOB вопроса → `[рисунокNNNN]` + PNG в `images`; BLOB эталона → `[ответNNNN]` + PNG
+- [ ] Строки с `variant_number IS NULL` — **пропуск** в apply; dry-run перечисляет `id`, `task_number`, `source_file`
+- [ ] `--export-skipped` → JSON/CSV для ручного маппинга
+- [ ] Upsert по `(filename, type)` при повторном запуске
+- [ ] Dry-run: сводка (варианты, типы, конфликты, пропуски)
+
+**Verification:**
+- [ ] Ручной dry-run на копии `test_ege.db`
+- [ ] Документированный отчёт в stdout / JSON
+
+**Dependencies:** Task 85 ✅
+
+**Files:**
+- `backend/scripts/migrate_ege_written_tasks.py`
+
+**Scope:** M
+
+---
+
+## Task 87: `content_grading` — типы 29–34 → `self_check`
+
+**Description:** Модуль определения режима проверки для exam-контента: ЕГЭ `type` 1–28 → `exact`, 29–34 → `self_check`; ОГЭ без изменений.
+
+**Acceptance criteria:**
+- [ ] Единая точка: `get_content_grading_mode(track, type) -> exact | self_check`
+- [ ] Используется в `test_session_service`, homework-сервисах
+- [ ] Типы вне диапазона / unknown → безопасный fallback (`exact` или 404 на уровне repo)
+
+**Verification:**
+- [ ] `pytest backend/tests/test_content_grading.py`
+
+**Dependencies:** Task 86 (контент в fixture-копии БД для интеграционных тестов — можно stub до apply)
+
+**Files:**
+- `backend/app/services/content_grading.py`
+- `backend/tests/test_content_grading.py`
+
+**Scope:** S
+
+---
+
+### Checkpoint: Phase 16 срез A (после Tasks 86–87)
+
+- [ ] Dry-run миграции согласован с §1.10
+- [ ] `content_grading` покрыт unit-тестами
+- [ ] Контент **не** применён в prod `test_ege.db` без явного `--apply` после review dry-run
+
+---
+
+## Task 88: `test_session_service` — compare и attach для exam `self_check`
+
+**Description:** Для exam-сессий с `type` 29–34: endpoint compare (эталон из `correct_ans` + `[ответNNNN]`), attach `answer_image_id`, те же правила блокировки после `checked`, что для custom `self_check`. **Score включает** шаги 29–34 (механика начисления — см. §1.10).
+
+**Acceptance criteria:**
+- [ ] «Сравнить ответ» для content steps 29–34; «Проверить» только для `exact`
+- [ ] Практика: compare без обязательного фото; ДЗ: 422 без `answer_image_id` (§1.9.8)
+- [ ] `max_score` включает письменные шаги; балл за шаг после compare — по §1.10
+- [ ] Handoff (§1.9.9) работает для exam `self_check` шагов в ДЗ
+
+**Verification:**
+- [ ] `pytest backend/tests/test_test_session_content_self_check.py`
+
+**Dependencies:** Task 87, Task 75 (handoff), Task 72 (§1.9.8)
+
+**Files:**
+- `backend/app/services/test_session_service.py`
+- `backend/app/schemas/tests.py` (при необходимости)
+- `backend/tests/test_test_session_content_self_check.py`
+
+**Scope:** M
+
+---
+
+## Task 89: Homework — handoff, feedback, review для content `self_check`
+
+**Description:** Расширить `homework_service`, `homework_submit_service`, `homework_feedback_service` на exam-шаги 29–34: фото в сдаче, `reference_answer` из content DB, teacher review UI data.
+
+**Acceptance criteria:**
+- [ ] Teacher homework detail: `self_check` шаги 29–34 с эталоном и фото
+- [ ] Submit: агрегат score включает шаги 29–34 (согласно §1.10)
+- [ ] Feedback API (§1.9.9) применим к content exam steps
+- [ ] `has_teacher_feedback` учитывает content steps
+
+**Verification:**
+- [ ] `pytest backend/tests/test_homework_content_written.py`
+
+**Dependencies:** Task 88, Task 77, Task 82
+
+**Files:**
+- `backend/app/services/homework_service.py`
+- `backend/app/services/homework_submit_service.py`
+- `backend/app/services/homework_feedback_service.py`
+- `backend/tests/test_homework_content_written.py`
+
+**Scope:** M
+
+---
+
+## Task 90: `homework_validation` — ЕГЭ types 1–34
+
+**Description:** Расширить валидацию пунктов ДЗ: для трека ЕГЭ допустимы `type` 1–34 (было 1–28).
+
+**Acceptance criteria:**
+- [ ] `test_partial`, `test_by_type`, `test_variant` принимают 29–34 для ЕГЭ
+- [ ] ОГЭ без изменений (1–19)
+- [ ] 422 для несуществующих type/variant в content repo
+
+**Verification:**
+- [ ] `pytest backend/tests/test_homework_validation_ege_types.py`
+
+**Dependencies:** Task 86 (или fixture с type 29–34)
+
+**Files:**
+- `backend/app/services/homework_validation.py`
+- `backend/tests/test_homework_validation_ege_types.py`
+
+**Scope:** S
+
+---
+
+## Task 91: Tests + frontend — content `self_check` E2E
+
+**Description:** Сводные тесты (backend integration + vitest) и frontend: «По заданиям» типы 29–34; «По вариантам» до 34 шагов; StepView compare/upload; HomeworkForm types 29–34.
+
+**Acceptance criteria:**
+- [ ] Полный backend-путь: fixture с 29–34 → compare → ДЗ с фото → submit → teacher feedback
+- [ ] Score сессии включает 29–34; регрессия 1–28
+- [ ] AC-2.1 (часть): «Шаг N из M» с M до 34; рендер `[ответNNNN]`
+- [ ] `pytest` + `vitest` зелёные
+
+**Verification:**
+- [ ] `pytest backend/tests/test_ege_written_integration.py`
+- [ ] `vitest` для `VariantPicker`, `StepView`, `HomeworkForm`
+- [ ] Ручная проверка на варианте с мигрированными данными
+
+**Dependencies:** Tasks 86–90
+
+**Files:**
+- `backend/tests/test_ege_written_integration.py`
+- `backend/tests/fixtures/` (копия `test_ege.db` с 29–34)
+- `frontend/components/tests/VariantPicker.tsx`
+- `frontend/components/tests/StepView.tsx`
+- `frontend/components/homework/HomeworkForm.tsx`
+
+**Scope:** L
+
+---
+
+### Checkpoint: Phase 16 полный (после Tasks 85–91)
+
+- [x] Task 85: spec/plan без feature-кода
+- [ ] Контент 29–34 в `test_ege.db` (после apply миграции)
+- [ ] Ученик: вариант / по типам / ДЗ с письменными шагами
+- [ ] Преподаватель: review + feedback для content `self_check`
+- [ ] Score включает 29–34 (§1.10)
+- [ ] `pytest` + `vitest` зелёные
+- [x] Открытые вопросы §1.10 закрыты в SPEC
+
+---
+
+## Phase 17: Production Hardening + Multi-teacher (Variant A)
+
+**Источник:** [`docs/ideas/production-hardening.md`](../docs/ideas/production-hardening.md)  
+**Дата:** 2026-06-21
+
+Два трека одного слоя «production readiness»:
+
+- **Track A (92–93):** CLI multi-teacher + IDOR proof — без миграций, без нового UI
+- **Track B (94–99):** CI, RAG, TestSession refactor, auth hardening, Playwright smoke
+
+**Зависимость:** Task 97 (TestSession adapters) — **только после** Task 93 (IDOR lock).
+
+---
+
+## Task 92: Multi-teacher documentation
+
+**Description:** Официально поддержать N teachers на одном инстансе: SPEC §3, `seed_teacher` docstring, AGENTS.md.
+
+**Acceptance criteria:**
+- [x] SPEC §3: multi-teacher CLI, tenant = `teacher_id`
+- [x] SPEC «Вне scope»: self-reg teacher / org — отдельно от CLI multi-teacher
+- [x] `seed_teacher.py` docstring + argparse help
+- [x] AGENTS.md: команды seed × N + ссылка на production-hardening.md
+
+**Verification:**
+- [ ] Ручной smoke: `seed_teacher` дважды с разными email → оба логинятся
+
+**Dependencies:** none
+
+**Files:**
+- `SPEC.md`
+- `backend/app/cli/seed_teacher.py`
+- `AGENTS.md`
+
+**Scope:** S
+
+---
+
+## Task 93: Multi-teacher IDOR integration suite
+
+**Description:** Единый pytest-файл «teacher A ≠ teacher B» по checklist из production-hardening.md. Закрывает gaps (uploads, students list, homework create for foreign student).
+
+**Acceptance criteria:**
+- [x] `tests/multi_teacher/test_isolation.py` — students, homework, uploads, leaderboard cross-tenant
+- [x] Расширить: themes CRUD, tutor sessions, notifications, homework feedback, teacher stats
+- [x] `pytest tests/multi_teacher/` зелёный
+
+**Verification:**
+- [x] `pytest tests/multi_teacher/ -v`
+
+**Dependencies:** Task 92
+
+**Files:**
+- `backend/tests/multi_teacher/conftest.py`
+- `backend/tests/multi_teacher/test_isolation.py`
+
+**Scope:** M
+
+---
+
+## Task 94: Teacher themes `task_count` (Phase 17a)
+
+**Description:** Агрегирующий `GET /api/teacher/themes` с `task_count`; убрать N+1 `getTeacherThemesWithTaskCounts()` во frontend.
+
+**Acceptance criteria:**
+- [ ] `ThemeListItem` / расширенный `ThemeRead` с `task_count`
+- [ ] Один SQL с `COUNT` или subquery — без N запросов
+- [ ] Frontend: один fetch в `ThemesList`
+
+**Verification:**
+- [ ] pytest teacher themes API
+- [ ] vitest ThemesList при необходимости
+
+**Dependencies:** none (parallel with 92–93)
+
+**Scope:** S
+
+---
+
+## Task 95: CI — mypy + openapi-typescript (Phase 17b)
+
+**Description:** Gate в GitHub Actions: `mypy app/services/ app/api/`; генерация типов из `/openapi.json` + drift check.
+
+**Acceptance criteria:**
+- [x] Job step mypy на scoped paths
+- [x] openapi-typescript generate + fail on uncommitted diff (committed `frontend/lib/api/schema.d.ts`)
+
+**Verification:**
+- [ ] CI green on PR (local: mypy + export + check:api-types green)
+- [x] Local: `mypy app/services/ app/api/` — Success (75 files)
+- [x] Local: full `pytest` — 460 passed (~15 min)
+- [x] Local: `python scripts/export_openapi.py -o openapi.json` → `frontend/lib/api/schema.d.ts` via `npm run generate:api-types`; `git diff --exit-code lib/api/schema.d.ts` — no drift
+
+**Local commands (Windows, venv activated):**
+```bash
+cd backend
+python -m mypy app/services/ app/api/
+python scripts/export_openapi.py -o openapi.json
+cd ../frontend
+npm run check:api-types
+```
+
+**Dependencies:** none
+
+**Scope:** M
+
+**Files:** `.github/workflows/ci.yml`, `backend/scripts/export_openapi.py`, `backend/pyproject.toml` (tutor/rag mypy overrides + type fixes), `frontend/package.json`, `frontend/lib/api/schema.d.ts`, `.gitignore` (`backend/openapi.json`)
+
+**Notes:** Hand-written `frontend/lib/api/types.ts` остаётся runtime-контрактом UI; `schema.d.ts` — generated drift sentinel. При изменении API: export → regenerate → commit `schema.d.ts`.
+
+---
+
+## Task 96: RAG pg-only hot path (Phase 17c)
+
+**Description:** Metadata + vectors в PostgreSQL; убрать `rag_index.json` / Chroma из runtime retrieval. Обновить ADR-002.
+
+**Acceptance criteria:**
+- [ ] `Retriever.from_settings()` не читает json на запрос
+- [ ] CLI `--rebuild` пишет в PG
+- [ ] Chroma не в production hot path
+
+**Dependencies:** none
+
+**Scope:** M–L
+
+---
+
+## Task 97: TestSession adapters (Phase 17d)
+
+**Description:** Разрезать `TestSessionService` на exam / custom / homework adapters; facade без смены HTTP contract.
+
+**Acceptance criteria:**
+- [ ] `HomeworkSessionAdapter`, `ExamSessionAdapter`; `CustomTestSessionService` переименован/обёрнут
+- [ ] Существующие pytest test_sessions + homework green
+- [ ] Task 93 green после рефакторинга
+
+**Dependencies:** Task 93
+
+**Scope:** L
+
+---
+
+## Task 98: Auth rate limit + shorter TTL (Phase 17e)
+
+**Description:** slowapi на login + tutor chat; `ACCESS_TOKEN_EXPIRE_MINUTES=60` default.
+
+**Acceptance criteria:**
+- [ ] 429 при burst login
+- [ ] pytest rate limit
+- [ ] `.env.example` обновлён
+
+**Dependencies:** none
+
+**Scope:** M
+
+---
+
+## Task 99: Playwright smoke E2E (Phase 17f)
+
+**Description:** login → пройти 1 шаг теста → сдать ДЗ. CI job после docker-compose smoke.
+
+**Acceptance criteria:**
+- [ ] `@playwright/test` + config
+- [ ] Seed/fixture user
+- [ ] CI job или documented local run
+
+**Dependencies:** Task 30 (docker CI) recommended
+
+**Scope:** M
+
+---
+
+### Checkpoint: Phase 17 (после Tasks 92–99)
+
+- [ ] 2+ teacher на staging, IDOR tests green
+- [ ] SPEC/docs без «один teacher на инстанс»
+- [ ] CI: mypy + openapi-typescript
+- [ ] RAG single PG backend в hot path
+- [ ] TestSession adapters + no IDOR regression
+- [ ] Rate limit login/tutor
+- [ ] Playwright smoke green
+
+---
+
 ## Следующий шаг
 
 1. **E2E** — teacher → assign HW (лекция + тест) → student submit → notification + score у teacher.
@@ -2491,3 +2883,5 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 13. **Phase 11 (UI redesign, SPEC §14)** — параллельно с Phase 12 или после. ✅ Task 48 → Task 49. Task 51 опирается на Task 54 (кружки).
 14. **Phase 14 (Tasks 66–75)** — конструктор заданий преподавателя (SPEC §1.9, §1.9.8). ✅ local
 15. **Phase 15 (Tasks 76–84)** — проверка письменных ДЗ (SPEC §1.9.9). ✅ local (`cdca44b` + UI 83–84 uncommitted). E2E checkpoint — следующий.
+16. **Phase 16 (Tasks 85–91)** — ЕГЭ 29–34 в content DB (SPEC §1.10). Task 85 ✅; OQ закрыты 2026-06-20; **далее Task 86** (миграция + dry-run).
+17. **Phase 17 (Tasks 92–99)** — Production Hardening + Multi-teacher Variant A. [`docs/ideas/production-hardening.md`](../docs/ideas/production-hardening.md). **← текущий срез:** Task 92–93 (docs + IDOR), затем 94 (task_count) параллельно с Phase 16.

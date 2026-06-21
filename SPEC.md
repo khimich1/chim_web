@@ -1,8 +1,8 @@
 # SPEC — Chemistry (chim_web)
 
-**Версия:** 0.8.0  
-**Дата:** 2026-06-09 (обновлено 2026-06-20)  
-**Статус:** частично согласован (§1.6 AI-советчик — адаптация `RAG_chemistry`; §14 UI redesign — визуальный язык согласован по референсам; §1.3.1 — step-dots + возобновление сессии; §1.3.3 — справочник таблицы Менделеева при тестах; §1.3.4 — solve-разбор после неверного ответа; §1.8 — баллы, streak и рейтинг — Phase 13; §1.9 — конструктор заданий преподавателя — Phase 14; §1.9.8 — фото рукописи в ДЗ vs сравнение в практике; §1.9.9 — проверка письменных ДЗ преподавателем (viewer, QR, feedback); AC-6.2 — sources только из учебника, v0.7.3)  
+**Версия:** 0.8.2  
+**Дата:** 2026-06-09 (обновлено 2026-06-21)  
+**Статус:** частично согласован (§1.6 AI-советчик — адаптация `RAG_chemistry`; §14 UI redesign — визуальный язык согласован по референсам; §1.3.1 — step-dots + возобновление сессии; §1.3.3 — справочник таблицы Менделеева при тестах; §1.3.4 — solve-разбор после неверного ответа; §1.8 — баллы, streak и рейтинг — Phase 13; §1.9 — конструктор заданий преподавателя — Phase 14; §1.9.8 — фото рукописи в ДЗ vs сравнение в практике; §1.9.9 — проверка письменных ДЗ преподавателем (viewer, QR, feedback); §1.10 — письменная часть ЕГЭ 29–34 в контентной БД (миграция + `self_check`, Phase 16); §1.11 — multi-teacher на одном инстансе (Variant A, Phase 17); AC-6.2 — sources только из учебника, v0.7.3)  
 **Стек:** FastAPI + Next.js (monorepo `chim_web`, см. `AGENTS.md`)
 
 ---
@@ -15,8 +15,8 @@
 |---|---------|-----------|
 | 1 | **Контентные БД** | `test_ege.db`, `test_oge.db`, `prepared_lectures.db` остаются **read-only** источниками на MVP. Backend читает их через SQLite (attach / отдельные connection pool). Миграция контента в PostgreSQL — **не в v1**, unless иначе решим на ревью. |
 | 2 | **Прикладная БД** | PostgreSQL 16+ для пользователей, связей «преподаватель ↔ ученики», домашних заданий, попыток, уведомлений. SQLAlchemy 2.x + Alembic. |
-| 3 | **Auth** | Email + пароль. Роли: `teacher`, `student`. JWT в **httpOnly cookies** (`credentials: 'include'`), не в `localStorage`. Один преподаватель на инстанс MVP; учеников создаёт/привязывает только преподаватель. |
-| 4 | **Онбординг** | Преподаватель вручную создаёт учётки учеников (логин/временный пароль) или выдаёт одноразовый invite-код. Self-registration учеников — **вне v1**. |
+| 3 | **Auth** | Email + пароль. Роли: `teacher`, `student`. JWT в **httpOnly cookies** (`credentials: 'include'`), не в `localStorage`. **Несколько преподавателей на одном инстансе** — через CLI `seed_teacher` (разные email); tenant boundary = `teacher_id`. Учеников создаёт/привязывает только **свой** преподаватель. Self-registration teacher — вне v1. |
+| 4 | **Онбординг** | **Преподаватель:** учётка через CLI `seed_teacher` (см. §1.11). **Ученик:** преподаватель создаёт учётку (логин/временный пароль) или выдаёт одноразовый invite-код. Self-registration учеников и преподавателей — **вне v1**. |
 | 5 | **Треки** | У ученика один активный трек: **ЕГЭ** или **ОГЭ** (задаёт преподаватель при создании/в профиле). Контент второго трека скрыт. |
 | 6 | **Домашнее задание** | Преподаватель назначает: (а) тему/чанки учебника — ученик отмечает «Прочитано»; (б) **целый вариант** теста; (в) **подмножество заданий** из варианта (номера `type`). Срок сдачи опционален. |
 | 6a | **Подсказки в тестах** | `hint` показывается **только по запросу** ученика (кнопка «Подсказка»), не автоматически. |
@@ -28,7 +28,8 @@
 | 11 | **UX тестов** | Организация прохождения — **в стиле Stepik**: пошаговый сценарий, одно задание на экран, мгновенная проверка, навигация по шагам, прогресс. |
 | 12 | **AI-советчик** | Доступен **ученику и преподавателю** (разные system prompt / права tools). UI — **плавающее окно (overlay-панель) поверх учебника и тестов**, доступно с любого экрана кабинета. История диалогов — **PostgreSQL**; преподаватель может просматривать диалоги своих учеников. Провайдер LLM — **абстракция** (конкретный vendor — до реализации). Rate limit на v2+ — **нет** (мало пользователей). |
 | 13 | **Движок AI-советчика** | Реализуется **адаптацией готового проекта `RAG_chemistry`** (LangGraph + RAG, читает те же контентные БД), а не разработкой с нуля. Код портируется в `backend/app/services/{rag,tutor}/`. См. `docs/specs/tutor-rag.md` §14. |
-| 14 | **Кастомные задания преподавателя** | Хранятся в **PostgreSQL** (не в read-only SQLite). Картинки — локальный upload (`settings.upload_dir`), лимит **5 МБ**, MIME: `image/jpeg`, `image/png`, `image/webp`. Один преподаватель на ученика (`StudentProfile.teacher_id`). См. §1.9. |
+| 14 | **Кастомные задания преподавателя** | Хранятся в **PostgreSQL** (не в read-only SQLite). Картинки — локальный upload (`settings.upload_dir`), лимит **5 МБ**, MIME: `image/jpeg`, `image/png`, `image/webp`. Ровно один «домашний» преподаватель на ученика (`StudentProfile.teacher_id`); на инстансе может быть **N преподавателей** (§1.11). См. §1.9. |
+| 15 | **Multi-teacher (Variant A)** | Несколько преподавателей на **одном** инстансе: provisioning только через CLI (`seed_teacher --email …`). Tenant boundary = `teacher_id` в app DB. Контент SQLite и RAG lecture index — **общие** для всех. Leaderboard — **глобальный** (cross-tenant). Изоляция доказывается IDOR-тестами (`tests/multi_teacher/`). Детали и Phase 17 — `docs/ideas/production-hardening.md`. |
 
 ---
 
@@ -49,8 +50,9 @@
 
 ### Для кого
 
-- 1 преподаватель (владелец контента)
-- N учеников (типично 5–30 на MVP)
+- **N преподавателей** на одном инстансе (типично 2–5 на VPS; provisioning через CLI, §1.11)
+- **M учеников** (типично 5–30 на преподавателя на MVP)
+- Каждый преподаватель видит только **своих** учеников, ДЗ, темы, uploads и tutor-сессии
 
 ### Источники контента (изучено)
 
@@ -84,16 +86,16 @@
 | `images` | 21 | PNG-рисунки (`рисунок0000.png` …) |
 | `tests_bug` | 3 | Задания с пометкой `has_issue=1` (исключить из выдачи на MVP) |
 
-**Содержимое v1:** в БД сейчас **только тестовые задания** с кратким ответом (`correct_ans` — цифры/короткие строки). Письменных заданий (развёрнутый ответ, II часть) **в контентных БД пока нет** — появятся позже.
+**Содержимое v1 (сейчас):** в `test_ege.db` **только тестовые задания** с кратким ответом (`correct_ans` — цифры/короткие строки), `type` 1–28. Письменная часть (29–34) **запланирована** к импорту из `ege (копия).db` — см. §1.10.
 
-**Структура вариантов:** 30 файлов-вариантов (`001.txt` … `030.txt`), в каждом **28 типов заданий** (`type` 1–28) — тестовая часть варианта ЕГЭ.
+**Структура вариантов:** 30 файлов-вариантов (`001.txt` … `030.txt`). Сейчас в каждом **28 типов** (`type` 1–28); после Phase 16 — до **34 типов** (1–34) для вариантов, где миграция принесла задания 29–34.
 
 **Схема `tests`:**
 
 | Поле | Описание |
 |------|----------|
 | `filename` | Идентификатор варианта (`NNN.txt`) |
-| `type` | Номер задания в варианте (1–28) |
+| `type` | Номер задания в варианте (1–28 сейчас; 1–34 после §1.10) |
 | `question` | Текст; рисунки — плейсхолдеры `[рисунок0001]` |
 | `options` | Доп. данные (часто пусто; для заданий на соответствие — номера позиций) |
 | `correct_ans` | Строка с цифрами ответа (`23`, `422`, …) |
@@ -250,28 +252,35 @@ MVP повторяет **паттерн пошагового урока** Stepik
 
 ### 1.4 Типы контента: тестовые vs письменные
 
-| Тип | В БД сейчас | v1 | v2+ |
-|-----|-------------|----|-----|
-| **Тестовые** (краткий ответ, `correct_ans`) | ✅ ЕГЭ 1–28, ОГЭ 1–19 | Выдаём, `grading_mode=exact` | Без изменений |
-| **Письменные** (развёрнутый ответ, уравнения, расчёты) | ❌ Нет в БД | — | Добавить контент + **AI-проверка** |
+| Тип | В БД сейчас | После Phase 16 (§1.10) | v2+ (опционально) |
+|-----|-------------|------------------------|-------------------|
+| **Тестовые** (краткий ответ, `correct_ans`) | ✅ ЕГЭ 1–28, ОГЭ 1–19 | Без изменений; `grading_mode=exact` | Без изменений |
+| **Письменные** (развёрнутый ответ, уравнения, расчёты) | ❌ Нет в `test_ege.db` (источник: `ege (копия).db`) | ЕГЭ **29–34**: миграция в `test_ege.db`, `grading_mode=self_check` | **AI-проверка** (`ai_assisted`) — не обязательна для показа |
 
-**Решение:** письменные задания при добавлении в БД **не показывать ученикам**, пока не готова AI-проверка (v2). Фильтр: `grading_mode != exact` → скрыто из API/UI.
+**Решение (обновлено v0.8.1):**
 
-### 1.5 Roadmap: AI-проверка письменных (post-MVP)
+- **ЕГЭ 29–34** после миграции в `test_ege.db` **показываются** ученикам с проверкой **`self_check`** — тот же flow, что кастомные письменные задания преподавателя (§1.9.8, §1.9.9): «Сравнить ответ» → эталон; в ДЗ — фото + review преподавателем. Шаг **не входит** в `score` сессии.
+- До завершения Phase 16 типы 29–34 **отсутствуют** в выдаче (как сейчас).
+- Кастомные `self_check` в PostgreSQL (§1.9) — уже в scope Phase 14–15, без AI.
+- AI-проверка письменных в content DB — **post-MVP** (§1.5), не блокер для показа 29–34.
+
+### 1.5 Roadmap: письменные задания в content DB
 
 | Фаза | Что | Проверка |
 |------|-----|----------|
-| **v1** | Весь текущий контент — тестовые задания | Exact match после нормализации |
-| **v2** | Импорт письменных заданий в content DB | `grading_mode: ai_assisted` — LLM + rubric; преподаватель подтверждает/переоценивает |
-| **v2+** | AI-советчик (Agent + RAG) | LangGraph-агент + retrieval по учебнику и тестам; см. §1.6 |
+| **v1 (сейчас)** | ЕГЭ 1–28, ОГЭ 1–19 — тестовые | `grading_mode=exact` — нормализация + сравнение с `correct_ans` |
+| **Phase 16 (§1.10)** | Миграция ЕГЭ 29–34 из `ege (копия).db` → `test_ege.db` | `grading_mode=self_check`; compare / фото в ДЗ / teacher feedback (§1.9.8–1.9.9); **не в score** |
+| **v2+** | AI-проверка письменных (опционально) | `grading_mode: ai_assisted` — LLM + rubric; преподаватель подтверждает/переоценивает |
+| **v2+** | AI-советчик (Agent + RAG) | LangGraph-агент + retrieval по учебнику; см. §1.6 |
 
-**Заложить в v1 (модель, без LLM):**
+**Заложить в модель (без LLM на Phase 16):**
 
 ```python
-grading_mode: Literal["exact", "ai_assisted", "manual"] = "exact"
+grading_mode: Literal["exact", "self_check", "ai_assisted", "manual"] = "exact"
 
-# Content repo: WHERE grading_mode = 'exact'  — единственное, что видит ученик в v1
-# StudentAnswer: raw_text, normalized_text, is_correct, ai_feedback (nullable)
+# exact: types 1–28 (ЕГЭ), 1–19 (ОГЭ) — автопроверка по correct_ans
+# self_check: types 29–34 (ЕГЭ) после миграции — эталон в correct_ans + images; не в score
+# ai_assisted: v2+ — не блокер для self_check
 ```
 
 ### 1.6 Roadmap: AI-советчик (Agent + RAG) — v2+
@@ -395,13 +404,13 @@ Active time по heartbeats — **вне этого среза**.
 
 #### Рейтинг (leaderboard)
 
-| Вид | Период | Публичные поля |
-|-----|--------|----------------|
-| Глобальный топ | `week` (default), `all_time` | `rank`, `display_name`, `points` |
-| Личная статистика ученика | — | баллы, streak, `tasks_solved`, `total_minutes` |
-| Статистика учеников (teacher) | — | те же метрики по своим ученикам (RBAC) |
+| Вид | Период | Публичные поля | Tenant |
+|-----|--------|----------------|--------|
+| Глобальный топ | `week` (default), `all_time` | `rank`, `display_name`, `points` | **Cross-tenant:** ученики разных преподавателей в одном топе (§1.11) |
+| Личная статистика ученика | — | баллы, streak, `tasks_solved`, `total_minutes` | Только свой профиль |
+| Статистика учеников (teacher) | — | те же метрики по **своим** ученикам (RBAC) | `teacher_id` |
 
-В публичном топе — **`display_name`**, не email.
+В публичном топе — **`display_name`**, не email. Роль `teacher` **не** имеет доступа к `/api/leaderboard` (только `student`).
 
 #### API (планируемые)
 
@@ -779,6 +788,158 @@ HomeworkItem (расширение)
 - Общий банк между преподавателями; варианты A/B/C/D
 - S3/CDN; случайная выборка N из пула (`max_steps`)
 
+### 1.10 Письменная часть ЕГЭ в контентной БД (задания 29–34)
+
+> **Статус:** запланировано (v0.8.1); **код не реализован**. План: Phase 16 в `tasks/plan.md` (Tasks 85–91).  
+> **Источник данных:** `ege (копия).db` в корне monorepo (read-only, **не** runtime-источник).
+
+#### Цель
+
+Добавить в `test_ege.db` задания **29–34** (II часть ЕГЭ по химии) и выдавать их в том же Stepik-flow, что тестовую часть, с проверкой **`self_check`** (переиспользование §1.9.8, §1.9.9), **без AI**. Шаги 29–34 **входят** в `score` / `max_score` (решение PO, 2026-06-20) — **отличается** от кастомных `self_check` (§1.9.1), которые в score не входят.
+
+#### Источник: `ege (копия).db`
+
+Таблица `tasks`:
+
+| Поле | Описание |
+|------|----------|
+| `task_number` | 29–34 |
+| `question_text`, `question_image` (BLOB) | Условие |
+| `answer_text`, `answer_image` (BLOB) | Эталонный развёрнутый ответ |
+| `variant_number` | 1–20 (частично); **18 строк с NULL** — черновики/шаблоны |
+| `source_file`, `page_number`, `created_at` | Метаданные импорта |
+
+**Объём:** 126 строк всего — **108** с `variant_number`, **18** с NULL.
+
+**Варианты в источнике:** 1–13, 15–18, 20. **Отсутствуют:** 14, 19, 21–30 (в т.ч. нет данных для полного набора 30 вариантов `test_ege.db`).
+
+**Целевая БД (`test_ege.db` сейчас):** `tests` с `type` 1–28, 30 файлов `001.txt`–`030.txt`; таблица `images` с плейсхолдерами `[рисунокNNNN]`.
+
+#### Миграция контента (`ege (копия).db` → `test_ege.db`)
+
+Одноразовый offline-скрипт (не Alembic app DB). **Не** менять read-only политику в runtime — скрипт выполняется вручную при деплое/обновлении контента.
+
+| Правило | Значение |
+|---------|----------|
+| Вариант | `variant_number` N → `filename = f"{N:03d}.txt"` |
+| Тип задания | `type = task_number` (29–34) |
+| Текст вопроса | `question_text`; BLOB картинки → плейсхолдер `[рисунокNNNN]` в `question` + запись PNG в `images` |
+| Эталон | `answer_text` в `correct_ans` (markdown/текст); BLOB эталона → `[ответNNNN]` в тексте + PNG в `images` (отдельный префикс/имя от рисунков вопроса) |
+| `grading_mode` (логика в коде) | `type` 29–34 → **`self_check`**; 1–28 → `exact` |
+| Строки с `variant_number IS NULL` | **Не мигрировать** в `--apply`; в `--dry-run` — явный отчёт 18 пропущенных строк (`id`, `task_number`, `source_file`); опционально `--export-skipped` → JSON/CSV для ручного маппинга позже |
+| Варианты без данных 29–34 (14, 19, 21–30) | Вариант в выдаче **остаётся**; шаги 1–28 как сейчас; слоты 29–34 **пусты** до появления контента (не скрывать вариант) |
+| `has_issue` | Не выставлять; проблемные — вручную в `tests_bug` при ревью |
+
+**Dry-run:** скрипт поддерживает режим отчёта без записи (сколько строк, какие варианты/типы, конфликты с существующими `tests`).
+
+#### Проверка ответа (grading)
+
+| Аспект | Решение |
+|--------|---------|
+| Режим | `self_check` — как `CustomTask` с `grading_mode=self_check` (§1.9.1) |
+| UI на шаге | «Сравнить ответ» вместо «Проверить»; показ полного эталона (`correct_ans` + картинки `[ответNNNN]`) |
+| Практика | Без обязательного фото (§1.9.8) |
+| ДЗ | Обязательное фото до compare; handoff QR + teacher feedback (§1.9.9) — **те же** API/модели |
+| Score | Шаги 29–34 **входят** в `TestSession.score` / `max_score` и балл ДЗ по тестам (решение PO). Механика начисления на Task 87: после «Сравнить» шаг засчитывается в `max_score`; балл за шаг — TBD (например 1 при `checked` или 0 до teacher review) |
+| AI | **Не используется** на Phase 16 |
+
+**Backend:** хелпер `content_grading` (или аналог) — по `track` + `type` возвращает `exact` | `self_check`; `test_session_service` маршрутизирует `check` vs `compare` для exam-сессий.
+
+#### UI
+
+| Экран | Поведение |
+|-------|-----------|
+| **По вариантам** | Полный вариант: **до 34 шагов** (28 `exact` + 6 `self_check`), если в БД есть типы 29–34 для этого `filename`; иначе 28 + доступные письменные |
+| **По заданиям** | Типы **29–34** в списке типов ЕГЭ (как сейчас 1–28) |
+| **StepView** | Для `self_check` — те же правила upload/compare/handoff, что для кастомных заданий |
+| **Итог сессии** | `score` / `max_score` включают и шаги 29–34 (см. таблицу grading выше) |
+
+#### Валидация ДЗ
+
+`homework_validation`: для трека ЕГЭ допустимые `type` — **1–34** (сейчас 1–28). Назначение `test_partial` / `test_by_type` с типами 29–34 разрешено после Phase 16.
+
+#### Решения product owner (закрыто 2026-06-20)
+
+| # | Вопрос | Решение |
+|---|--------|---------|
+| 1 | Варианты без данных 29–34 (14, 19, 21–30) | **Зарезервировать слоты:** вариант в UI, только 1–28 до появления контента |
+| 2 | 18 строк `variant_number IS NULL` | **Не мигрировать**; dry-run перечисляет пропуски; опциональный export JSON/CSV |
+| 3 | Полный вариант «По вариантам» | **Все 34 шага**, если данные 29–34 есть для `filename` |
+| 4 | Картинки эталона | Префикс **`[ответNNNN]`**; рендер в блоке «Эталон» при compare |
+| 5 | ОГЭ письменная часть | **Отдельная фаза позже**; `test_oge.db` не трогаем в Phase 16 |
+| 6 | Score | Шаги 29–34 **входят** в score (≠ кастомный `self_check`) |
+| 7 | MVP 18/30 вариантов | **Приемлемо** для первого релиза Phase 16 |
+
+**Техническое (Task 85):** повторный запуск миграции — **upsert** по `(filename, type)`.
+
+#### Success criteria (§1.10)
+
+- [ ] Dry-run миграции отчитывается без сюрпризов; apply добавляет 29–34 в целевые варианты.
+- [ ] Ученик открывает вариант с данными 29–34 → до 34 шагов; «Сравнить ответ» показывает эталон с картинками.
+- [ ] ДЗ с типами 29–34: фото обязательно; преподаватель видит review (§1.9.9).
+- [ ] `score` / `max_score` учитывают шаги 29–34 согласно механике Task 87
+- [ ] `pytest` покрывает `content_grading`, compare для exam `self_check`, validation 1–34.
+
+#### Вне scope §1.10
+
+- AI-проверка письменных; OCR
+- Автоматическая миграция при старте приложения
+- Заполнение отсутствующих вариантов 14/19/21–30 синтетическим контентом
+
+### 1.11 Multi-teacher на одном инстансе (Variant A)
+
+> **Идея и обоснование:** [`docs/ideas/production-hardening.md`](docs/ideas/production-hardening.md) (Track A)  
+> **План:** Phase 17, Tasks 92–93 в `tasks/plan.md`
+
+#### Цель
+
+Несколько репетиторов работают на **одном** deploy (один VPS / один Docker Compose) без отдельного инстанса на каждого. Схема БД **не меняется** — tenant boundary уже заложен в `teacher_id`.
+
+#### Provisioning
+
+```bash
+cd backend
+python -m app.cli.seed_teacher --email teacher-a@example.com --password '...'
+python -m app.cli.seed_teacher --email teacher-b@example.com --password '...'
+```
+
+- Email глобально уникален (`User.email`).
+- Повторный запуск с тем же email — no-op (или `--reset-password`).
+- Invite-код / self-registration **teacher** — вне scope.
+
+#### Три слоя данных
+
+| Слой | Что входит | Изоляция |
+|------|------------|----------|
+| **Shared** | Content SQLite (ЕГЭ/ОГЭ, учебник), RAG lecture index | Read-only для всех |
+| **Cross-tenant feature** | `GET /api/leaderboard` | Ученики разных teachers в одном топе — **by design** |
+| **Tenant (`teacher_id`)** | Students, homework, themes, uploads, notifications, tutor sessions | Teacher A ≠ Teacher B |
+
+#### RBAC / IDOR
+
+Каждый teacher-scoped endpoint проверяет ownership через `teacher_id` (или `get_student_for_teacher`). Доступ по UUID без проверки — **критический риск**.
+
+**Acceptance criteria (multi-teacher):**
+
+- [ ] **AC-MT.1:** Teacher B не видит учеников teacher A в `GET /api/students`
+- [ ] **AC-MT.2:** Teacher B не читает/не создаёт homework для учеников teacher A (403/404)
+- [ ] **AC-MT.3:** Teacher B не читает uploads, themes, tutor sessions, notifications teacher A
+- [ ] **AC-MT.4:** Student видит только опубликованные темы и ДЗ своего `teacher_id`
+- [ ] **AC-MT.5:** `pytest tests/multi_teacher/` зелёный; расширение checklist — Task 93
+
+**Проверяемые зоны (IDOR checklist):** students, homework (+ feedback/review), teacher themes/tasks, tutor sessions, uploads (image/audio), notifications, teacher stats.
+
+#### Вне scope Variant A
+
+- Admin UI / CRUD teachers
+- Per-teacher leaderboard
+- Org/school, billing, transfer ученика между teachers
+- Many-to-many student↔teacher (Variant B)
+
+#### Связь с Phase 17 (production hardening)
+
+Track B (`tasks/plan.md` Tasks 94–99): CI (mypy, openapi-typescript), RAG pg-only, TestSession adapters, rate limit login/tutor, Playwright smoke. **TestSession refactor (Task 97) — только после** IDOR suite (Task 93).
+
 ### Success criteria (тестируемые)
 
 - [ ] Ученик с ролью `student` и треком ЕГЭ видит список тем учебника и может открыть чанк (текст + аудио).
@@ -795,12 +956,13 @@ HomeworkItem (расширение)
 - [ ] Задания из `tests_bug` / с `has_issue=1` **не попадают** в выдачу ученику.
 - [ ] `pytest` (backend) и `vitest` (frontend) зелёные для покрытых сценариев.
 - [ ] Преподаватель создаёт кастомные темы; ученик проходит их во вкладке «Темы» (§1.9).
+- [ ] **Multi-teacher:** два `seed_teacher` на одном инстансе; teacher B не получает данные teacher A (AC-MT.1–MT.5, §1.11).
 
 ### Вне scope v1
 
 - AI-агент / чат-советчик (Agent + RAG) — **v2+**, см. §1.6
-- **Письменные задания в банке ЕГЭ/ОГЭ и AI-проверка** (контента пока нет; roadmap v2, см. §1.4–1.5). **Исключение:** кастомные `self_check` задания преподавателя (§1.9) — в scope Phase 14, без AI
-- Self-registration, OAuth, несколько преподавателей / школ
+- **Письменные задания в банке ЕГЭ/ОГЭ и AI-проверка** — AI вне v1 (§1.5). **Исключения:** (а) кастомные `self_check` преподавателя (§1.9, Phase 14–15); (б) **ЕГЭ 29–34 в content DB с `self_check`** (§1.10, Phase 16) — без AI
+- Self-registration **teacher**, OAuth, org/school billing, admin UI для teachers (multi-teacher **CLI** — **in scope**, §1.11)
 - Редактирование контента в UI
 - Email/Telegram-уведомления
 - Расписание занятий
@@ -860,6 +1022,15 @@ cd frontend && npm run build
 
 ```bash
 cd backend && alembic upgrade head
+```
+
+### Teacher accounts (multi-teacher, §1.11)
+
+```bash
+cd backend
+python -m app.cli.seed_teacher --email teacher-a@example.com --password '...'
+python -m app.cli.seed_teacher --email teacher-b@example.com --password '...'
+pytest tests/multi_teacher/ -v
 ```
 
 ### Prod (целевое, после реализации)
@@ -1036,11 +1207,19 @@ CustomTask (Phase 14, §1.9)
 |---------|---------|----------|
 | Unit | services: проверка ответов, парсинг плейсхолдеров изображений | utils, formatters |
 | Integration | TestClient + test PostgreSQL; content repos на копии SQLite fixture | MSW + vitest |
-| E2E (позже) | — | Playwright: login → открыть лекцию → сдать ДЗ |
+| E2E (позже) | — | Playwright: login → 1 шаг теста → submit ДЗ (Task 99) |
+
+### Multi-teacher isolation (§1.11)
+
+| Suite | Назначение |
+|-------|------------|
+| `tests/test_rbac.py` | Homework + test session cross-user (teacher A/B fixture) |
+| `tests/multi_teacher/test_isolation.py` | Единый IDOR checklist: students, homework, uploads, leaderboard |
+| Разрозненные тесты | themes, tutor, notifications, stats — постепенно консолидировать в Task 93 |
 
 ### Обязательные сценарии (первый срез)
 
-1. Auth: login teacher/student, 403 при доступе к чужому ДЗ.
+1. Auth: login teacher/student, 403/404 при доступе к чужому ДЗ и чужим ученикам (§1.11).
 2. Textbook: список тем, чанк без утечки `tts_audio` в JSON (только URL/stream).
 3. Tests: подстановка image URL; фильтр `has_issue=1`; проверка `correct_ans`.
 4. Homework: assign → submit → notification для teacher.
@@ -1059,7 +1238,7 @@ CustomTask (Phase 14, §1.9)
 - Тесты перед коммитом для затронутого кода.
 - Валидация входа (Pydantic / Zod на клиенте только для UX).
 - Секреты в `.env`, не в git.
-- RBAC на каждом endpoint: teacher vs student.
+- RBAC на каждом endpoint: teacher vs student; **teacher-scoped data изолирован по `teacher_id`** (§1.11).
 - Content DB — только SELECT.
 
 ### Ask first
@@ -1106,7 +1285,7 @@ CustomTask (Phase 14, §1.9)
 
 | AC | Критерий |
 |----|----------|
-| AC-2.1 | ЕГЭ: выбор варианта `001`…`030` → сессия из 28 шагов |
+| AC-2.1 | ЕГЭ: выбор варианта `001`…`030` → сессия из **28** шагов (сейчас); после Phase 16 — до **34** шагов, если в варианте есть типы 29–34 (§1.10) |
 | AC-2.2 | ОГЭ: тип 1–19 → выбор варианта → сессия из 1 шага (или несколько типов в ДЗ) |
 | AC-2.3 | UI: одно задание на экран, **ряд кружков** по шагам + «Шаг N из M» (§1.3.1); без progress bar |
 | AC-2.4 | Кнопка «Проверить» отправляет ответ **текущего шага** и показывает верно/неверно без перезагрузки всего варианта |
@@ -1121,7 +1300,7 @@ CustomTask (Phase 14, §1.9)
 | AC-2.13 | На экране пошагового теста — кнопка **«Таблица Менделеева»**; overlay с изображением таблицы; закрытие не сбрасывает ответ и шаг (§1.3.3) |
 | AC-2.14 | Кнопка **«Спросить советчика»** видна **только** при `checked` + `is_correct=false` на текущем шаге; открывает overlay с solve-разбором этого задания (§1.3.4) |
 
-**Проверка ответа (v1):** весь контент в БД — тестовый; `grading_mode=exact` — нормализация + сравнение с `correct_ans`. Письменные задания появятся позже и будут скрыты до v2 (§1.4).
+**Проверка ответа (v1):** типы 1–28 — `grading_mode=exact`, нормализация + `correct_ans`. Типы 29–34 — после Phase 16 (§1.10): `self_check`, не в score. До миграции весь контент — тестовый (1–28).
 
 ### US-3: Домашнее задание (преподаватель → ученик)
 
@@ -1280,7 +1459,7 @@ CustomTask (Phase 14, §1.9)
 | Большие BLOB (аудио) | Stream, не грузить в JSON; HTTP cache headers |
 | Разная структура ЕГЭ vs ОГЭ | Явные enum `ExamTrack` + разные query в content repo |
 | Нестандартные ответы | Начать с exact match; логировать mismatch для доработки |
-| Один преподаватель — жёсткая связь | `teacher_id` на ученике; multi-tenant заложить в PK, не в UI |
+| IDOR между преподавателями | `teacher_id` на всех tenant endpoints; suite `tests/multi_teacher/`; 403/404, не 200 |
 | Кодировка / markdown в вопросах | UTF-8 end-to-end; markdown renderer с sanitization |
 | Галлюцинации AI-советника | RAG-only ответы; цитаты; guardrail off-topic; gating `correct_ans` (§1.3.4); тесты на утечку ключа вне неверного шага |
 | Стоимость LLM API | Абстракция провайдера; mock в тестах; мониторинг токенов (post-launch) |
@@ -1299,8 +1478,8 @@ CustomTask (Phase 14, §1.9)
 | Кардинальность `items` | **Несколько** пунктов на ДЗ; тестовые — из **разных вариантов**; удобный конструктор выбора (v0.6.2, §1.7) |
 | Порядок тем учебника | **Как в БД** (порядок `MIN(rowid)` по `prepared_lectures`) |
 | UX тестов | **Как Stepik:** пошагово, «Проверить», **кружки прогресса**, итог; возобновление сессии |
-| Письменные задания + AI | **Post-MVP (v2):** при добавлении в БД — скрыть до AI; сейчас в БД только тестовые |
-| Состав контентных БД | **Только тестовые задания** (краткий ответ); письменных пока нет |
+| Письменные задания + AI | **Phase 16:** ЕГЭ 29–34 в content DB с **`self_check`** (без AI, §1.10). **v2+:** опционально `ai_assisted`. Кастомные `self_check` — §1.9 |
+| Состав контентных БД | **Сейчас:** только тестовые 1–28 (ЕГЭ); **план:** 29–34 из `ege (копия).db` (§1.10) |
 | AI-советчик | **v2+** после MVP; Agent (LangGraph) + RAG; детали в `docs/specs/tutor-rag.md` |
 | RAG retrieval | Срез 2a: keyword → 2b: hybrid + pgvector → 2c: query rewriting (multi-query) |
 | Роли в чате | Ученик + преподаватель; история в PostgreSQL, teacher read-only на учеников |
@@ -1315,6 +1494,8 @@ CustomTask (Phase 14, §1.9)
 | Кастомные задания преподавателя | PostgreSQL + локальный upload; `auto` + `self_check`; вкладка «Темы»; ДЗ `custom_theme` (§1.9) |
 | `test_by_type` в ДЗ | Опциональный `variants[]` — ручной выбор вариантов преподавателем (§1.9.4) |
 | Навигация по кружочкам | Клик на **любой** шаг, включая `unseen` (§1.9.6) |
+| ЕГЭ письменная часть (29–34) | Миграция `ege (копия).db` → `test_ege.db`; `self_check`; Phase 16 (§1.10) |
+| Multi-teacher на инстансе | **Variant A:** CLI `seed_teacher` × N; tenant = `teacher_id`; global leaderboard cross-tenant; IDOR tests (§1.11, Phase 17 Tasks 92–93) |
 
 ## 12. Открытые вопросы
 
@@ -1328,12 +1509,13 @@ CustomTask (Phase 14, §1.9)
 6. ~~**AI на экране теста:** только теория / tool `get_hint` / чат отключён?~~ **Решено (v0.7.6):** по умолчанию только теория; solve с `correct_ans` — **только** после неверного ответа на проверенном шаге (§1.3.4). Ранее v0.6: полный запрет solve на тесте.
 7. **LLM провайдер:** OpenAI / OpenRouter / локально? *(до начала §1.6 implement)*
 8. ~~**Кардинальность `items` в ДЗ:** одно задание или несколько?~~ **Решено (v0.6.2):** **несколько** `items` на `HomeworkAssignment`, в т.ч. тестовые задания **из разных вариантов**. Нужна удобная система выбора заданий в UI преподавателя. Реализация сдачи (`homework_submit_service`, сейчас обрабатывает только `items[0]`) — переписать на агрегацию всех пунктов. См. §1.7, Task 39–40 в `tasks/plan.md`.
+9. ~~**ЕГЭ 29–34 в content DB**~~ **Решено (2026-06-20):** см. таблицу решений §1.10. Phase 16 в `tasks/plan.md`.
 
 ---
 
 ## 13. Следующий шаг
 
-Спека §1.9 согласована (v0.7.8). Далее → **Phase 14** в `tasks/plan.md` (Tasks 66–74) → `incremental-implementation` срез A (Tasks 66–72).
+Решения §1.10 закрыты (2026-06-20). Далее → **Phase 16** в `tasks/plan.md`: Task **85** (миграция + dry-run + export skipped) → 86–91.
 
 ---
 
@@ -1462,6 +1644,8 @@ CustomTask (Phase 14, §1.9)
 ---
 
 *Changelog:*  
+- 0.8.2 — §1.11 **multi-teacher на одном инстансе (Variant A)**: допущения §3/§4/§15; provisioning `seed_teacher` × N; три слоя данных (shared / cross-tenant leaderboard / tenant `teacher_id`); AC-MT.1–MT.5; IDOR checklist + `tests/multi_teacher/`; связь с Phase 17 (`docs/ideas/production-hardening.md`, Tasks 92–99). Обновлены §1.8 (leaderboard cross-tenant), «Для кого», §5 Testing, §6 Boundaries, §10 Risks, §11. Убрано «один преподаватель на инстанс».  
+- 0.8.1 — §1.10 **письменная часть ЕГЭ 29–34 в content DB**: источник `ege (копия).db`, миграция в `test_ege.db`, `self_check` (§1.9.8/1.9.9), не в score; обновлены §1.4–1.5 (не скрывать до AI); AC-2.1; план Phase 16 (`tasks/plan.md`, Tasks 85–91). Код **не** в scope этого релиза спеки.  
 - 0.8.0 — §1.9.9 **проверка письменных ДЗ преподавателем**: `ImageViewer` + эталон; QR handoff для съёмки с телефона; feedback голос/фото/текст per-step + опционально на сдачу; `has_teacher_feedback` / бейдж «Есть разбор»; без пересдачи и без статусов принято/доработка; AC-3.9, AC-7.11–7.16; идея — `docs/ideas/teacher-written-homework-review.md`; план — Phase 15.  
 - 0.7.9 — §1.9.8 **письменные ответы: практика vs ДЗ**: в свободной практике `self_check` — только «Сравнить» (без upload); в ДЗ — обязательное фото рукописи до compare, teacher review фото при сдаче; `TestSessionStep.answer_image_id`; AC-7.9–7.10; обновлены AC-7.3/7.5; идея — `docs/ideas/written-homework-photo-submit.md`; план — Task 72 (доработка) + Task 75.  
 - 0.7.8 — §1.9 **конструктор заданий преподавателя**: темы + кастомные задания (`auto` / `self_check`), upload картинок, вкладка «Темы» у ученика, ДЗ `custom_theme`, `test_by_type.variants[]`, свободная навигация по кружочкам (AC-2.11, §1.9.6); US-7, AC-7.1–7.8; идея — `docs/ideas/teacher-task-constructor.md`; план — Phase 14 (`tasks/plan.md`, Tasks 66–74).  

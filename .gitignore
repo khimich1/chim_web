@@ -21,6 +21,7 @@ frontend/.env*.local
 
 # SQLite databases (local dev + read-only content — see SPEC.md)
 *.db
+*.db.bak
 *.db-shm
 *.db-wal
 /prepared_lectures.db
