@@ -2,9 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
-import { HomeworkSubmitButton } from "@/components/homework/HomeworkSubmitButton";
+import { HomeworkSessionSummarySection } from "@/components/homework/HomeworkSessionSummarySection";
 import { SessionSummary } from "@/components/tests/SessionSummary";
-import { getTestSession } from "@/lib/api/server";
+import { getHomework, getTestSession } from "@/lib/api/server";
 
 export default async function TestSessionSummaryPage({
   params,
@@ -17,6 +17,11 @@ export default async function TestSessionSummaryPage({
   if (!session) {
     notFound();
   }
+
+  const homework =
+    session.homework_assignment_id != null
+      ? await getHomework(session.homework_assignment_id)
+      : null;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
@@ -38,12 +43,11 @@ export default async function TestSessionSummaryPage({
       </section>
 
       {session.homework_assignment_id && session.status === "completed" ? (
-        <section className="chem-card mt-8 rounded-lg p-6">
-          <HomeworkSubmitButton
-            homeworkId={session.homework_assignment_id}
-            sessionId={session.id}
-          />
-        </section>
+        <HomeworkSessionSummarySection
+          homeworkId={session.homework_assignment_id}
+          sessionId={session.id}
+          homework={homework}
+        />
       ) : null}
     </main>
   );

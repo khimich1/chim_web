@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { getNotifications } from "@/lib/api/server";
+import { formatHomeworkSubmittedNotification } from "@/lib/notifications/format-homework-notification";
 
 export default async function TeacherNotificationsPage() {
   const notifications = await getNotifications();
@@ -38,8 +39,7 @@ export default async function TeacherNotificationsPage() {
                       : "font-medium text-zinc-900"
                   }`}
                 >
-                  {notification.payload.student_email} сдал(а) «
-                  {notification.payload.homework_title}»
+                  {formatHomeworkSubmittedNotification(notification.payload)}
                 </Link>
                 <p className="mt-1 text-xs text-zinc-500">
                   {new Date(notification.created_at).toLocaleString("ru-RU")}

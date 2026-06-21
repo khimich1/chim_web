@@ -307,6 +307,9 @@ export interface HomeworkSubmission {
   test_session_id: string | null;
   score: number | null;
   max_score: number | null;
+  answered_steps?: number | null;
+  total_steps?: number | null;
+  completion_percent?: number | null;
 }
 
 export interface HomeworkSubmissionStep {
@@ -351,6 +354,7 @@ export interface HomeworkAssignment {
   submission_steps?: HomeworkSubmissionStep[];
   submission_feedback?: StepFeedbackContent | null;
   has_teacher_feedback?: boolean;
+  can_reopen?: boolean;
 }
 
 export interface CreateHomeworkInput {
@@ -361,15 +365,20 @@ export interface CreateHomeworkInput {
   items: HomeworkItem[];
 }
 
+export interface HomeworkSubmittedNotificationPayload {
+  homework_id: string;
+  homework_title: string;
+  student_id: string;
+  student_email: string;
+  answered_steps?: number | null;
+  total_steps?: number | null;
+  completion_percent?: number | null;
+}
+
 export interface Notification {
   id: string;
   type: NotificationType;
-  payload: {
-    homework_id: string;
-    homework_title: string;
-    student_id: string;
-    student_email: string;
-  };
+  payload: HomeworkSubmittedNotificationPayload;
   read_at: string | null;
   created_at: string;
 }

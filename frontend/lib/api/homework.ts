@@ -32,6 +32,13 @@ export function submitHomework(
   });
 }
 
+export function reopenHomework(id: string): Promise<HomeworkAssignment> {
+  return apiFetch<HomeworkAssignment>(`/api/homework/${id}/reopen`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
 export function completeHomeworkItem(
   homeworkId: string,
   itemIndex: number,

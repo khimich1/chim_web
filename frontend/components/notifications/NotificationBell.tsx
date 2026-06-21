@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { getUnreadCount, markNotificationRead } from "@/lib/api/notifications";
 import type { Notification } from "@/lib/api/types";
+import { formatHomeworkSubmittedNotification } from "@/lib/notifications/format-homework-notification";
 
 export function NotificationBell({
   initialNotifications,
@@ -89,8 +90,7 @@ export function NotificationBell({
                       notification.read_at ? "text-zinc-600" : "font-medium text-zinc-900"
                     }`}
                   >
-                    {notification.payload.student_email} сдал(а) «
-                    {notification.payload.homework_title}»
+                    {formatHomeworkSubmittedNotification(notification.payload)}
                   </button>
                 </li>
               ))}

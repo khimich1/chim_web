@@ -3,9 +3,11 @@
 import Link from "next/link";
 
 import type { HomeworkAssignment } from "@/lib/api/types";
+import { formatHomeworkSubmissionProgress } from "@/lib/homework/format-submission-progress";
 
 import { formatHomeworkItemLabel, isTestHomeworkItem } from "./homework-utils";
 import { HomeworkSubmitButton } from "./HomeworkSubmitButton";
+import { HomeworkReopenButton } from "./HomeworkReopenButton";
 import { LectureHomeworkSubmit } from "./LectureHomework";
 import { TestHomeworkActions } from "./TestHomeworkActions";
 
@@ -32,17 +34,29 @@ export function HomeworkItemsPanel({
   );
 
   if (isSubmitted) {
+    const progressLabel = formatHomeworkSubmissionProgress(homework.submission);
+
     return (
-      <p
-        className="text-sm font-medium text-[var(--text-positive)]"
-        aria-live="polite"
-      >
-        Задание сдано
-        {homework.submission?.score != null
-          ? ` — балл ${homework.submission.score} / ${homework.submission.max_score}`
-          : ""}
-        .
-      </p>
+      <div className="flex flex-col gap-4">
+        <p
+          className="text-sm font-medium text-[var(--text-positive)]"
+          aria-live="polite"
+        >
+          Задание сдано{progressLabel}
+          {homework.submission?.score != null
+            ? ` — балл ${homework.submission.score} / ${homework.submission.max_score}`
+            : ""}
+          .
+        </p>
+        {homework.can_reopen ? (
+          <div>
+            <p className="mb-2 text-sm text-zinc-600">
+              Можно досдать оставшиеся задания и обновить результат.
+            </p>
+            <HomeworkReopenButton homeworkId={homework.id} />
+          </div>
+        ) : null}
+      </div>
     );
   }
 
