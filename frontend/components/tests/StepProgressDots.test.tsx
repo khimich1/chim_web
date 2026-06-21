@@ -67,4 +67,22 @@ describe("StepProgressDots", () => {
 
     expect(container.querySelector(".chem-step-dots--scroll")).toBeInTheDocument();
   });
+
+  it("marks checked self_check steps as answered, not incorrect", () => {
+    const steps = [
+      makeStep({
+        position: 0,
+        status: "checked",
+        grading_mode: "self_check",
+        is_correct: null,
+      }),
+    ];
+
+    render(<StepProgressDots steps={steps} current={0} onSelect={vi.fn()} />);
+
+    const tab = screen.getByRole("tab");
+    expect(tab).toHaveClass("chem-step-dot--answered");
+    expect(tab).not.toHaveClass("chem-step-dot--incorrect");
+    expect(tab).toHaveAccessibleName("Задание 1: самопроверка выполнена");
+  });
 });

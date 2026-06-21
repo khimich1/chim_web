@@ -1,4 +1,8 @@
 import type { TestSession, TestStep } from "@/lib/api/types";
+import {
+  isCustomSelfCheck,
+  isExamContentSelfCheck,
+} from "@/lib/tests/grading-utils";
 
 export function formatSessionTitle(session: TestSession): string {
   if (session.custom_theme_id || session.source === "custom") {
@@ -21,7 +25,10 @@ function stepLabel(step: TestStep, index: number): string {
 }
 
 function stepVerdict(step: TestStep): string {
-  if (step.grading_mode === "self_check") {
+  if (isExamContentSelfCheck(step)) {
+    return step.status === "checked" ? "✓ Засчитано" : "— Не отвечено";
+  }
+  if (isCustomSelfCheck(step)) {
     return step.status === "checked" ? "Самопроверка" : "— Не отвечено";
   }
   if (step.is_correct === true) {
@@ -34,7 +41,12 @@ function stepVerdict(step: TestStep): string {
 }
 
 function verdictClass(step: TestStep): string {
-  if (step.grading_mode === "self_check") {
+  if (isExamContentSelfCheck(step)) {
+    return step.status === "checked"
+      ? "chem-verdict-correct"
+      : "bg-zinc-100 text-zinc-500";
+  }
+  if (isCustomSelfCheck(step)) {
     return step.status === "checked"
       ? "bg-chem-teal-soft text-chem-teal-dark"
       : "bg-zinc-100 text-zinc-500";

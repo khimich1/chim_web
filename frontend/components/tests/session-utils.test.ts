@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { formatSessionTitle } from "@/components/tests/session-utils";
-import type { TestSession } from "@/lib/api/types";
+import { formatSessionTitle, stepVerdict } from "@/components/tests/session-utils";
+import type { TestSession, TestStep } from "@/lib/api/types";
 
 function baseSession(overrides: Partial<TestSession>): TestSession {
   return {
@@ -57,5 +57,49 @@ describe("formatSessionTitle", () => {
         }),
       ),
     ).toBe("Смешанная сессия");
+  });
+});
+
+function baseStep(overrides: Partial<TestStep>): TestStep {
+  return {
+    position: 0,
+    test_id: 1,
+    type: 1,
+    question: "Q",
+    options: null,
+    status: "unseen",
+    answer: null,
+    is_correct: null,
+    hint_used: false,
+    ...overrides,
+  };
+}
+
+describe("stepVerdict", () => {
+  it("shows Засчитано for checked exam content self_check", () => {
+    expect(
+      stepVerdict(
+        baseStep({
+          type: 29,
+          grading_mode: "self_check",
+          status: "checked",
+        }),
+      ),
+    ).toBe("✓ Засчитано");
+  });
+
+  it("shows Самопроверка for checked custom self_check", () => {
+    expect(
+      stepVerdict(
+        baseStep({
+          test_id: null,
+          type: null,
+          question: null,
+          question_blocks: [{ type: "text", content: "Q" }],
+          grading_mode: "self_check",
+          status: "checked",
+        }),
+      ),
+    ).toBe("Самопроверка");
   });
 });

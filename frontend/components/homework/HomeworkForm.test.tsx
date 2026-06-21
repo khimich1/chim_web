@@ -211,6 +211,59 @@ describe("HomeworkForm", () => {
     });
   });
 
+  it("shows EGE type range including written tasks 29–34", async () => {
+    render(
+      <HomeworkForm
+        students={students}
+        topics={topics}
+        variantsByTrack={variantsByTrack}
+        teacherThemes={teacherThemes}
+      />,
+    );
+
+    await userEvent.selectOptions(
+      screen.getByLabelText("Тип пункта"),
+      "test_partial",
+    );
+
+    expect(screen.getByRole("button", { name: "29" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "34" })).toBeInTheDocument();
+  });
+
+  it("adds test_by_type with EGE written task numbers", async () => {
+    render(
+      <HomeworkForm
+        students={students}
+        topics={topics}
+        variantsByTrack={variantsByTrack}
+        teacherThemes={teacherThemes}
+      />,
+    );
+
+    await fillTitle("Письменная часть");
+
+    await userEvent.selectOptions(
+      screen.getByLabelText("Тип пункта"),
+      "test_by_type",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "10" }));
+    await userEvent.click(screen.getByRole("button", { name: "11" }));
+    await userEvent.click(screen.getByRole("button", { name: "29" }));
+    await userEvent.click(screen.getByRole("button", { name: "30" }));
+    await userEvent.click(screen.getByRole("button", { name: "Добавить пункт" }));
+
+    expect(screen.getByText(/1\. Тест: №29, 30 по вариантам/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Назначить" }));
+
+    expect(mockedCreate).toHaveBeenCalledWith({
+      student_id: "student-1",
+      title: "Письменная часть",
+      description: null,
+      items: [{ kind: "test_by_type", types: [29, 30] }],
+    });
+  });
+
   it("shows OGE type range for an OGE student", async () => {
     render(
       <HomeworkForm

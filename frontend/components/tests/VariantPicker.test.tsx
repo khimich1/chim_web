@@ -57,7 +57,7 @@ describe("VariantPicker", () => {
       status: "in_progress",
       score: null,
       max_score: null,
-      total_steps: 1,
+      total_steps: 34,
       steps: [],
     });
 

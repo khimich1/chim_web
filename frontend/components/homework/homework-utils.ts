@@ -42,7 +42,7 @@ export function isTestHomeworkItem(
 }
 
 export function typeNumbersForTrack(track: Track): number[] {
-  const max = track === "ege" ? 28 : 19;
+  const max = track === "ege" ? 34 : 19;
   return Array.from({ length: max }, (_, index) => index + 1);
 }
 

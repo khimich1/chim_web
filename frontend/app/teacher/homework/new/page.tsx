@@ -4,24 +4,24 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
 import { HomeworkForm } from "@/components/homework/HomeworkForm";
 import {
   getStudents,
-  getTeacherThemesWithTaskCounts,
+  getTeacherThemes,
   getTeacherThemeTasks,
   getTestVariants,
   getTextbookTopics,
 } from "@/lib/api/server";
 
 export default async function TeacherHomeworkNewPage() {
-  const [students, topics, egeVariants, ogeVariants, themeSummaries] =
+  const [students, topics, egeVariants, ogeVariants, themes] =
     await Promise.all([
       getStudents(),
       getTextbookTopics(),
       getTestVariants("ege"),
       getTestVariants("oge"),
-      getTeacherThemesWithTaskCounts(),
+      getTeacherThemes(),
     ]);
 
   const teacherThemes = await Promise.all(
-    themeSummaries.map(async (theme) => ({
+    themes.map(async (theme) => ({
       id: theme.id,
       title: theme.title,
       tasks: await getTeacherThemeTasks(theme.id),

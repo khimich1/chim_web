@@ -19,17 +19,14 @@ import {
 } from "@/lib/api/tests";
 import type { ContentBlock, TestSession, TestStep } from "@/lib/api/types";
 import { useTutorChat } from "@/lib/tutor/TutorChatContext";
+import {
+  countsTowardScore,
+  isCustomStep,
+} from "@/lib/tests/grading-utils";
 
 function findFirstUnchecked(steps: TestStep[]): number {
   const index = steps.findIndex((step) => step.status !== "checked");
   return index === -1 ? 0 : index;
-}
-
-function isCustomStep(step: TestStep): boolean {
-  return (
-    step.custom_task_id != null ||
-    (step.question_blocks != null && step.question_blocks.length > 0)
-  );
 }
 
 function isCustomSession(session: TestSession): boolean {
@@ -91,7 +88,7 @@ export function StepView({ session }: { session: TestSession }) {
   );
 
   const scorableCount = useMemo(
-    () => steps.filter((s) => s.grading_mode !== "self_check").length,
+    () => steps.filter(countsTowardScore).length,
     [steps],
   );
 

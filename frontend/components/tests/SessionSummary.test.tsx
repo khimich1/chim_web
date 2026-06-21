@@ -134,4 +134,46 @@ describe("SessionSummary", () => {
     expect(screen.getByText("Самопроверка")).toBeInTheDocument();
     expect(screen.getByText("✓ Верно")).toBeInTheDocument();
   });
+
+  it("includes exam content self_check in score without custom disclaimer", () => {
+    const examWrittenSession: TestSession = {
+      ...session,
+      source: "exam",
+      score: 2,
+      max_score: 2,
+      steps: [
+        {
+          position: 0,
+          test_id: 11,
+          type: 1,
+          question: "Q1",
+          options: null,
+          status: "checked",
+          answer: "a",
+          is_correct: true,
+          hint_used: false,
+        },
+        {
+          position: 1,
+          test_id: 12,
+          type: 29,
+          question: "Written Q29",
+          options: null,
+          grading_mode: "self_check",
+          status: "checked",
+          answer: "b",
+          is_correct: null,
+          hint_used: false,
+        },
+      ],
+    };
+
+    render(<SessionSummary session={examWrittenSession} />);
+
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Задания с самопроверкой не входят в баллы"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("✓ Засчитано")).toBeInTheDocument();
+  });
 });

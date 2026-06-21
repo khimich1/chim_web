@@ -7,6 +7,8 @@ function dotClassName(step: TestStep, isCurrent: boolean): string {
     classes.push("chem-step-dot--unseen");
   } else if (step.status === "answered") {
     classes.push("chem-step-dot--answered");
+  } else if (step.status === "checked" && step.grading_mode === "self_check") {
+    classes.push("chem-step-dot--answered");
   } else if (step.is_correct) {
     classes.push("chem-step-dot--correct");
   } else {
@@ -21,6 +23,9 @@ function dotClassName(step: TestStep, isCurrent: boolean): string {
 }
 
 function stepAriaLabel(step: TestStep, stepNumber: number): string {
+  if (step.status === "checked" && step.grading_mode === "self_check") {
+    return `Задание ${stepNumber}: самопроверка выполнена`;
+  }
   if (step.status === "checked") {
     return step.is_correct
       ? `Задание ${stepNumber}: верно`

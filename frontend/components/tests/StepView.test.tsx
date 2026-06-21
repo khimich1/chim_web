@@ -282,6 +282,125 @@ describe("StepView", () => {
     expect(mockedCheck).not.toHaveBeenCalled();
   });
 
+  it("uses compare for exam content self_check (type 29) and shows reference blocks", async () => {
+    const examSession: TestSession = {
+      id: "sess-exam-written",
+      track: "ege",
+      source: "exam",
+      variant_ref: "001.txt",
+      homework_assignment_id: null,
+      status: "in_progress",
+      score: null,
+      max_score: null,
+      total_steps: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      steps: [
+        {
+          position: 0,
+          test_id: 100,
+          type: 29,
+          question: "Written Q29",
+          options: null,
+          grading_mode: "self_check",
+          status: "unseen",
+          answer: null,
+          is_correct: null,
+          hint_used: false,
+        },
+      ],
+    };
+
+    mockedCompare.mockResolvedValue({
+      position: 0,
+      status: "checked",
+      reference_answer: [
+        { type: "text", content: "Разбор " },
+        { type: "image", url: "/api/tests/images/%D0%BE%D1%82%D0%B2%D0%B5%D1%820001.png" },
+      ],
+    });
+
+    render(<StepView session={examSession} />);
+
+    expect(screen.getByText("Written Q29")).toBeInTheDocument();
+    expect(screen.getByText("Тип 29")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Прикрепить с этого устройства/i }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Ваш ответ"), "мой разбор");
+    await userEvent.click(screen.getByRole("button", { name: "Сравнить ответ" }));
+
+    expect(mockedCompare).toHaveBeenCalledWith(
+      "sess-exam-written",
+      0,
+      "мой разбор",
+    );
+    expect(await screen.findByText("Разбор")).toBeInTheDocument();
+    expect(mockedCheck).not.toHaveBeenCalled();
+  });
+
+  it("requires photo for exam content self_check in homework sessions", async () => {
+    const homeworkExamSession: TestSession = {
+      id: "sess-hw-exam",
+      track: "ege",
+      source: "exam",
+      variant_ref: "001.txt",
+      homework_assignment_id: "hw-1",
+      status: "in_progress",
+      score: null,
+      max_score: null,
+      total_steps: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      steps: [
+        {
+          position: 0,
+          test_id: 100,
+          type: 30,
+          question: "Written Q30",
+          options: null,
+          grading_mode: "self_check",
+          status: "unseen",
+          answer: null,
+          is_correct: null,
+          hint_used: false,
+        },
+      ],
+    };
+
+    render(<StepView session={homeworkExamSession} />);
+
+    expect(
+      screen.getByRole("button", { name: "Сравнить ответ" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByLabelText(/Прикрепить с этого устройства/i),
+    ).toBeInTheDocument();
+  });
+
+  it("shows step count up to 34 steps", () => {
+    const longSession: TestSession = {
+      ...session,
+      total_steps: 34,
+      created_at: "2026-01-01T00:00:00Z",
+      steps: Array.from({ length: 34 }, (_, index) => ({
+        position: index,
+        test_id: index + 1,
+        type: index + 1,
+        question: `Q${index + 1}`,
+        options: null,
+        status: "unseen" as const,
+        answer: null,
+        is_correct: null,
+        hint_used: false,
+        grading_mode: index >= 28 ? ("self_check" as const) : undefined,
+      })),
+    };
+
+    render(<StepView session={longSession} />);
+
+    expect(screen.getByText("Шаг 1 из 34")).toBeInTheDocument();
+  });
+
   it("hides photo upload in practice self_check mode", () => {
     const customSession: TestSession = {
       id: "sess-custom",

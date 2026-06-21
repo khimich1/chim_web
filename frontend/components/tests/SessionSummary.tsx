@@ -8,15 +8,14 @@ import {
 } from "@/components/tests/session-utils";
 import { DecorativeBlobs } from "@/components/ui/DecorativeBlobs";
 import type { TestSession } from "@/lib/api/types";
+import { isCustomSelfCheck } from "@/lib/tests/grading-utils";
 
 export function SessionSummary({ session }: { session: TestSession }) {
   const score = session.score ?? 0;
   const maxScore = session.max_score ?? session.total_steps;
   const percent =
     maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
-  const hasSelfCheck = session.steps.some(
-    (step) => step.grading_mode === "self_check",
-  );
+  const hasCustomSelfCheck = session.steps.some(isCustomSelfCheck);
 
   return (
     <div className="relative isolate min-w-0 overflow-hidden rounded-xl">
@@ -31,7 +30,7 @@ export function SessionSummary({ session }: { session: TestSession }) {
             <p className="mt-2 text-4xl font-bold tabular-nums">
               {score} / {maxScore}
             </p>
-            {hasSelfCheck ? (
+            {hasCustomSelfCheck ? (
               <p className="mt-1 text-xs text-white/80">
                 Задания с самопроверкой не входят в баллы
               </p>
