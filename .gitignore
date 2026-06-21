@@ -49,6 +49,7 @@ htmlcov/
 coverage/
 backend/coverage.json
 backend/openapi.json
+e2e-fixtures/
 test-results/
 playwright-report/
 blob-report/
