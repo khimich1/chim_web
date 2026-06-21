@@ -1,4 +1,13 @@
-"""Create the first teacher account (MVP: single teacher per instance)."""
+"""Create or reset a teacher account (multi-teacher: run once per email).
+
+Provision N teachers on one instance::
+
+    python -m app.cli.seed_teacher --email teacher-a@example.com --password ...
+    python -m app.cli.seed_teacher --email teacher-b@example.com --password ...
+
+Each teacher sees only students/homework/themes tied to their ``teacher_id``.
+Isolation is verified by ``tests/multi_teacher/test_isolation.py``.
+"""
 
 from __future__ import annotations
 
@@ -56,7 +65,9 @@ async def seed_teacher(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Seed the initial teacher account")
+    parser = argparse.ArgumentParser(
+        description="Seed a teacher account (repeat with different --email for multi-teacher)",
+    )
     parser.add_argument("--email", required=True, help="Teacher email")
     parser.add_argument("--password", required=True, help="Initial password")
     parser.add_argument(

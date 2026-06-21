@@ -94,7 +94,14 @@ pytest --cov=app
 ruff check .
 mypy app/
 alembic upgrade head
+
+# Multi-teacher (Variant A): N teachers on one instance
+python -m app.cli.seed_teacher --email teacher-a@example.com --password '...'
+python -m app.cli.seed_teacher --email teacher-b@example.com --password '...'
+pytest tests/multi_teacher/   # IDOR isolation suite
 ```
+
+См. [`docs/ideas/production-hardening.md`](docs/ideas/production-hardening.md) — Phase 17 + multi-tenant checklist.
 
 ### Frontend
 
