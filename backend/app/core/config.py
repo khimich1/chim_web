@@ -36,8 +36,17 @@ class Settings(BaseSettings):
     jwt_secret: str = Field(alias="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(
-        default=480,
+        default=60,
         alias="ACCESS_TOKEN_EXPIRE_MINUTES",
+    )
+
+    auth_login_rate_limit: str = Field(
+        default="10/15minutes",
+        alias="AUTH_LOGIN_RATE_LIMIT",
+    )
+    tutor_message_rate_limit: str = Field(
+        default="30/minute",
+        alias="TUTOR_MESSAGE_RATE_LIMIT",
     )
 
     # Auth cookie settings. In dev (http://localhost) Secure must be False;

@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, TeacherUser, get_app_settings
 from app.core.config import Settings
+from app.core.rate_limit import enforce_tutor_message_rate_limit
 from app.db.session import get_db
 from app.schemas.tutor import (
     TutorHealthResponse,
@@ -83,6 +84,7 @@ async def get_tutor_session(
 @router.post(
     "/sessions/{session_id}/messages",
     response_model=TutorMessageResponse,
+    dependencies=[Depends(enforce_tutor_message_rate_limit)],
 )
 async def send_tutor_message(
     session_id: uuid.UUID,
@@ -97,7 +99,10 @@ def _format_sse(event: dict[str, Any]) -> str:
     return f"event: {event['event']}\ndata: {json.dumps(event['data'], ensure_ascii=False)}\n\n"
 
 
-@router.post("/sessions/{session_id}/messages/stream")
+@router.post(
+    "/sessions/{session_id}/messages/stream",
+    dependencies=[Depends(enforce_tutor_message_rate_limit)],
+)
 async def stream_tutor_message(
     session_id: uuid.UUID,
     payload: TutorMessageCreate,

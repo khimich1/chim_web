@@ -11,6 +11,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 
 from app.api.routers import capture as capture_router
 from app.api.routers import custom_themes as custom_themes_router
@@ -29,6 +31,7 @@ from app.api.routers import tutor as tutor_router
 from app.api.routers import uploads as uploads_router
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
+from app.core.rate_limit import limiter
 from app.db.session import dispose_engine, init_engine
 
 
@@ -49,6 +52,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     application.state.settings = app_settings
+    application.state.limiter = limiter
+
+    @application.exception_handler(RateLimitExceeded)
+    async def rate_limit_exceeded_handler(
+        _request: Request,
+        exc: RateLimitExceeded,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=429,
+            content={"error": f"Rate limit exceeded: {exc.detail}"},
+        )
 
     application.add_middleware(
         CORSMiddleware,

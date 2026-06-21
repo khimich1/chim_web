@@ -17,7 +17,16 @@ os.environ.setdefault("JWT_SECRET", "test-jwt-secret-at-least-32-bytes-long")
 os.environ.setdefault("CORS_ORIGINS", "http://localhost:3000")
 
 from app.core.config import Settings, get_settings  # noqa: E402
+from app.core.rate_limit import reset_limiter_storage  # noqa: E402
 from app.main import create_app  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter() -> None:
+    """Prevent slowapi counter bleed between tests."""
+    reset_limiter_storage()
+    yield
+    reset_limiter_storage()
 
 
 @pytest.fixture

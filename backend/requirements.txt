@@ -13,6 +13,7 @@ alembic>=1.14.0,<2.0.0
 passlib[bcrypt]>=1.7.4,<2.0.0
 bcrypt>=4.0.0,<5.0.0
 pyjwt>=2.9.0,<3.0.0
+slowapi>=0.1.9,<0.2.0
 
 # Tutor agent (v2+, ported from RAG_chemistry)
 langgraph>=0.2.0,<0.4.0

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, get_app_settings
 from app.core.config import Settings
+from app.core.rate_limit import enforce_login_rate_limit
 from app.core.security import create_access_token
 from app.db.session import get_db
 from app.schemas.auth import LoginRequest, UserResponse
@@ -26,7 +27,11 @@ from app.services.auth_service import AuthService
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=UserResponse)
+@router.post(
+    "/login",
+    response_model=UserResponse,
+    dependencies=[Depends(enforce_login_rate_limit)],
+)
 async def login(
     payload: LoginRequest,
     response: Response,
