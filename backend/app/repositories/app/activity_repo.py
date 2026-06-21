@@ -24,6 +24,7 @@ LeaderboardPeriod = Literal["week", "all_time"]
 _LEARNING_ACTIVITY_TYPES = (
     ActivityEventType.STEP_CORRECT,
     ActivityEventType.HOMEWORK_COMPLETE,
+    ActivityEventType.HOMEWORK_COMPLETE_DELTA,
     ActivityEventType.ONBOARDING_FIRST_ACTION,
 )
 

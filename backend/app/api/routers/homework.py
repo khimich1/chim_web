@@ -6,6 +6,7 @@
 | GET    | /api/homework             | teacher / student | Role-based list    |
 | GET    | /api/homework/{id}        | teacher / student | Details (RBAC)     |
 | POST   | /api/homework/{id}/submit | student           | Submit homework    |
+| POST   | /api/homework/{id}/reopen | student           | Reopen partial HW  |
 | POST   | /api/homework/{id}/items/{index}/complete | student | Mark lecture read |
 """
 
@@ -89,6 +90,15 @@ async def submit_homework(
     service: Annotated[HomeworkSubmitService, Depends(get_homework_submit_service)],
 ) -> HomeworkRead:
     return await service.submit(student, assignment_id, payload)
+
+
+@router.post("/{assignment_id}/reopen", response_model=HomeworkRead)
+async def reopen_homework(
+    assignment_id: uuid.UUID,
+    student: StudentUser,
+    service: Annotated[HomeworkSubmitService, Depends(get_homework_submit_service)],
+) -> HomeworkRead:
+    return await service.reopen(student, assignment_id)
 
 
 @router.post(

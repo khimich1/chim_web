@@ -183,7 +183,10 @@ def _written_step_position(session: dict) -> int:
     return next(step["position"] for step in session["steps"] if step["type"] == 29)
 
 
-def test_submit_blocked_without_exam_self_check_photo(client: TestClient) -> None:
+def test_partial_submit_allows_unchecked_exam_self_check_without_photo(
+    client: TestClient,
+) -> None:
+    """Task 100: photo required only on checked self_check steps (§1.7 partial submit)."""
     assignment_id = _create_homework_partial(client)
     _login(client, STUDENT_EMAIL, STUDENT_PASS)
     session = client.post(
@@ -211,8 +214,11 @@ def test_submit_blocked_without_exam_self_check_photo(client: TestClient) -> Non
 
     client.post(f"/api/tests/sessions/{session_id}/complete")
     submit = client.post(f"/api/homework/{assignment_id}/submit", json={})
-    assert submit.status_code == 422
-    assert "photo" in submit.json()["detail"].lower()
+    assert submit.status_code == 200, submit.text
+    body = submit.json()
+    assert body["submission"]["answered_steps"] == 1
+    assert body["submission"]["total_steps"] == 2
+    assert body["can_reopen"] is True
 
 
 def test_submit_score_includes_written_step(client: TestClient) -> None:

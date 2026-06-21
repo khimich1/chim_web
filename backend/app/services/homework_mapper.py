@@ -10,6 +10,7 @@ from __future__ import annotations
 import uuid
 
 from app.models import HomeworkAssignment
+from app.models.enums import HomeworkStatus
 from app.schemas.homework import (
     HomeworkItemProgressRead,
     HomeworkRead,
@@ -29,8 +30,16 @@ def to_homework_read(
     has_teacher_feedback: bool = False,
 ) -> HomeworkRead:
     submission = None
+    can_reopen = False
     if assignment.submission is not None:
         submission = HomeworkSubmissionRead.model_validate(assignment.submission)
+        percent = assignment.submission.completion_percent
+        if (
+            assignment.status == HomeworkStatus.SUBMITTED
+            and percent is not None
+            and percent < 100
+        ):
+            can_reopen = True
 
     progress = [
         HomeworkItemProgressRead.model_validate(row)
@@ -53,4 +62,5 @@ def to_homework_read(
         submission_steps=submission_steps or [],
         submission_feedback=submission_feedback,
         has_teacher_feedback=has_teacher_feedback,
+        can_reopen=can_reopen,
     )

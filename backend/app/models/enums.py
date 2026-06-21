@@ -63,6 +63,7 @@ class TutorMessageRole(str, enum.Enum):
 class ActivityEventType(str, enum.Enum):
     STEP_CORRECT = "step_correct"
     HOMEWORK_COMPLETE = "homework_complete"
+    HOMEWORK_COMPLETE_DELTA = "homework_complete_delta"
     STREAK_DAILY = "streak_daily"
     STREAK_WEEKLY = "streak_weekly"
     ONBOARDING_WELCOME_VIEWED = "onboarding_welcome_viewed"

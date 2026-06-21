@@ -173,6 +173,9 @@ class HomeworkSubmission(Base):
     )
     score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     max_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    answered_steps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_steps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completion_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     assignment: Mapped[HomeworkAssignment] = relationship(
         "HomeworkAssignment",

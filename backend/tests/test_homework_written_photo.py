@@ -246,7 +246,33 @@ def test_submit_blocked_without_self_check_photo(client: TestClient) -> None:
     client.post(f"/api/tests/sessions/{session_id}/complete")
     submit = client.post(f"/api/homework/{assignment_id}/submit", json={})
     assert submit.status_code == 422
-    assert "photo" in submit.json()["detail"].lower()
+    assert "at least one answered step" in submit.json()["detail"].lower()
+
+
+def test_partial_submit_self_check_requires_photo_on_checked_step(
+    client: TestClient,
+) -> None:
+    assignment_id = _create_homework(client)
+    _login(client, STUDENT_EMAIL, STUDENT_PASS)
+    session = client.post(
+        "/api/tests/sessions",
+        json={"homework_assignment_id": assignment_id},
+    ).json()
+    session_id = session["id"]
+
+    image_id = _upload_image(client)
+    client.post(
+        f"/api/tests/sessions/{session_id}/steps/0/answer-image",
+        json={"answer_image_id": image_id},
+    )
+    client.post(
+        f"/api/tests/sessions/{session_id}/steps/0/compare",
+        json={"answer": "written"},
+    )
+    client.post(f"/api/tests/sessions/{session_id}/complete")
+    submit = client.post(f"/api/homework/{assignment_id}/submit", json={})
+    assert submit.status_code == 200, submit.text
+    assert submit.json()["submission"]["answered_steps"] == 1
 
 
 def test_teacher_homework_detail_includes_photo_urls(client: TestClient) -> None:

@@ -96,6 +96,9 @@ class HomeworkSubmissionRead(BaseModel):
     test_session_id: uuid.UUID | None = None
     score: int | None = None
     max_score: int | None = None
+    answered_steps: int | None = None
+    total_steps: int | None = None
+    completion_percent: int | None = None
 
 
 class StepFeedbackEmbeddedRead(BaseModel):
@@ -150,6 +153,7 @@ class HomeworkRead(BaseModel):
     submission_steps: list[HomeworkSubmissionStepRead] = Field(default_factory=list)
     submission_feedback: StepFeedbackEmbeddedRead | None = None
     has_teacher_feedback: bool = False
+    can_reopen: bool = False
 
 
 class HomeworkSubmitRequest(BaseModel):

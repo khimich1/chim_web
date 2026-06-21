@@ -4,9 +4,12 @@ An assignment can mix lecture items and test items drawn from several variants.
 Test items are taken together in one aggregated ``TestSession`` (linked by
 ``homework_assignment_id``); lectures are marked "Прочитано" individually.
 
-``submit`` finalizes the whole assignment: it requires the aggregated test
-session (if any test items exist) to be completed, auto-confirms lecture reads,
-records an aggregated score, and notifies the teacher once — only at 100%.
+``submit`` finalizes the assignment (fully or partially): it requires the
+aggregated test session (if any test items exist) to be completed, validates
+answered steps and self_check photos, records an aggregated score, notifies
+the teacher, and awards proportional activity points. Students may ``reopen``
+a partial submission to continue the same session and ``resubmit`` with updated
+progress.
 """
 
 from __future__ import annotations
@@ -14,6 +17,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TypeVar
 
@@ -33,7 +37,7 @@ from app.models import (
     TestSessionStep,
     User,
 )
-from app.models.enums import GradingMode, HomeworkItemKind
+from app.models.enums import GradingMode, HomeworkItemKind, StepStatus
 from app.core.config import Settings, get_settings
 from app.repositories.app.homework_repo import HomeworkRepository
 from app.repositories.app.notification_repo import NotificationRepository
@@ -41,7 +45,7 @@ from app.repositories.app.teacher_theme_repo import TeacherThemeRepository
 from app.repositories.app.test_session_repo import TestSessionRepository
 from app.schemas.homework import HomeworkRead, HomeworkSubmitRequest
 from app.repositories.content.tests import ExamContentRepo
-from app.services.activity_service import ActivityService
+from app.services.activity_service import ActivityService, POINTS_HOMEWORK_COMPLETE
 from app.services.content_grading import get_content_grading_mode
 from app.services.homework_mapper import to_homework_read
 
@@ -55,6 +59,41 @@ _TEST_KINDS = {
     HomeworkItemKind.TEST_BY_TYPE.value,
     HomeworkItemKind.CUSTOM_THEME.value,
 }
+
+
+@dataclass(frozen=True, slots=True)
+class SubmissionProgress:
+    answered_steps: int
+    total_steps: int
+    completion_percent: int
+
+
+def compute_homework_points(answered_steps: int, total_steps: int) -> int:
+    if total_steps <= 0:
+        return POINTS_HOMEWORK_COMPLETE
+    return round(POINTS_HOMEWORK_COMPLETE * answered_steps / total_steps)
+
+
+def count_session_progress(test_session: TestSession) -> SubmissionProgress:
+    total = len(test_session.steps)
+    answered = sum(1 for step in test_session.steps if step.status == StepStatus.CHECKED)
+    percent = round(100 * answered / total) if total else 100
+    return SubmissionProgress(
+        answered_steps=answered,
+        total_steps=total,
+        completion_percent=percent,
+    )
+
+
+def count_lecture_progress(assignment: HomeworkAssignment) -> SubmissionProgress:
+    total = len(assignment.items)
+    answered = sum(1 for row in assignment.item_progress if row.completed)
+    percent = round(100 * answered / total) if total else 100
+    return SubmissionProgress(
+        answered_steps=answered,
+        total_steps=total,
+        completion_percent=percent,
+    )
 
 
 class HomeworkSubmitService:
@@ -95,7 +134,12 @@ class HomeworkSubmitService:
         data: HomeworkSubmitRequest,
     ) -> HomeworkRead:
         assignment = await self._load_owned_assignment(student, assignment_id)
-        if await self._homework.get_submission(assignment_id) is not None:
+        existing = await self._homework.get_submission(assignment_id)
+        is_resubmit = (
+            existing is not None
+            and assignment.status == HomeworkStatus.IN_PROGRESS
+        )
+        if existing is not None and not is_resubmit:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Homework already submitted",
@@ -117,36 +161,137 @@ class HomeworkSubmitService:
             )
 
         test_session: TestSession | None = None
+        progress: SubmissionProgress
+        now = datetime.now(timezone.utc)
         if has_test_items:
             test_session = await self._resolve_completed_test_session(
                 student, assignment, data.test_session_id
             )
+            progress = count_session_progress(test_session)
+            await self._validate_minimum_answered(progress)
+        else:
+            for row in assignment.item_progress:
+                if not row.completed:
+                    row.completed = True
+                    row.completed_at = now
+            progress = count_lecture_progress(assignment)
 
-        now = datetime.now(timezone.utc)
-        for progress in assignment.item_progress:
-            if not progress.completed:
-                progress.completed = True
-                progress.completed_at = now
+        if progress.completion_percent == 100:
+            for row in assignment.item_progress:
+                if not row.completed:
+                    row.completed = True
+                    row.completed_at = now
 
-        submission = HomeworkSubmission(
-            assignment_id=assignment.id,
-            submitted_at=now,
-            test_session_id=test_session.id if test_session else None,
-            score=test_session.score if test_session else None,
-            max_score=test_session.max_score if test_session else None,
-        )
-        await self._homework.add_submission(submission)
+        if is_resubmit:
+            assert existing is not None
+            previous_points = compute_homework_points(
+                existing.answered_steps or 0,
+                existing.total_steps or 0,
+            )
+            existing.submitted_at = now
+            existing.test_session_id = test_session.id if test_session else None
+            existing.score = test_session.score if test_session else None
+            existing.max_score = test_session.max_score if test_session else None
+            existing.answered_steps = progress.answered_steps
+            existing.total_steps = progress.total_steps
+            existing.completion_percent = progress.completion_percent
+            submission = existing
+            new_points = compute_homework_points(
+                progress.answered_steps,
+                progress.total_steps,
+            )
+            delta_points = new_points - previous_points
+        else:
+            submission = HomeworkSubmission(
+                assignment_id=assignment.id,
+                submitted_at=now,
+                test_session_id=test_session.id if test_session else None,
+                score=test_session.score if test_session else None,
+                max_score=test_session.max_score if test_session else None,
+                answered_steps=progress.answered_steps,
+                total_steps=progress.total_steps,
+                completion_percent=progress.completion_percent,
+            )
+            await self._homework.add_submission(submission)
+            delta_points = 0
+            new_points = compute_homework_points(
+                progress.answered_steps,
+                progress.total_steps,
+            )
+
         await self._homework.update_status(assignment, HomeworkStatus.SUBMITTED)
-        await self._notify_teacher(assignment, student)
+        await self._notify_teacher(assignment, student, progress)
         await self._session.commit()
 
         assignment_id = assignment.id
         student_id = student.id
-        await self._run_activity_hook(
-            "record_homework_complete",
-            lambda: self._activity.record_homework_complete(student_id, assignment_id),
-        )
+        activity_payload = {
+            "answered_steps": progress.answered_steps,
+            "total_steps": progress.total_steps,
+            "completion_percent": progress.completion_percent,
+        }
+        if is_resubmit:
+            await self._run_activity_hook(
+                "record_homework_complete_delta",
+                lambda: self._activity.record_homework_complete_delta(
+                    student_id,
+                    assignment_id,
+                    delta_points,
+                    answered_steps=progress.answered_steps,
+                    payload=activity_payload,
+                ),
+            )
+        else:
+            await self._run_activity_hook(
+                "record_homework_complete",
+                lambda: self._activity.record_homework_complete(
+                    student_id,
+                    assignment_id,
+                    points=new_points,
+                    payload=activity_payload,
+                ),
+            )
 
+        self._session.expire_all()
+
+        reloaded = await self._homework.get_by_id(assignment_id)
+        assert reloaded is not None
+        active_id = await self._active_session_id(student.id, assignment_id)
+        return to_homework_read(reloaded, active_test_session_id=active_id)
+
+    async def reopen(
+        self,
+        student: User,
+        assignment_id: uuid.UUID,
+    ) -> HomeworkRead:
+        """Reopen a partial submission so the student can continue the test session."""
+        assignment = await self._load_owned_assignment(student, assignment_id)
+        submission = await self._homework.get_submission(assignment_id)
+        if submission is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Homework has not been submitted yet",
+            )
+        if assignment.status != HomeworkStatus.SUBMITTED:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Homework is not in submitted state",
+            )
+        percent = submission.completion_percent
+        if percent is None or percent >= 100:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Homework is already fully completed",
+            )
+
+        if submission.test_session_id is not None:
+            test_session = await self._sessions.get_with_steps(submission.test_session_id)
+            if test_session is not None:
+                test_session.status = TestSessionStatus.IN_PROGRESS
+                test_session.completed_at = None
+
+        await self._homework.update_status(assignment, HomeworkStatus.IN_PROGRESS)
+        await self._session.commit()
         self._session.expire_all()
 
         reloaded = await self._homework.get_by_id(assignment_id)
@@ -248,7 +393,6 @@ class HomeworkSubmitService:
             await self._validate_self_check_photos(test_session)
             return test_session
 
-        # No explicit id: use the latest completed session linked to this homework.
         stmt = (
             select(TestSession)
             .where(
@@ -288,16 +432,30 @@ class HomeworkSubmitService:
         return False
 
     async def _validate_self_check_photos(self, test_session: TestSession) -> None:
+        """Require answer photos only on checked self_check steps (SPEC §1.9.8)."""
         if test_session.homework_assignment_id is None:
             return
         for step in test_session.steps:
+            if step.status != StepStatus.CHECKED:
+                continue
             if not await self._step_requires_homework_photo(step, test_session.track):
                 continue
             if step.answer_image_id is None:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail="All self_check steps must include an answer photo before submit",
+                    detail=(
+                        "Checked self_check steps must include an answer photo "
+                        "before submit"
+                    ),
                 )
+
+    @staticmethod
+    async def _validate_minimum_answered(progress: SubmissionProgress) -> None:
+        if progress.answered_steps < 1:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="At least one answered step is required to submit homework",
+            )
 
     async def _load_owned_assignment(
         self,
@@ -331,6 +489,7 @@ class HomeworkSubmitService:
         self,
         assignment: HomeworkAssignment,
         student: User,
+        progress: SubmissionProgress,
     ) -> None:
         notification = Notification(
             user_id=assignment.teacher_id,
@@ -340,6 +499,9 @@ class HomeworkSubmitService:
                 "homework_title": assignment.title,
                 "student_id": str(student.id),
                 "student_email": student.email,
+                "answered_steps": progress.answered_steps,
+                "total_steps": progress.total_steps,
+                "completion_percent": progress.completion_percent,
             },
         )
         await self._notifications.add(notification)

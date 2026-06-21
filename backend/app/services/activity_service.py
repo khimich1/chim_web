@@ -111,15 +111,39 @@ class ActivityService:
         student_id: uuid.UUID,
         assignment_id: uuid.UUID,
         *,
+        points: int | None = None,
         payload: dict[str, Any] | None = None,
         occurred_at: datetime | None = None,
     ) -> RecordEventResult:
-        """Award +50 when all homework items are submitted (idempotent per assignment)."""
+        """Award homework points on first submit (idempotent per assignment)."""
+        awarded = points if points is not None else POINTS_HOMEWORK_COMPLETE
         return await self.record_event(
             student_id,
             ActivityEventType.HOMEWORK_COMPLETE,
             str(assignment_id),
-            POINTS_HOMEWORK_COMPLETE,
+            awarded,
+            payload=payload,
+            occurred_at=occurred_at,
+        )
+
+    async def record_homework_complete_delta(
+        self,
+        student_id: uuid.UUID,
+        assignment_id: uuid.UUID,
+        delta_points: int,
+        *,
+        answered_steps: int,
+        payload: dict[str, Any] | None = None,
+        occurred_at: datetime | None = None,
+    ) -> RecordEventResult:
+        """Award extra homework points after resubmit (idempotent per answered count)."""
+        if delta_points <= 0:
+            return RecordEventResult(created=False, points_awarded=0)
+        return await self.record_event(
+            student_id,
+            ActivityEventType.HOMEWORK_COMPLETE_DELTA,
+            f"{assignment_id}:{answered_steps}",
+            delta_points,
             payload=payload,
             occurred_at=occurred_at,
         )
