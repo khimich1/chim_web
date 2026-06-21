@@ -14,22 +14,28 @@ from app.models import (
     User,
     UserRole,
 )
-from app.models.enums import GradingMode, HomeworkItemKind
+from app.models.enums import ExamTrack, GradingMode, HomeworkItemKind
 from app.core.config import Settings, get_settings
 from app.repositories.app.homework_feedback_repo import HomeworkFeedbackRepository
 from app.repositories.app.homework_repo import HomeworkRepository
 from app.repositories.app.student_repo import StudentRepository
 from app.repositories.app.teacher_theme_repo import TeacherThemeRepository
 from app.repositories.app.test_session_repo import TestSessionRepository
+from app.repositories.content.tests import ExamContentRepo
 from app.schemas.homework import (
     HomeworkCreate,
     HomeworkRead,
     HomeworkSubmissionStepRead,
     StepFeedbackEmbeddedRead,
 )
+from app.services.content_grading import get_content_grading_mode
 from app.services.custom_test_session_service import _answer_image_url
 from app.services.homework_mapper import to_homework_read
 from app.services.homework_validation import validate_homework_items
+from app.services.image_substitution import (
+    reference_answer_blocks_from_correct_ans,
+    substitute_image_placeholders,
+)
 
 
 class HomeworkService:
@@ -45,6 +51,13 @@ class HomeworkService:
         self._test_sessions = TestSessionRepository(session)
         self._theme_repo = TeacherThemeRepository(session)
         self._feedback_repo = HomeworkFeedbackRepository(session)
+        self._content_repos = {
+            ExamTrack.EGE: ExamContentRepo(self._settings.content_ege_db_path),
+            ExamTrack.OGE: ExamContentRepo(self._settings.content_oge_db_path),
+        }
+
+    def _content_repo(self, track: ExamTrack) -> ExamContentRepo:
+        return self._content_repos[track]
 
     def _embed_feedback(
         self,
@@ -71,6 +84,58 @@ class HomeworkService:
             published_at=feedback.published_at,
         )
 
+    async def _submission_step_read(
+        self,
+        step,
+        track: ExamTrack,
+    ) -> HomeworkSubmissionStepRead | None:
+        step_feedback = await self._feedback_repo.get_step_feedback(step.id)
+        content_repo = self._content_repo(track)
+
+        if step.custom_task_id is not None:
+            task = await self._theme_repo.get_task_by_id(step.custom_task_id)
+            if task is None or task.grading_mode != GradingMode.SELF_CHECK:
+                return None
+            return HomeworkSubmissionStepRead(
+                position=step.position,
+                custom_task_id=step.custom_task_id,
+                title=task.title,
+                grading_mode=task.grading_mode,
+                question_blocks=task.question_blocks,
+                reference_answer=task.reference_answer,
+                answer=step.answer,
+                answer_image_url=_answer_image_url(step.answer_image_id),
+                status=step.status,
+                feedback=self._embed_feedback(step_feedback),
+            )
+
+        if step.test_id is not None:
+            question = content_repo.get_question(step.test_id)
+            if question is None:
+                return None
+            if get_content_grading_mode(track, question.type) != "self_check":
+                return None
+            return HomeworkSubmissionStepRead(
+                position=step.position,
+                title=f"Задание {question.type}",
+                grading_mode=GradingMode.SELF_CHECK,
+                question_blocks=[
+                    {
+                        "type": "text",
+                        "content": substitute_image_placeholders(question.question),
+                    }
+                ],
+                reference_answer=reference_answer_blocks_from_correct_ans(
+                    question.correct_ans
+                ),
+                answer=step.answer,
+                answer_image_url=_answer_image_url(step.answer_image_id),
+                status=step.status,
+                feedback=self._embed_feedback(step_feedback),
+            )
+
+        return None
+
     async def _submission_steps_for_teacher(
         self,
         assignment: HomeworkAssignment,
@@ -85,26 +150,9 @@ class HomeworkService:
 
         steps_out: list[HomeworkSubmissionStepRead] = []
         for step in test_session.steps:
-            if step.custom_task_id is None:
-                continue
-            task = await self._theme_repo.get_task_by_id(step.custom_task_id)
-            if task is None or task.grading_mode != GradingMode.SELF_CHECK:
-                continue
-            step_feedback = await self._feedback_repo.get_step_feedback(step.id)
-            steps_out.append(
-                HomeworkSubmissionStepRead(
-                    position=step.position,
-                    custom_task_id=step.custom_task_id,
-                    title=task.title,
-                    grading_mode=task.grading_mode,
-                    question_blocks=task.question_blocks,
-                    reference_answer=task.reference_answer,
-                    answer=step.answer,
-                    answer_image_url=_answer_image_url(step.answer_image_id),
-                    status=step.status,
-                    feedback=self._embed_feedback(step_feedback),
-                )
-            )
+            step_read = await self._submission_step_read(step, test_session.track)
+            if step_read is not None:
+                steps_out.append(step_read)
         return steps_out
 
     async def _submission_feedback_for_teacher(
@@ -138,9 +186,16 @@ class HomeworkService:
                 detail="Student not found",
             )
 
+        profile = student.student_profile
+        if profile is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Student profile not found",
+            )
+
         await validate_homework_items(
             data.items,
-            track=student.student_profile.track,
+            track=profile.track,
             teacher_id=teacher.id,
             settings=self._settings,
             session=self._session,
@@ -185,18 +240,18 @@ class HomeworkService:
                 )
             return result
         assignments = await self._homework.list_by_student(user.id)
-        result: list[HomeworkRead] = []
+        student_items: list[HomeworkRead] = []
         for assignment in assignments:
             active_id = await self._active_session_id(user.id, assignment.id)
             has_fb = await self._has_teacher_feedback_flag(assignment.id)
-            result.append(
+            student_items.append(
                 to_homework_read(
                     assignment,
                     active_test_session_id=active_id,
                     has_teacher_feedback=has_fb,
                 )
             )
-        return result
+        return student_items
 
     async def _active_session_id(
         self,

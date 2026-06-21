@@ -40,8 +40,9 @@ router = APIRouter(prefix="/api/homework", tags=["homework"])
 def get_homework_submit_service(
     db: Annotated[AsyncSession, Depends(get_db)],
     activity: Annotated[ActivityService, Depends(get_activity_service)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> HomeworkSubmitService:
-    return HomeworkSubmitService(db, activity)
+    return HomeworkSubmitService(db, activity, settings)
 
 
 @router.post("", response_model=HomeworkRead, status_code=status.HTTP_201_CREATED)
@@ -70,7 +71,7 @@ async def get_homework(
     settings: Annotated[Settings, Depends(get_app_settings)],
     activity: Annotated[ActivityService, Depends(get_activity_service)],
 ) -> HomeworkRead:
-    assignment = await HomeworkService(db).get_assignment(user, assignment_id)
+    assignment = await HomeworkService(db, settings).get_assignment(user, assignment_id)
     if user.role == UserRole.STUDENT:
         await OnboardingService(db, settings, activity).mark_first_action(
             user.id,
@@ -115,8 +116,9 @@ async def upsert_step_feedback(
     payload: StepFeedbackUpsert,
     teacher: TeacherUser,
     db: Annotated[AsyncSession, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> StepFeedbackRead:
-    return await HomeworkFeedbackService(db).upsert_step_feedback(
+    return await HomeworkFeedbackService(db, settings).upsert_step_feedback(
         teacher,
         assignment_id,
         position,
@@ -133,8 +135,9 @@ async def upsert_submission_feedback(
     payload: SubmissionFeedbackUpsert,
     teacher: TeacherUser,
     db: Annotated[AsyncSession, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> FeedbackContentRead:
-    return await HomeworkFeedbackService(db).upsert_submission_feedback(
+    return await HomeworkFeedbackService(db, settings).upsert_submission_feedback(
         teacher,
         assignment_id,
         payload,

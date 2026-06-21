@@ -8,7 +8,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import StudentUser
+from app.api.deps import StudentUser, get_app_settings
+from app.core.config import Settings
 from app.db.session import get_db
 from app.schemas.homework_feedback import StudentHomeworkFeedbackRead
 from app.services.homework_feedback_service import HomeworkFeedbackService
@@ -21,8 +22,9 @@ async def get_student_homework_feedback(
     assignment_id: uuid.UUID,
     student: StudentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> StudentHomeworkFeedbackRead:
-    return await HomeworkFeedbackService(db).get_student_feedback(
+    return await HomeworkFeedbackService(db, settings).get_student_feedback(
         student,
         assignment_id,
     )

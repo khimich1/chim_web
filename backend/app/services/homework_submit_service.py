@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
+    ExamTrack,
     HomeworkAssignment,
     HomeworkStatus,
     HomeworkSubmission,
@@ -29,15 +30,19 @@ from app.models import (
     NotificationType,
     TestSession,
     TestSessionStatus,
+    TestSessionStep,
     User,
 )
 from app.models.enums import GradingMode, HomeworkItemKind
+from app.core.config import Settings, get_settings
 from app.repositories.app.homework_repo import HomeworkRepository
 from app.repositories.app.notification_repo import NotificationRepository
 from app.repositories.app.teacher_theme_repo import TeacherThemeRepository
 from app.repositories.app.test_session_repo import TestSessionRepository
 from app.schemas.homework import HomeworkRead, HomeworkSubmitRequest
+from app.repositories.content.tests import ExamContentRepo
 from app.services.activity_service import ActivityService
+from app.services.content_grading import get_content_grading_mode
 from app.services.homework_mapper import to_homework_read
 
 logger = logging.getLogger(__name__)
@@ -57,13 +62,19 @@ class HomeworkSubmitService:
         self,
         session: AsyncSession,
         activity: ActivityService | None = None,
+        settings: Settings | None = None,
     ) -> None:
         self._session = session
+        self._settings = settings or get_settings()
         self._homework = HomeworkRepository(session)
         self._sessions = TestSessionRepository(session)
         self._theme_repo = TeacherThemeRepository(session)
         self._notifications = NotificationRepository(session)
         self._activity = activity or ActivityService(session)
+        self._content_repos = {
+            ExamTrack.EGE: ExamContentRepo(self._settings.content_ege_db_path),
+            ExamTrack.OGE: ExamContentRepo(self._settings.content_oge_db_path),
+        }
 
     async def _run_activity_hook(
         self,
@@ -258,14 +269,29 @@ class HomeworkSubmitService:
         await self._validate_self_check_photos(reloaded)
         return reloaded
 
+    def _content_repo(self, track: ExamTrack) -> ExamContentRepo:
+        return self._content_repos[track]
+
+    async def _step_requires_homework_photo(
+        self,
+        step: TestSessionStep,
+        track: ExamTrack,
+    ) -> bool:
+        if step.custom_task_id is not None:
+            task = await self._theme_repo.get_task_by_id(step.custom_task_id)
+            return task is not None and task.grading_mode == GradingMode.SELF_CHECK
+        if step.test_id is not None:
+            question = self._content_repo(track).get_question(step.test_id)
+            if question is None:
+                return False
+            return get_content_grading_mode(track, question.type) == "self_check"
+        return False
+
     async def _validate_self_check_photos(self, test_session: TestSession) -> None:
         if test_session.homework_assignment_id is None:
             return
         for step in test_session.steps:
-            if step.custom_task_id is None:
-                continue
-            task = await self._theme_repo.get_task_by_id(step.custom_task_id)
-            if task is None or task.grading_mode != GradingMode.SELF_CHECK:
+            if not await self._step_requires_homework_photo(step, test_session.track):
                 continue
             if step.answer_image_id is None:
                 raise HTTPException(

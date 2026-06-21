@@ -120,7 +120,7 @@ class HomeworkFeedbackRepository:
             .order_by(TestSessionStep.position)
         )
         rows = await self._session.execute(stmt)
-        return list(rows.all())
+        return [(row[0], row[1]) for row in rows.all()]
 
     async def get_step_for_assignment_position(
         self,

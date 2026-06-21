@@ -12,11 +12,17 @@ from app.models.enums import ExamTrack
 from app.repositories.app.teacher_theme_repo import TeacherThemeRepository
 from app.repositories.content.base import ContentDbError
 from app.repositories.content.tests import ExamContentRepo
-from app.schemas.homework import CustomThemeHomeworkItem, HomeworkItem, TestByTypeItem
+from app.schemas.homework import (
+    CustomThemeHomeworkItem,
+    HomeworkItem,
+    TestByTypeItem,
+    TestPartialItem,
+    TestVariantItem,
+)
 
 MAX_TEST_BY_TYPE_QUESTIONS = 60
 _TYPE_RANGES: dict[ExamTrack, range] = {
-    ExamTrack.EGE: range(1, 29),
+    ExamTrack.EGE: range(1, 35),
     ExamTrack.OGE: range(1, 20),
 }
 
@@ -36,44 +42,30 @@ async def validate_homework_items(
         if isinstance(item, CustomThemeHomeworkItem):
             await _validate_custom_theme_item(item, teacher_id=teacher_id, theme_repo=theme_repo)
             continue
-        if not isinstance(item, TestByTypeItem):
-            continue
-        allowed = _TYPE_RANGES[track]
-        invalid = [type_num for type_num in item.types if type_num not in allowed]
-        if invalid:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=(
-                    f"Task type(s) {invalid} are out of range for track "
-                    f"{track.value} (allowed {allowed.start}–{allowed.stop - 1})"
-                ),
-            )
-        if item.variants is not None:
-            _validate_variants_exist(item.variants, repo)
-        try:
-            question_count = repo.count_expanded_questions(
+        if isinstance(item, TestByTypeItem):
+            _validate_task_types(item.types, track=track)
+            if item.variants is not None:
+                _validate_variants_exist(item.variants, repo)
+            _validate_test_by_type_questions(
                 item.types,
                 track=track,
+                repo=repo,
                 variants=item.variants,
             )
-        except ContentDbError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Test content database unavailable",
-            ) from exc
-        if question_count == 0:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="No questions found for the requested task type(s)",
+            continue
+        if isinstance(item, TestPartialItem):
+            _validate_task_types(item.types, track=track)
+            _validate_variants_exist([item.variant], repo)
+            _validate_questions_exist(
+                item.types,
+                track=track,
+                repo=repo,
+                variants=[item.variant],
             )
-        if question_count > MAX_TEST_BY_TYPE_QUESTIONS:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=(
-                    f"test_by_type item expands to {question_count} questions; "
-                    f"maximum is {MAX_TEST_BY_TYPE_QUESTIONS}"
-                ),
-            )
+            continue
+        if isinstance(item, TestVariantItem):
+            _validate_variants_exist([item.variant], repo)
+            _validate_variant_has_questions(item.variant, repo)
 
 
 async def _validate_custom_theme_item(
@@ -97,6 +89,92 @@ async def _validate_custom_theme_item(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="task_ids must be a subset of theme tasks",
+        )
+
+
+def _validate_task_types(types: list[int], *, track: ExamTrack) -> None:
+    allowed = _TYPE_RANGES[track]
+    invalid = [type_num for type_num in types if type_num not in allowed]
+    if invalid:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Task type(s) {invalid} are out of range for track "
+                f"{track.value} (allowed {allowed.start}–{allowed.stop - 1})"
+            ),
+        )
+
+
+def _validate_questions_exist(
+    types: list[int],
+    *,
+    track: ExamTrack,
+    repo: ExamContentRepo,
+    variants: list[str] | None,
+) -> None:
+    try:
+        question_count = repo.count_expanded_questions(
+            types,
+            track=track,
+            variants=variants,
+        )
+    except ContentDbError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Test content database unavailable",
+        ) from exc
+    if question_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No questions found for the requested task type(s)",
+        )
+
+
+def _validate_test_by_type_questions(
+    types: list[int],
+    *,
+    track: ExamTrack,
+    repo: ExamContentRepo,
+    variants: list[str] | None,
+) -> None:
+    try:
+        question_count = repo.count_expanded_questions(
+            types,
+            track=track,
+            variants=variants,
+        )
+    except ContentDbError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Test content database unavailable",
+        ) from exc
+    if question_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No questions found for the requested task type(s)",
+        )
+    if question_count > MAX_TEST_BY_TYPE_QUESTIONS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"test_by_type item expands to {question_count} questions; "
+                f"maximum is {MAX_TEST_BY_TYPE_QUESTIONS}"
+            ),
+        )
+
+
+def _validate_variant_has_questions(variant: str, repo: ExamContentRepo) -> None:
+    try:
+        questions = repo.list_questions(variant)
+    except ContentDbError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Test content database unavailable",
+        ) from exc
+    if not questions:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No questions found for the requested variant",
         )
 
 

@@ -8,11 +8,14 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import User
-from app.models.enums import GradingMode
+from app.core.config import Settings, get_settings
+from app.models import TestSessionStep, User
+from app.models.enums import ExamTrack, GradingMode
 from app.repositories.app.homework_feedback_repo import HomeworkFeedbackRepository
 from app.repositories.app.teacher_theme_repo import TeacherThemeRepository
+from app.repositories.app.test_session_repo import TestSessionRepository
 from app.repositories.app.upload_repo import UploadedAudioRepository, UploadedImageRepository
+from app.repositories.content.tests import ExamContentRepo
 from app.schemas.homework_feedback import (
     FeedbackContentRead,
     StepFeedbackRead,
@@ -20,6 +23,7 @@ from app.schemas.homework_feedback import (
     StudentHomeworkFeedbackRead,
     SubmissionFeedbackUpsert,
 )
+from app.services.content_grading import get_content_grading_mode
 
 
 def _has_content(
@@ -43,12 +47,53 @@ def _image_urls(image_ids: list[str]) -> list[str]:
 
 
 class HomeworkFeedbackService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        settings: Settings | None = None,
+    ) -> None:
         self._session = session
+        self._settings = settings or get_settings()
         self._feedback = HomeworkFeedbackRepository(session)
         self._themes = TeacherThemeRepository(session)
+        self._sessions = TestSessionRepository(session)
         self._images = UploadedImageRepository(session)
         self._audio = UploadedAudioRepository(session)
+        self._content_repos = {
+            ExamTrack.EGE: ExamContentRepo(self._settings.content_ege_db_path),
+            ExamTrack.OGE: ExamContentRepo(self._settings.content_oge_db_path),
+        }
+
+    def _content_repo(self, track: ExamTrack) -> ExamContentRepo:
+        return self._content_repos[track]
+
+    async def _step_is_self_check(
+        self,
+        step: TestSessionStep,
+        track: ExamTrack,
+    ) -> bool:
+        if step.custom_task_id is not None:
+            task = await self._themes.get_task_by_id(step.custom_task_id)
+            return task is not None and task.grading_mode == GradingMode.SELF_CHECK
+        if step.test_id is not None:
+            question = self._content_repo(track).get_question(step.test_id)
+            if question is None:
+                return False
+            return get_content_grading_mode(track, question.type) == "self_check"
+        return False
+
+    async def _step_title(
+        self,
+        step: TestSessionStep,
+        track: ExamTrack,
+    ) -> str | None:
+        if step.custom_task_id is not None:
+            task = await self._themes.get_task_by_id(step.custom_task_id)
+            return task.title if task else None
+        if step.test_id is not None:
+            question = self._content_repo(track).get_question(step.test_id)
+            return f"Задание {question.type}" if question else None
+        return None
 
     async def upsert_step_feedback(
         self,
@@ -77,13 +122,25 @@ class HomeworkFeedbackService:
                 detail="Step not found in submission",
             )
 
-        if step.custom_task_id is not None:
-            task = await self._themes.get_task_by_id(step.custom_task_id)
-            if task is None or task.grading_mode != GradingMode.SELF_CHECK:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail="Feedback is only allowed for self_check steps",
-                )
+        session_id = assignment.submission.test_session_id
+        if session_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Homework submission has no test session",
+            )
+
+        test_session = await self._sessions.get_with_steps(session_id)
+        if test_session is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Test session not found",
+            )
+
+        if not await self._step_is_self_check(step, test_session.track):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Feedback is only allowed for self_check steps",
+            )
 
         if not _has_content(
             teacher_text=data.teacher_text,
@@ -107,10 +164,7 @@ class HomeworkFeedbackService:
         )
         await self._session.commit()
 
-        title = None
-        if step.custom_task_id is not None:
-            task = await self._themes.get_task_by_id(step.custom_task_id)
-            title = task.title if task else None
+        title = await self._step_title(step, test_session.track)
 
         return StepFeedbackRead(
             position=position,
@@ -182,12 +236,23 @@ class HomeworkFeedbackService:
             )
 
         step_rows = await self._feedback.list_step_feedbacks_for_assignment(assignment_id)
+        session_id = assignment.submission.test_session_id
+        if session_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Homework submission has no test session",
+            )
+
+        test_session = await self._sessions.get_with_steps(session_id)
+        if test_session is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Test session not found",
+            )
+
         steps_out: list[StepFeedbackRead] = []
         for step, feedback in step_rows:
-            if step.custom_task_id is None:
-                continue
-            task = await self._themes.get_task_by_id(step.custom_task_id)
-            if task is None or task.grading_mode != GradingMode.SELF_CHECK:
+            if not await self._step_is_self_check(step, test_session.track):
                 continue
             if feedback is None or feedback.published_at is None:
                 continue
@@ -202,7 +267,7 @@ class HomeworkFeedbackService:
             steps_out.append(
                 StepFeedbackRead(
                     position=step.position,
-                    title=task.title,
+                    title=await self._step_title(step, test_session.track),
                     teacher_text=feedback.teacher_text,
                     teacher_voice_url=_voice_url(feedback.teacher_voice_id),
                     teacher_image_urls=_image_urls(feedback.teacher_image_ids),

@@ -1,8 +1,9 @@
-"""QR handoff token business logic (SPEC §1.9.9, Task 79)."""
+"""QR handoff token business logic (SPEC §1.9.9, Task 79; exam self_check §1.10, Task 88)."""
 
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, UploadFile, status
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings
 from app.models import (
     CustomTask,
+    ExamTrack,
     StepStatus,
     TestSession,
     TestSessionStatus,
@@ -24,14 +26,25 @@ from app.repositories.app.test_session_repo import TestSessionRepository
 from app.repositories.app.upload_handoff_repo import UploadHandoffTokenRepository
 from app.repositories.app.upload_repo import UploadedImageRepository
 from app.repositories.app.user_repo import UserRepository
+from app.repositories.content.base import ContentDbError
+from app.repositories.content.tests import ExamContentRepo
 from app.schemas.handoff import (
     CaptureMetaResponse,
     CaptureUploadResponse,
     HandoffCreateResponse,
 )
+from app.services.content_grading import get_content_grading_mode
+from app.services.image_substitution import substitute_image_placeholders
 from app.services.upload_service import UploadService
 
 _HANDOFF_TTL = timedelta(minutes=15)
+
+
+@dataclass(frozen=True, slots=True)
+class _HandoffStepContext:
+    step: TestSessionStep
+    grading_mode: GradingMode
+    question_preview: str | None
 
 
 def _question_preview(task: CustomTask) -> str | None:
@@ -57,6 +70,13 @@ class UploadHandoffService:
         self._upload_repo = UploadedImageRepository(session)
         self._user_repo = UserRepository(session)
         self._upload_service = UploadService(self._upload_repo, settings)
+        self._content_repos = {
+            ExamTrack.EGE: ExamContentRepo(settings.content_ege_db_path),
+            ExamTrack.OGE: ExamContentRepo(settings.content_oge_db_path),
+        }
+
+    def _content_repo(self, track: ExamTrack) -> ExamContentRepo:
+        return self._content_repos[track]
 
     async def create_handoff(
         self,
@@ -66,9 +86,9 @@ class UploadHandoffService:
     ) -> HandoffCreateResponse:
         test_session = await self._load_owned_session(student, session_id)
         self._ensure_handoff_allowed(test_session, position)
-        step, task = await self._load_step_and_task(test_session, position)
-        self._ensure_self_check_homework_step(test_session, step, task)
-        if step.status == StepStatus.CHECKED:
+        ctx = await self._load_handoff_step_context(test_session, position)
+        self._ensure_self_check_homework_step(test_session, ctx)
+        if ctx.step.status == StepStatus.CHECKED:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Cannot create handoff after compare",
@@ -101,15 +121,15 @@ class UploadHandoffService:
     async def get_capture_meta(self, token: uuid.UUID) -> CaptureMetaResponse:
         record = await self._require_active_token(token)
         test_session = await self._load_session(record.session_id)
-        step, task = await self._load_step_and_task(test_session, record.position)
+        ctx = await self._load_handoff_step_context(test_session, record.position)
 
         return CaptureMetaResponse(
             session_id=record.session_id,
             position=record.position,
-            task_title=task.title,
-            question_preview=_question_preview(task),
+            task_title=ctx.question_preview,
+            question_preview=ctx.question_preview,
             expires_at=record.expires_at,
-            already_has_photo=step.answer_image_id is not None,
+            already_has_photo=ctx.step.answer_image_id is not None,
         )
 
     async def capture_upload(
@@ -119,9 +139,9 @@ class UploadHandoffService:
     ) -> CaptureUploadResponse:
         record = await self._require_active_token(token)
         test_session = await self._load_session(record.session_id)
-        step, task = await self._load_step_and_task(test_session, record.position)
-        self._ensure_self_check_homework_step(test_session, step, task)
-        if step.status == StepStatus.CHECKED:
+        ctx = await self._load_handoff_step_context(test_session, record.position)
+        self._ensure_self_check_homework_step(test_session, ctx)
+        if ctx.step.status == StepStatus.CHECKED:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Cannot replace photo after compare",
@@ -135,12 +155,12 @@ class UploadHandoffService:
             )
 
         image_response = await self._upload_service.save_image(student, upload)
-        step.answer_image_id = image_response.id
+        ctx.step.answer_image_id = image_response.id
         await self._handoff_repo.mark_used(record, datetime.now(timezone.utc))
         await self._session.commit()
 
         return CaptureUploadResponse(
-            position=step.position,
+            position=ctx.step.position,
             answer_image_id=image_response.id,
             answer_image_url=image_response.url,
         )
@@ -216,38 +236,68 @@ class UploadHandoffService:
     @staticmethod
     def _ensure_self_check_homework_step(
         test_session: TestSession,
-        step: TestSessionStep,
-        task: CustomTask,
+        ctx: _HandoffStepContext,
     ) -> None:
         if test_session.homework_assignment_id is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Handoff is only for homework sessions",
             )
-        if task.grading_mode != GradingMode.SELF_CHECK:
+        if ctx.grading_mode != GradingMode.SELF_CHECK:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Handoff is only for self_check steps",
             )
 
-    async def _load_step_and_task(
+    async def _load_handoff_step_context(
         self,
         test_session: TestSession,
         position: int,
-    ) -> tuple[TestSessionStep, CustomTask]:
+    ) -> _HandoffStepContext:
         step = self._find_step(test_session, position)
-        if step.custom_task_id is None:
+        if step.custom_task_id is not None:
+            task = await self._theme_repo.get_task_by_id(step.custom_task_id)
+            if task is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Custom task not found",
+                )
+            return _HandoffStepContext(
+                step=step,
+                grading_mode=task.grading_mode,
+                question_preview=_question_preview(task),
+            )
+        if step.test_id is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Custom task not found",
+                detail="Step not found",
             )
-        task = await self._theme_repo.get_task_by_id(step.custom_task_id)
-        if task is None:
+        repo = self._content_repo(test_session.track)
+        try:
+            question = repo.get_question(step.test_id)
+        except ContentDbError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Test content database unavailable",
+            ) from exc
+        if question is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Custom task not found",
+                detail="Question content not found",
             )
-        return step, task
+        if get_content_grading_mode(test_session.track, question.type) != "self_check":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Handoff is only for self_check steps",
+            )
+        preview = substitute_image_placeholders(question.question).strip()
+        if not preview:
+            preview = f"Задание {question.type}"
+        return _HandoffStepContext(
+            step=step,
+            grading_mode=GradingMode.SELF_CHECK,
+            question_preview=preview,
+        )
 
     @staticmethod
     def _find_step(test_session: TestSession, position: int) -> TestSessionStep:
