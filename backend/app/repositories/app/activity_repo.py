@@ -130,7 +130,7 @@ class ActivityRepository:
             .limit(limit)
         )
         rows = await self._session.execute(stmt)
-        return list(rows.all())
+        return [(row[0], row[1]) for row in rows.all()]
 
     async def list_teacher_students_stats(
         self,
@@ -145,4 +145,4 @@ class ActivityRepository:
             .order_by(User.created_at.desc())
         )
         rows = await self._session.execute(stmt)
-        return list(rows.all())
+        return [(row[0], row[1], row[2]) for row in rows.all()]
