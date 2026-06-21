@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend:
-    name: Backend (ruff + pytest)
+    name: Backend (ruff + mypy + pytest)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -27,6 +27,9 @@ jobs:
 
       - name: Ruff
         run: ruff check .
+
+      - name: Mypy (Task 95 — scoped services + API)
+        run: mypy app/services/ app/api/
 
       - name: Pytest
         run: pytest
@@ -60,11 +63,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend deps (OpenAPI export)
+        working-directory: backend
+        run: pip install -r requirements.txt
+
       - name: ESLint
         run: npm run lint
 
       - name: Vitest
         run: npm run test
+
+      - name: OpenAPI types drift check (Task 95)
+        run: |
+          python scripts/export_openapi.py -o openapi.json
+          cd ../frontend && npm run check:api-types
+        working-directory: backend
 
       - name: Production build
         run: npm run build
