@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "generate:api-types": "openapi-typescript ../backend/openapi.json -o lib/api/schema.d.ts",
     "check:api-types": "npm run generate:api-types && git diff --exit-code -- lib/api/schema.d.ts"
   },
@@ -21,6 +23,7 @@
     "rehype-sanitize": "^6.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
