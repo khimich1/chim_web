@@ -3,7 +3,7 @@
 **Источник:** [SPEC.md](../SPEC.md) v0.8.2 · production hardening: [`docs/ideas/production-hardening.md`](../docs/ideas/production-hardening.md) · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2 · геймификация: [`docs/ideas/student-points-leaderboard.md`](../docs/ideas/student-points-leaderboard.md) · конструктор заданий: [`docs/ideas/teacher-task-constructor.md`](../docs/ideas/teacher-task-constructor.md) · проверка письменных ДЗ: [`docs/ideas/teacher-written-homework-review.md`](../docs/ideas/teacher-written-homework-review.md) · ЕГЭ 29–34: SPEC §1.10 (`ege (копия).db`)  
 **Дата плана:** 2026-06-09  
 **Обновлено:** 2026-06-21  
-**Статус:** MVP core + Phase 12 ✅; Phase 15 ✅; Phase 16 🟡 (91 E2E pending); **Phase 17** — Tasks 92–98 ✅; Task 99 ⏳; см. [`docs/ideas/production-hardening.md`](../docs/ideas/production-hardening.md)
+**Статус:** MVP core + Phase 12 ✅; Phase 15 ✅; Phase 16 🟡 (apply миграции pending); **Phase 17** — Tasks 92–98 ✅; Task 99 ✅ local; см. [`docs/ideas/production-hardening.md`](../docs/ideas/production-hardening.md)
 
 ---
 
@@ -73,7 +73,7 @@
 | 58–65 | Баллы, streak, рейтинг (§1.8, Phase 13) | ✅ local | миграции `008`/`009`, activity layer, API, student dashboard + leaderboard, teacher stats UI |
 | 66–75 | Конструктор заданий преподавателя (§1.9, Phase 14) | ✅ local | migration `011`/`012`, teacher themes/tasks API, uploads, custom TestSession, HomeworkForm, §1.9.8 photo submit |
 | 76–84 | Проверка письменных ДЗ (§1.9.9, Phase 15) | ✅ local | `cdca44b` (76–82 + UI 83–84 uncommitted); viewer + QR + feedback |
-| 85–91 | ЕГЭ 29–34 в content DB (§1.10, Phase 16) | 🟡 in progress | 86–90 ✅; 91 frontend vitest ✅; integration pytest + apply pending |
+| 85–91 | ЕГЭ 29–34 в content DB (§1.10, Phase 16) | 🟡 in progress | 86–91 ✅; apply миграции 29–34 pending |
 | 92 | Multi-teacher docs (SPEC §3, seed_teacher, AGENTS) | ✅ done | `41550eb` |
 | 93 | IDOR suite `tests/multi_teacher/` | ✅ done | `3b013a6`; 12 tests |
 | 94 | Teacher themes `task_count` (17a) | ✅ done | backend API + frontend N+1 removed |
@@ -81,9 +81,9 @@
 | 96 | RAG pg-only hot path (17c) | ✅ done | `385bd06`; `pg_document_store.py`, migration `016` |
 | 97 | TestSession adapters (17d) | ✅ done | `a484d12`; exam/homework/custom adapters |
 | 98 | Auth rate limit + TTL (17e) | ✅ done | `5ba3709`; slowapi login + tutor; `test_rate_limit.py` |
-| 99 | Playwright smoke E2E (17f) | ⏳ pending | login → test step → submit ДЗ |
+| 99 | Playwright smoke E2E (17f) | ✅ local | login → 1 test step → submit ДЗ; CI job |
 
-**Текущий этап:** Phase 17 почти закрыта (99 Playwright pending); Phase 16 — apply миграции + Task 91 E2E; Phase 15 — ручной E2E checkpoint; Task 30 — Docker/gh CI.
+**Текущий этап:** Phase 17 закрыта локально (99 Playwright ✅); Phase 16 — apply миграции 29–34; Phase 15 — ручной E2E checkpoint; Task 30 — push → CI green on GitHub.
 
 ---
 
@@ -2647,13 +2647,13 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 **Description:** Сводные тесты (backend integration + vitest) и frontend: «По заданиям» типы 29–34; «По вариантам» до 34 шагов; StepView compare/upload; HomeworkForm types 29–34.
 
 **Acceptance criteria:**
-- [ ] Полный backend-путь: fixture с 29–34 → compare → ДЗ с фото → submit → teacher feedback
+- [x] Полный backend-путь: fixture с 29–34 → compare → ДЗ с фото → submit → teacher feedback (`28ee754`)
 - [x] Score сессии включает 29–34; регрессия 1–28 (unit/integration via Tasks 88–90)
 - [x] AC-2.1 (часть): «Шаг N из M» с M до 34; рендер `[ответNNNN]` (frontend vitest)
 - [x] `vitest` зелёный для VariantPicker, StepView, HomeworkForm, SessionSummary
 
 **Verification:**
-- [ ] `pytest backend/tests/test_ege_written_integration.py` (ещё не создан)
+- [x] `pytest backend/tests/test_ege_written_integration.py`
 - [x] `vitest` для `VariantPicker`, `StepView`, `HomeworkForm` — `da19671`
 - [ ] Ручная проверка на варианте с мигрированными данными
 
@@ -2844,9 +2844,9 @@ npm run check:api-types
 **Description:** login → пройти 1 шаг теста → сдать ДЗ. CI job после docker-compose smoke.
 
 **Acceptance criteria:**
-- [ ] `@playwright/test` + config
-- [ ] Seed/fixture user
-- [ ] CI job или documented local run
+- [x] `@playwright/test` + config
+- [x] Seed/fixture user (`seed_e2e` CLI + `scripts/e2e/create_content_dbs.py`)
+- [x] CI job + documented local run (`docker-compose.e2e.yml`, `npm run test:e2e`)
 
 **Dependencies:** Task 30 (docker CI) recommended
 
@@ -2862,16 +2862,16 @@ npm run check:api-types
 - [x] RAG single PG backend в hot path
 - [x] TestSession adapters + no IDOR regression
 - [x] Rate limit login/tutor
-- [ ] Playwright smoke green
+- [ ] Playwright smoke green (local ✅; gh pending push)
 
 ---
 
 ## Следующий шаг (2026-06-21)
 
 1. **Phase 15 E2E manual** — QR handoff → teacher review + voice feedback → student badge (checkpoint §1.9.9).
-2. **Phase 16 Task 91** — frontend vitest (VariantPicker, StepView, HomeworkForm types 29–34) + integration test; затем ручной `--dry-run` / `--apply` миграции 29–34.
-3. **Task 30** — `docker compose up --build` + push → CI green on GitHub.
-4. **Phase 17 Task 99** — Playwright smoke E2E; зависит от Task 30 Docker CI.
+2. **Phase 16 apply** — ручной `--dry-run` / `--apply` миграции 29–34 в `test_ege.db`.
+3. **Task 30** — push → CI green on GitHub (docker-compose + e2e jobs).
+4. ~~**Phase 17 Task 99**~~ ✅ Playwright smoke E2E + CI job.
 5. ~~**Task 44** — тренажёр + suggested prompts~~ ✅ local (pytest + vitest).
 6. **Task 46** ⏸️ — guards A2/A3 только по триггеру eval.
 7. **Коммит** — большой uncommitted срез (Phase 14–17 + Task 44); разбить на атомарные коммиты по фазам.

@@ -123,3 +123,67 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose down -v
+
+  e2e:
+    name: Playwright smoke E2E (Task 99)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Create E2E content DBs
+        run: python scripts/e2e/create_content_dbs.py
+
+      - name: Create .env for compose
+        run: |
+          cp .env.example .env
+          sed -i 's/^JWT_SECRET=.*/JWT_SECRET=ci-test-jwt-secret-at-least-32-bytes-long/' .env
+
+      - name: Build and start stack (E2E fixtures)
+        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml up --build -d --wait
+
+      - name: Seed E2E users and homework
+        id: seed
+        run: |
+          STATE=$(docker compose exec -T backend python -m app.cli.seed_e2e)
+          echo "$STATE"
+          echo "E2E_HOMEWORK_ID=$(echo "$STATE" | python -c 'import json,sys; print(json.load(sys.stdin)["homeworkId"])')" >> "$GITHUB_ENV"
+          echo "E2E_STUDENT_EMAIL=$(echo "$STATE" | python -c 'import json,sys; print(json.load(sys.stdin)["studentEmail"])')" >> "$GITHUB_ENV"
+          echo "E2E_STUDENT_PASSWORD=$(echo "$STATE" | python -c 'import json,sys; print(json.load(sys.stdin)["studentPassword"])')" >> "$GITHUB_ENV"
+          echo "E2E_CORRECT_ANSWER=$(echo "$STATE" | python -c 'import json,sys; print(json.load(sys.stdin)["correctAnswer"])')" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run smoke E2E
+        working-directory: frontend
+        env:
+          E2E_BASE_URL: http://localhost:8080
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml down -v
