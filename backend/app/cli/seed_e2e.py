@@ -31,6 +31,7 @@ STUDENT_EMAIL = "e2e-student@example.com"
 STUDENT_PASS = "e2e-student-pass"
 CORRECT_ANSWER = "1"
 HOMEWORK_TITLE_PREFIX = "E2E smoke"
+WRITTEN_HOMEWORK_TITLE_PREFIX = "E2E written"
 
 
 async def _ensure_teacher(session_factory) -> uuid.UUID:
@@ -150,6 +151,52 @@ async def _create_homework(
         return assignment.id
 
 
+async def _create_written_homework(
+    session_factory,
+    *,
+    teacher_id: uuid.UUID,
+    student_id: uuid.UUID,
+    settings,
+) -> uuid.UUID:
+    items_payload = [
+        {
+            "kind": HomeworkItemKind.TEST_PARTIAL.value,
+            "variant": "001.txt",
+            "types": [29],
+        }
+    ]
+    from app.schemas.homework import TestPartialItem
+
+    parsed_items = [TestPartialItem.model_validate(items_payload[0])]
+    async with session_factory() as session:
+        await validate_homework_items(
+            parsed_items,
+            track=ExamTrack.EGE,
+            teacher_id=teacher_id,
+            settings=settings,
+            session=session,
+        )
+        assignment = HomeworkAssignment(
+            student_id=student_id,
+            teacher_id=teacher_id,
+            title=f"{WRITTEN_HOMEWORK_TITLE_PREFIX} {uuid.uuid4().hex[:8]}",
+            description="Playwright E2E: self_check type 29, photo upload, teacher feedback.",
+            items=items_payload,
+            status=HomeworkStatus.ASSIGNED,
+            item_progress=[
+                HomeworkItemProgress(
+                    item_index=0,
+                    kind=HomeworkItemKind.TEST_PARTIAL,
+                    completed=False,
+                )
+            ],
+        )
+        session.add(assignment)
+        await session.commit()
+        await session.refresh(assignment)
+        return assignment.id
+
+
 async def seed_e2e() -> dict[str, str]:
     settings = get_settings()
     engine = create_async_engine(settings.database_url, echo=False)
@@ -163,12 +210,19 @@ async def seed_e2e() -> dict[str, str]:
             student_id=student_id,
             settings=settings,
         )
+        written_homework_id = await _create_written_homework(
+            session_factory,
+            teacher_id=teacher_id,
+            student_id=student_id,
+            settings=settings,
+        )
         return {
             "teacherEmail": TEACHER_EMAIL,
             "teacherPassword": TEACHER_PASS,
             "studentEmail": STUDENT_EMAIL,
             "studentPassword": STUDENT_PASS,
             "homeworkId": str(homework_id),
+            "writtenHomeworkId": str(written_homework_id),
             "correctAnswer": CORRECT_ANSWER,
         }
     finally:

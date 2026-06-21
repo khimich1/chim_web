@@ -33,4 +33,9 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
       "[e2e] E2E_HOMEWORK_ID is not set. Run: cd backend && python -m app.cli.seed_e2e",
     );
   }
+  if (!process.env.E2E_WRITTEN_HOMEWORK_ID) {
+    console.warn(
+      "[e2e] E2E_WRITTEN_HOMEWORK_ID is not set. seed_e2e JSON field: writtenHomeworkId",
+    );
+  }
 }

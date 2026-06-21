@@ -44,6 +44,14 @@ def _create_lectures_db(path: Path) -> None:
     conn.close()
 
 
+PNG_BYTES = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+    b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde"
+    b"\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N"
+    b"\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
 def _create_ege_db(path: Path) -> None:
     conn = sqlite3.connect(path)
     conn.execute(
@@ -65,7 +73,18 @@ def _create_ege_db(path: Path) -> None:
         [
             ("001.txt", 1, "E2E: выберите ответ", "1", 0),
             ("001.txt", 2, "E2E: второй шаг", "2", 0),
+            (
+                "001.txt",
+                29,
+                "E2E: письменное задание (тип 29)",
+                "Разбор [ответ0029]",
+                0,
+            ),
         ],
+    )
+    conn.execute(
+        "INSERT INTO images (filename, data) VALUES (?, ?)",
+        ("ответ0029.png", PNG_BYTES),
     )
     conn.commit()
     conn.close()
@@ -90,9 +109,15 @@ def _create_oge_db(path: Path) -> None:
 
 def main() -> int:
     _FIXTURES_DIR.mkdir(parents=True, exist_ok=True)
+    for name in ("prepared_lectures.db", "test_ege.db", "test_oge.db"):
+        path = _FIXTURES_DIR / name
+        if path.exists():
+            path.unlink()
     _create_lectures_db(_FIXTURES_DIR / "prepared_lectures.db")
     _create_ege_db(_FIXTURES_DIR / "test_ege.db")
     _create_oge_db(_FIXTURES_DIR / "test_oge.db")
+    sample_photo = _FIXTURES_DIR / "sample-answer.png"
+    sample_photo.write_bytes(PNG_BYTES)
     print(f"Created E2E content DBs in {_FIXTURES_DIR}")
     return 0
 

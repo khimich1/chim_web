@@ -156,6 +156,9 @@ jobs:
           echo "E2E_STUDENT_EMAIL=$(echo "$STATE" | python -c 'import json,sys; print(json.load(sys.stdin)["studentEmail"])')" >> "$GITHUB_ENV"
           echo "E2E_STUDENT_PASSWORD=$(echo "$STATE" | python -c 'import json,sys; print(json.load(sys.stdin)["studentPassword"])')" >> "$GITHUB_ENV"
           echo "E2E_CORRECT_ANSWER=$(echo "$STATE" | python -c 'import json,sys; print(json.load(sys.stdin)["correctAnswer"])')" >> "$GITHUB_ENV"
+          echo "E2E_WRITTEN_HOMEWORK_ID=$(echo "$STATE" | python -c 'import json,sys; print(json.load(sys.stdin)["writtenHomeworkId"])')" >> "$GITHUB_ENV"
+          echo "E2E_TEACHER_EMAIL=$(echo "$STATE" | python -c 'import json,sys; print(json.load(sys.stdin)["teacherEmail"])')" >> "$GITHUB_ENV"
+          echo "E2E_TEACHER_PASSWORD=$(echo "$STATE" | python -c 'import json,sys; print(json.load(sys.stdin)["teacherPassword"])')" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:

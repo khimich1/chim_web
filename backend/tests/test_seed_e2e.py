@@ -15,6 +15,12 @@ from app.db.base import Base
 
 
 def _create_minimal_ege_db(path: Path) -> None:
+    png_bytes = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+        b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde"
+        b"\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N"
+        b"\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
     conn = sqlite3.connect(path)
     conn.execute(
         """
@@ -33,6 +39,17 @@ def _create_minimal_ege_db(path: Path) -> None:
         VALUES (?, ?, ?, ?, ?)
         """,
         ("001.txt", 1, "Q1", "1", 0),
+    )
+    conn.execute(
+        """
+        INSERT INTO tests (filename, type, question, correct_ans, has_issue)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        ("001.txt", 29, "Written Q29", "Разбор [ответ0029]", 0),
+    )
+    conn.execute(
+        "INSERT INTO images (filename, data) VALUES (?, ?)",
+        ("ответ0029.png", png_bytes),
     )
     conn.commit()
     conn.close()
@@ -62,3 +79,4 @@ def test_seed_e2e_cli_creates_homework(tmp_path: Path, monkeypatch: pytest.Monke
     assert payload["studentEmail"] == seed_e2e_module.STUDENT_EMAIL
     assert payload["correctAnswer"] == "1"
     assert payload["homeworkId"]
+    assert payload["writtenHomeworkId"]
