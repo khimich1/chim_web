@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
 
 from app.services.rag.ingestion import ingest_all_documents_from_paths
+from app.services.rag.pg_document_store import InMemoryDocumentStore
 from app.services.rag.retriever import Retriever
 from app.services.rag.store import load_index, save_index
 
@@ -70,28 +74,64 @@ def test_index_roundtrip(tmp_path: Path, rag_retriever: Retriever) -> None:
     assert hits[0].metadata.get("topic") == "Алканы"
 
 
-def test_rebuild_index_persists_documents(
+def test_rebuild_index_persists_documents_to_pg(
     tmp_path: Path,
     rag_content_dbs: dict[str, Path],
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.core.config import Settings
 
-    index_path = tmp_path / "rag_index.json"
+    store = InMemoryDocumentStore()
     settings = Settings(
         database_url="postgresql+asyncpg://user:pass@localhost:5432/chemistry",
         jwt_secret="test-secret",
         content_ege_db_path=rag_content_dbs["ege"],
         content_oge_db_path=rag_content_dbs["oge"],
         content_lectures_db_path=rag_content_dbs["lectures"],
-        rag_index_path=index_path,
+        rag_index_path=tmp_path / "rag_index.json",
+        rag_hybrid_enabled=False,
     )
     monkeypatch.setattr("app.services.rag.retriever.get_settings", lambda: settings)
 
     retriever = Retriever([])
-    count = retriever.rebuild_index(settings)
+    count = retriever.rebuild_index(settings, document_store=store)
 
     assert count >= 3
-    assert settings.rag_index_path.is_file()
-    reloaded = load_index(settings.rag_index_path)
-    assert len(reloaded) == count
+    assert store.count() == count
+    reloaded = Retriever(store.load_all(), settings=settings)
+    hits = reloaded.search("алканы малореакционны", track="ege", limit=1)
+    assert hits
+    assert hits[0].metadata.get("topic") == "Алканы"
+
+
+def test_from_settings_does_not_read_json_index(
+    tmp_path: Path,
+    rag_content_dbs: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.config import Settings
+
+    index_path = tmp_path / "rag_index.json"
+    documents = ingest_all_documents_from_paths(
+        lectures_db_path=rag_content_dbs["lectures"],
+    )
+    save_index(documents, index_path)
+
+    settings = Settings(
+        database_url="postgresql+asyncpg://user:pass@localhost:5432/chemistry",
+        jwt_secret="test-secret",
+        content_lectures_db_path=rag_content_dbs["lectures"],
+        rag_index_path=index_path,
+    )
+    monkeypatch.setattr("app.services.rag.retriever.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.services.rag.retriever.load_documents_from_settings",
+        lambda _settings=None: [],
+    )
+    load_index_mock = MagicMock(side_effect=AssertionError("json index must not load"))
+    monkeypatch.setattr("app.services.rag.retriever.load_index", load_index_mock)
+
+    retriever = Retriever.from_settings(settings)
+
+    assert retriever.document_count == 0
+    load_index_mock.assert_not_called()

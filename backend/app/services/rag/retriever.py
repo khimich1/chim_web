@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from pathlib import Path
 
 from app.core.config import Settings, get_settings
-from app.services.rag.documents import ExamTrack, RagChunkHit, RagDocument
+from app.services.rag.documents import ExamTrack, RagChunkHit, RagDocument, RagSource
 from app.services.rag.embeddings import EmbeddingsProvider, get_embeddings_provider
 from app.services.rag.ingestion import ingest_all_documents
 from app.services.rag.keyword import keyword_score, tokenize
+from app.services.rag.pg_document_store import (
+    DocumentStore,
+    PgDocumentStore,
+    load_documents_from_settings,
+)
 from app.services.rag.pgvector_store import VectorStore
 from app.services.rag.query_rewrite import rewrite_queries
 from app.services.rag.rerank import dedup_hits, hybrid_rerank, reciprocal_rank_fusion
@@ -19,7 +25,7 @@ from app.services.rag.store import load_index, save_index
 logger = logging.getLogger(__name__)
 
 TrackFilter = ExamTrack | None
-SourceFilter = str | None
+SourceFilter = RagSource | None
 
 _HYBRID_POOL_SIZE = 10
 
@@ -46,19 +52,36 @@ class Retriever:
 
     @classmethod
     def from_settings(cls, settings: Settings | None = None) -> Retriever:
+        """Build a retriever from PostgreSQL keyword index (production hot path)."""
         app_settings = settings or get_settings()
-        if app_settings.rag_index_path.is_file():
-            return cls(load_index(app_settings.rag_index_path), settings=app_settings)
+        if app_settings.database_url.startswith("postgresql"):
+            documents = load_documents_from_settings(app_settings)
+            return cls(documents, settings=app_settings)
         return cls(ingest_all_documents(app_settings), settings=app_settings)
 
     @classmethod
     def from_index_path(cls, path: Path) -> Retriever:
         return cls(load_index(path))
 
-    def rebuild_index(self, settings: Settings | None = None) -> int:
-        """Ingest content DBs and persist the index file."""
+    def rebuild_index(
+        self,
+        settings: Settings | None = None,
+        *,
+        document_store: DocumentStore | None = None,
+    ) -> int:
+        """Ingest content DBs and persist keyword metadata to PostgreSQL."""
         app_settings = settings or get_settings()
         documents = ingest_all_documents(app_settings)
+        if app_settings.database_url.startswith("postgresql"):
+            store = document_store or PgDocumentStore.from_settings(app_settings)
+            owns_store = document_store is None
+            try:
+                count = store.rebuild(documents)
+            finally:
+                if owns_store and isinstance(store, PgDocumentStore):
+                    asyncio.run(store.dispose())
+            self._documents = documents
+            return count
         save_index(documents, app_settings.rag_index_path)
         self._documents = documents
         return len(documents)
@@ -243,7 +266,7 @@ class Retriever:
         vector_hits = store.search(
             query_vector,
             track=track,
-            source=source if source in {"lecture", "lecture_qa", "test"} else None,
+            source=source,
             topic=topic,
             limit=_HYBRID_POOL_SIZE,
         )

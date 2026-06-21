@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--rebuild",
         action="store_true",
-        help="Re-ingest content databases and overwrite the keyword index file",
+        help="Re-ingest content databases and rebuild keyword metadata in PostgreSQL",
     )
     parser.add_argument(
         "--embeddings",
@@ -61,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--chroma",
         action="store_true",
-        help="Also rebuild Chroma vector index for lectures (requires OPENAI_API_KEY)",
+        help="(Legacy dev-only) rebuild Chroma index — not used in tutor hot path",
     )
     args = parser.parse_args(argv)
 
@@ -71,9 +71,15 @@ def main(argv: list[str] | None = None) -> int:
     settings = get_settings()
 
     if args.rebuild:
-        retriever = Retriever([])
-        count = retriever.rebuild_index(settings)
-        print(f"Keyword index rebuilt: {count} documents -> {settings.rag_index_path}")
+        if not settings.database_url.startswith("postgresql"):
+            print(
+                "Keyword rebuild requires PostgreSQL DATABASE_URL; skipping.",
+                file=sys.stderr,
+            )
+        else:
+            retriever = Retriever([])
+            count = retriever.rebuild_index(settings)
+            print(f"Keyword index rebuilt: {count} documents in rag_documents (PostgreSQL)")
 
     if args.embeddings:
         if not settings.database_url.startswith("postgresql"):

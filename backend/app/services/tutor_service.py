@@ -37,6 +37,7 @@ from app.schemas.tutor import (
     TutorSessionSummary,
     TutorSourceCitation,
 )
+from app.services.rag.pg_document_store import rag_documents_ready
 from app.services.tutor.context import TutorRunContext
 from app.services.tutor.graph import build_graph
 from app.services.tutor.profile_service import TutorProfileService
@@ -412,7 +413,7 @@ class TutorService:
     def get_health(settings: Settings | None = None) -> TutorHealthResponse:
         app_settings = settings or get_settings()
         return TutorHealthResponse(
-            rag_index_exists=app_settings.rag_index_path.is_file(),
+            rag_index_exists=rag_documents_ready(app_settings),
             openai_configured=bool(app_settings.openai_api_key.strip()),
         )
 

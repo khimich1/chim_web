@@ -1,4 +1,4 @@
-"""Theory search for the tutor agent (keyword index; Chroma optional later)."""
+"""Theory search for the tutor agent (PostgreSQL keyword + pgvector hybrid)."""
 
 from __future__ import annotations
 
