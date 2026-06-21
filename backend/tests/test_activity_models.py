@@ -74,6 +74,7 @@ def test_activity_event_types() -> None:
     assert {t.value for t in ActivityEventType} == {
         "step_correct",
         "homework_complete",
+        "homework_complete_delta",
         "streak_daily",
         "streak_weekly",
         "onboarding_welcome_viewed",
