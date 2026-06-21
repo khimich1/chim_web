@@ -211,6 +211,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/homework/{assignment_id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reopen Homework */
+        post: operations["reopen_homework_api_homework__assignment_id__reopen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/homework/{assignment_id}/items/{item_index}/complete": {
         parameters: {
             query?: never;
@@ -1226,6 +1243,11 @@ export interface components {
              * @default false
              */
             has_teacher_feedback: boolean;
+            /**
+             * Can Reopen
+             * @default false
+             */
+            can_reopen: boolean;
         };
         /**
          * HomeworkStatus
@@ -1250,6 +1272,12 @@ export interface components {
             score?: number | null;
             /** Max Score */
             max_score?: number | null;
+            /** Answered Steps */
+            answered_steps?: number | null;
+            /** Total Steps */
+            total_steps?: number | null;
+            /** Completion Percent */
+            completion_percent?: number | null;
         };
         /**
          * HomeworkSubmissionStepRead
@@ -2464,6 +2492,37 @@ export interface operations {
                 "application/json": components["schemas"]["HomeworkSubmitRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomeworkRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reopen_homework_api_homework__assignment_id__reopen_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
