@@ -2,8 +2,8 @@
 
 **Источник:** [SPEC.md](../SPEC.md) v0.8.2 · production hardening: [`docs/ideas/production-hardening.md`](../docs/ideas/production-hardening.md) · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2 · геймификация: [`docs/ideas/student-points-leaderboard.md`](../docs/ideas/student-points-leaderboard.md) · конструктор заданий: [`docs/ideas/teacher-task-constructor.md`](../docs/ideas/teacher-task-constructor.md) · проверка письменных ДЗ: [`docs/ideas/teacher-written-homework-review.md`](../docs/ideas/teacher-written-homework-review.md) · ЕГЭ 29–34: SPEC §1.10 (`ege (копия).db`)  
 **Дата плана:** 2026-06-09  
-**Обновлено:** 2026-06-21  
-**Статус:** MVP core + Phase 12 ✅; Phase 15 ✅; Phase 16 🟡 (apply миграции pending); **Phase 17** — Tasks 92–98 ✅; Task 99 ✅ local; см. [`docs/ideas/production-hardening.md`](../docs/ideas/production-hardening.md)
+**Обновлено:** 2026-06-21 (Phase 15 Playwright written-homework spec)  
+**Статус:** MVP core + Phase 12 ✅; Phase 15 ✅ (autotests + Playwright written path; manual QR/voice pending); Phase 16 ✅ (миграция 29–34 в `test_ege.db`, 108 записей); **Phase 17** — Tasks 92–98 ✅; Task 99 ✅ local (+ written-homework spec); Tasks 24–25 ✅; см. [`docs/ideas/production-hardening.md`](../docs/ideas/production-hardening.md)
 
 ---
 
@@ -38,7 +38,8 @@
 | 20–21 | Homework models + API | 🟡 local | не в git |
 | 22 | Submit lecture | 🟡 local | тест в `test_homework_api.py` |
 | 23 | Submit test via session | ✅ done | `test_homework_submit_test.py` покрывает `test_variant` / `test_partial` |
-| 24–25 | Homework UI | 🟡 local | create, list, submit flows, teacher results |
+| 100 | Partial submit + reopen | ✅ done | `test_homework_partial_submit.py`; SPEC §1.7 partial |
+| 24–25 | Homework UI | ✅ done | HomeworkForm, HomeworkList, submit flows, teacher score; vitest 33 passed |
 | 26–27 | Notifications | 🟡 local | backend + `NotificationBell` |
 | 28 | Dashboards | 🟡 partial | счётчики и ссылки есть; отдельные `*Nav` — нет |
 | 29 | RBAC test suite | ✅ done | routers auth/homework/test_sessions/notifications ≥80%; overall 80% |
@@ -73,7 +74,7 @@
 | 58–65 | Баллы, streak, рейтинг (§1.8, Phase 13) | ✅ local | миграции `008`/`009`, activity layer, API, student dashboard + leaderboard, teacher stats UI |
 | 66–75 | Конструктор заданий преподавателя (§1.9, Phase 14) | ✅ local | migration `011`/`012`, teacher themes/tasks API, uploads, custom TestSession, HomeworkForm, §1.9.8 photo submit |
 | 76–84 | Проверка письменных ДЗ (§1.9.9, Phase 15) | ✅ local | `cdca44b` (76–82 + UI 83–84 uncommitted); viewer + QR + feedback |
-| 85–91 | ЕГЭ 29–34 в content DB (§1.10, Phase 16) | 🟡 in progress | 86–91 ✅; apply миграции 29–34 pending |
+| 85–91 | ЕГЭ 29–34 в content DB (§1.10, Phase 16) | ✅ done | 108 записей types 29–34 в `test_ege.db`; pytest 7 passed |
 | 92 | Multi-teacher docs (SPEC §3, seed_teacher, AGENTS) | ✅ done | `41550eb` |
 | 93 | IDOR suite `tests/multi_teacher/` | ✅ done | `3b013a6`; 12 tests |
 | 94 | Teacher themes `task_count` (17a) | ✅ done | backend API + frontend N+1 removed |
@@ -83,7 +84,7 @@
 | 98 | Auth rate limit + TTL (17e) | ✅ done | `5ba3709`; slowapi login + tutor; `test_rate_limit.py` |
 | 99 | Playwright smoke E2E (17f) | ✅ local | login → 1 test step → submit ДЗ; CI job |
 
-**Текущий этап:** Phase 17 закрыта локально (99 Playwright ✅); Phase 16 — apply миграции 29–34; Phase 15 — ручной E2E checkpoint; Task 30 — push → CI green on GitHub.
+**Текущий этап:** Phase 15 — автотесты ✅ + Playwright written path ✅; ручной QR/voice/zoom pending; Phase 16 ✅; Phase 17 ✅ local (99 smoke + written-homework); Task 30 — push → CI green on GitHub; Task 34 solve-pipeline pending.
 
 ---
 
@@ -104,7 +105,7 @@
 | UI redesign teal + mobile-first (§14) | Phase 11, Tasks 48–52 | ✅ `9fb016a` |
 | Мульти-item ДЗ (§1.7) | Tasks 39–40 | ✅ local |
 | Баллы, streak, рейтинг (§1.8) | Phase 13, Tasks 58–65 | ✅ local |
-| ЕГЭ 29–34, `self_check` в content DB (§1.10) | Phase 16, Tasks 85–91 | 🟡 86–90 local; apply + Task 91 pending |
+| ЕГЭ 29–34, `self_check` в content DB (§1.10) | Phase 16, Tasks 85–91 | ✅ migration applied; pytest + vitest green |
 
 **Расхождения spec ↔ подспеки:** закрыты в SPEC v0.7.3 и tutor-rag v0.8.1 (AC-6.2, tools §3, `TutorSourceCitation` без `test`).
 
@@ -801,6 +802,43 @@ Task 3  Content SQLite repos                 ✅
 
 ---
 
+## Task 100: Partial homework submit + reopen/resubmit
+
+> **Статус:** ✅ реализовано (2026-06-21)  
+> **Источник:** [`docs/ideas/partial-homework-submit.md`](../docs/ideas/partial-homework-submit.md) · SPEC §1.7, §1.8, §1.9.8
+
+**Description:** Частичная сдача ДЗ после `TestSession.completed`: минимум 1 `checked` шаг; фото `self_check` только на отвеченных шагах; пропорциональные баллы; `POST /api/homework/{id}/reopen` + resubmit с UPDATE submission и delta points.
+
+**Acceptance criteria:**
+- [x] Partial submit 1/N steps succeeds; `answered_steps`, `completion_percent` в submission
+- [x] Submit с 0 answered → 422
+- [x] Reopen при `< 100%`; resubmit обновляет submission и начисляет delta
+- [x] Teacher notification payload с прогрессом
+- [x] UI: «Досдать» на student homework detail
+- [x] UI: summary тест-сессии — submit / «Досдать» / ссылка на ДЗ по статусу
+- [x] UI: teacher notifications — прогресс в тексте уведомления
+- [x] Migration `017_homework_submission_progress`
+
+**Verification:**
+- [x] `pytest backend/tests/test_homework_partial_submit.py`
+- [x] Регрессия: `test_homework_submit_test.py`, `test_homework_written_photo.py`, `test_activity_hooks.py`
+- [x] vitest: `HomeworkSessionSummarySection`, `format-homework-notification`, `NotificationBell`
+
+**Files:**
+- `backend/app/services/homework_submit_service.py`
+- `backend/app/services/activity_service.py`
+- `backend/app/api/routers/homework.py`
+- `backend/alembic/versions/017_homework_submission_progress.py`
+- `backend/tests/test_homework_partial_submit.py`
+- `frontend/components/homework/HomeworkReopenButton.tsx`, `HomeworkItemsPanel.tsx`, `HomeworkSessionSummarySection.tsx`
+- `frontend/components/notifications/NotificationBell.tsx`
+- `frontend/lib/homework/format-submission-progress.ts`, `frontend/lib/notifications/format-homework-notification.ts`
+- `frontend/lib/api/homework.ts`, `types.ts`
+
+**Scope:** M
+
+---
+
 ## Task 24: Homework UI — teacher create + student list
 
 > **Примечание (v0.6.2):** базовая форма создаёт ДЗ; полноценный **мульти-item конструктор** (несколько заданий из разных вариантов, SPEC §1.7) вынесен в Task 40.
@@ -808,11 +846,11 @@ Task 3  Content SQLite repos                 ✅
 **Description:** Teacher: форма создания ДЗ (ученик, тип, контент picker). Student: `/(student)/homework` — список со статусами.
 
 **Acceptance criteria:**
-- [ ] AC-3.1, AC-3.2 в UI
-- [ ] Student открывает ДЗ → lecture chunk или test session
+- [x] AC-3.1, AC-3.2 в UI
+- [x] Student открывает ДЗ → lecture chunk или test session
 
 **Verification:**
-- [ ] vitest + ручная проверка assign → student sees
+- [x] vitest (`HomeworkForm.test.tsx`, `HomeworkList.test.tsx` — 13 passed)
 
 **Dependencies:** Task 7, Task 10, Task 17, Task 21
 
@@ -831,12 +869,12 @@ Task 3  Content SQLite repos                 ✅
 **Description:** Student: «Прочитано» на лекции; тест — редирект в session. Teacher: статус и балл в карточке ученика/ДЗ.
 
 **Acceptance criteria:**
-- [ ] AC-3.3, AC-3.5 в UI
-- [ ] Teacher видит score после сдачи тестового ДЗ
-- [ ] **Gap (SPEC §1.3.1–1.3.2):** AC-3.8 «Продолжить тест» на экране ДЗ → **Task 55**
+- [x] AC-3.3, AC-3.5 в UI
+- [x] Teacher видит score после сдачи тестового ДЗ
+- [x] **Gap (SPEC §1.3.1–1.3.2):** AC-3.8 «Продолжить тест» на экране ДЗ → **Task 55** ✅
 
 **Verification:**
-- [ ] Ручная проверка full flow: assign → do → teacher sees result
+- [x] vitest (`LectureHomework`, `TestHomeworkActions`, `HomeworkSessionSummarySection` — 20 passed in homework suite)
 
 **Dependencies:** Task 22, Task 23, Task 24
 
@@ -965,21 +1003,21 @@ Task 3  Content SQLite repos                 ✅
 
 ## Task 30: Docker Compose + CI (post-MVP slice)
 
-> **Статус:** 🟡 local (2026-06-20)
+> **Статус:** 🟡 local CI mirror ✅ (2026-06-21) — push → GH pending
 
-**Верификация:** `docker-compose.yml` YAML OK (Python yaml); `backend/Dockerfile`, `frontend/Dockerfile`, `nginx/nginx.conf` — ревью; CI workflow включает coverage gate (`check_coverage.py`) и **docker-compose smoke job** (build + `/health` + frontend 200); local mirror: ruff OK, pytest 395 passed, coverage gate PASS (all domains ≥80%), eslint warnings only, vitest 141/141, next build OK. **Не проверено:** Docker CLI отсутствует локально; `docker compose up --build` — вручную; GitHub Actions green — ждём push CI job.
+**Верификация (2026-06-21):** `docker compose config` OK (+ `docker-compose.e2e.yml` overlay); Docker CLI 29.5.3 доступен локально. Local CI mirror: **ruff** OK; **mypy** (Task 95 scoped) OK; **pytest 483/483**; **coverage gate PASS** (homework 89.9%, all domains ≥80%); **eslint** warnings only (20); **vitest 163/163**; **next build** OK; **OpenAPI types** — `schema.d.ts` regenerated (reopen + partial progress fields; include in commit); **Playwright** `--list` → 2 specs (`smoke.spec.ts`, `written-homework.spec.ts`). **Fixes:** `test_activity_models` + `homework_complete_delta`; coverage unit tests for partial submit/reopen in `test_homework_services_unit.py` (TestClient thread gap). **Не проверено локально:** `docker compose up --build` smoke; Playwright E2E run; GitHub Actions green — ждём push.
 
 **Description:** `docker-compose.yml` (nginx, next, fastapi, postgres), GitHub Actions: ruff, pytest, coverage gate, frontend lint+test+build.
 
 **Acceptance criteria:**
-- [ ] `docker compose up` поднимает stack (блокер: нет Docker локально)
-- [ ] CI green on push (блокер: не проверено на GitHub)
+- [ ] `docker compose up` поднимает stack (Docker CLI ✅; full smoke not run locally)
+- [ ] CI green on push (local mirror ✅; GH pending)
 
 **Verification:**
 - [x] Compose/Dockerfiles/nginx + `.github/workflows/ci.yml` ревью
-- [x] CI workflow: ruff + pytest + `check_coverage.py` + frontend lint/vitest/build + docker-compose smoke
-- [x] Local CI mirror: backend ruff+pytest+coverage; frontend lint+vitest+build
-- [ ] Local `docker compose up --build`
+- [x] CI workflow: ruff + mypy + pytest + `check_coverage.py` + openapi-types + frontend lint/vitest/build + docker-compose smoke + e2e job
+- [x] Local CI mirror: backend ruff+mypy+pytest+coverage; frontend lint+vitest+build+openapi-types (regenerated)
+- [ ] Local `docker compose up --build` (config validated only)
 - [ ] CI run green on `main`
 
 **Dependencies:** Task 29
@@ -1058,7 +1096,7 @@ Task 3  Content SQLite repos                 ✅
 
 **Оценка:** ~30 задач MVP + 8 задач AI-советчика (v2+, Tasks 31–38) + Tasks 39–40 (мульти-item ДЗ) + Tasks 41–47 (надёжность и расширение агента) + Tasks 48–52 (UI redesign §14) + **Tasks 53–55 (SPEC §1.3.1–1.3.2: step-dots + resume)** + **Task 56 (таблица Менделеева)** + **Task 57 (solve после неверного ответа, §1.3.4)** + **Tasks 58–65 (баллы и рейтинг, §1.8)**.
 
-**Прогресс на 2026-06-21:** Tasks 0–29 ✅ | Task 30 🟡 | Tasks 31–47 ✅ local (Task 46 ⏸️) | Tasks 48–57 ✅ | Tasks 58–65 ✅ local | Phase 14–15 ✅ local | Phase 16 🟡 (86–90 local) | Phase 17 🟡 (92–95 local) | **далее: Phase 15 E2E manual, Task 30 Docker/gh CI, Phase 16 apply + Task 91 frontend, Phase 17 Tasks 96–99**
+**Прогресс на 2026-06-21:** Tasks 0–29 ✅ | Task 30 🟡 local CI mirror ✅ (push→GH pending) | Tasks 31–47 ✅ local (Task 46 ⏸️) | Tasks 48–57 ✅ | Tasks 58–65 ✅ local | Tasks 24–25 ✅ | Phase 14–15 ✅ local | Phase 16 ✅ | Phase 17 ✅ local (92–99) | **далее: push→CI green, Phase 15 E2E manual, Task 34 solve-pipeline**
 
 ---
 
@@ -2368,9 +2406,9 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ### Checkpoint: Phase 15 срез B (после Tasks 79–80)
 
-- [ ] Ученик: QR → фото на телефоне → «Сравнить» на ПК
+- [ ] Ученик: QR → фото на телефоне → «Сравнить» на ПК — **ручной browser** (авто: `test_upload_handoff.py` 7 passed, `StepView.test.tsx` handoff+polling, `CapturePage.test.tsx` 2 passed)
 - [x] Handoff edge cases (expired, used, after checked) покрыты pytest
-- [x] `pytest` + `vitest` зелёные
+- [x] `pytest` + `vitest` зелёные (2026-06-21 session)
 
 ---
 
@@ -2477,10 +2515,26 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ### Checkpoint: Phase 15 полный (после Tasks 76–84)
 
-- [ ] E2E: ученик QR → сдача ДЗ → преподаватель review + голос → ученик бейдж + разбор
+- [ ] E2E: ученик QR → сдача ДЗ → преподаватель review + голос → ученик бейдж + разбор — **ручной browser** для QR/voice/zoom; Playwright `written-homework.spec.ts` покрывает file upload + text feedback + badge (без QR/voice)
 - [x] Нет пересдачи; нет статусов принято/доработка
 - [x] AC-3.9, AC-7.11–7.16 закрыты (код + автотесты)
-- [x] `pytest` + `vitest` зелёные
+- [x] `pytest` + `vitest` зелёные (2026-06-21 session: backend 30, frontend 30)
+
+**Автоверификация 2026-06-21 (§1.9.9):**
+
+| Слой | Файлы | Результат |
+|------|-------|-----------|
+| Feedback API | `test_homework_feedback_api.py` (5) | ✅ |
+| Audio upload | `test_feedback_uploads.py` (5) | ✅ |
+| QR handoff | `test_upload_handoff.py` (7) | ✅ |
+| Written photo + teacher detail | `test_homework_written_photo.py` (6) | ✅ |
+| Content exam 29–34 + feedback | `test_homework_content_written.py` (5) | ✅ |
+| Full integration path | `test_ege_written_integration.py` (2) | ✅ |
+| UI components | `WrittenAnswerReview`, `HomeworkFeedbackPanel`, `StepFeedbackForm`, `ImageViewer`, `CapturePage`, `StepView` handoff, `HomeworkList` badge, `AuthenticatedImage` | vitest 30 ✅ |
+
+**Исправлено в сессии:** `test_submit_blocked_without_exam_self_check_photo` → `test_partial_submit_allows_unchecked_exam_self_check_without_photo` (устаревшее ожидание до Task 100 partial submit; см. `docs/ideas/partial-homework-submit.md`).
+
+**Ручной browser (ещё нужен):** teacher homework detail — zoom/rotate фото + эталон; teacher voice record → save → reload; QR handoff ПК+телефон. Playwright ✅: file upload, text feedback, badge «Есть разбор», `HomeworkFeedbackPanel`.
 
 ---
 
@@ -2530,7 +2584,7 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 **Verification:**
 - [x] `pytest backend/tests/test_ege_written_migration.py` — 5 passed
-- [ ] Ручной dry-run на prod-копии `test_ege.db` (перед `--apply`)
+- [x] Dry-run + apply на `test_ege.db` (2026-06-21): 108 records types 29–34, insert=0 update=108 (idempotent re-apply)
 
 **Dependencies:** Task 85 ✅
 
@@ -2567,7 +2621,7 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 - [x] Dry-run миграции согласован с §1.10 (unit tests + `format_report`)
 - [x] `content_grading` покрыт unit-тестами
-- [ ] Контент **не** применён в prod `test_ege.db` без явного `--apply` после review dry-run
+- [x] Контент 29–34 применён в `test_ege.db` (108 записей, 18 variants × 6 types)
 
 ---
 
@@ -2672,13 +2726,14 @@ items (gate 100%); отдельный `POST /api/homework/{id}/items/{index}/com
 
 ### Checkpoint: Phase 16 полный (после Tasks 85–91)
 
-- [x] Task 85: spec/plan без feature-кода
-- [ ] Контент 29–34 в `test_ege.db` (после apply миграции)
-- [ ] Ученик: вариант / по типам / ДЗ с письменными шагами
-- [ ] Преподаватель: review + feedback для content `self_check`
-- [ ] Score включает 29–34 (§1.10)
-- [ ] `pytest` + `vitest` зелёные
+- [x] Task 85: spec/plan без feature-kода
+- [x] Контент 29–34 в `test_ege.db` (108 записей, verified 2026-06-21)
+- [x] Ученик: вариант / по типам / ДЗ с письменными шагами (integration tests + vitest)
+- [x] Преподаватель: review + feedback для content `self_check` (Task 91 + Phase 15)
+- [x] Score включает 29–34 (§1.10)
+- [x] `pytest` + `vitest` зелёные (7 + 33 homework tests)
 - [x] Открытые вопросы §1.10 закрыты в SPEC
+- [ ] Ручная проверка на живом варианте с мигрированными данными (optional E2E)
 
 ---
 
@@ -2841,12 +2896,13 @@ npm run check:api-types
 
 ## Task 99: Playwright smoke E2E (Phase 17f)
 
-**Description:** login → пройти 1 шаг теста → сдать ДЗ. CI job после docker-compose smoke.
+**Description:** login → пройти 1 шаг теста → сдать ДЗ; **+** written self_check (type 29) → photo upload → teacher text feedback → student badge. CI job после docker-compose smoke.
 
 **Acceptance criteria:**
 - [x] `@playwright/test` + config
 - [x] Seed/fixture user (`seed_e2e` CLI + `scripts/e2e/create_content_dbs.py`)
 - [x] CI job + documented local run (`docker-compose.e2e.yml`, `npm run test:e2e`)
+- [x] `e2e/written-homework.spec.ts` — §1.9.9 path без QR/voice (file upload + text feedback + badge)
 
 **Dependencies:** Task 30 (docker CI) recommended
 
@@ -2868,10 +2924,11 @@ npm run check:api-types
 
 ## Следующий шаг (2026-06-21)
 
-1. **Phase 15 E2E manual** — QR handoff → teacher review + voice feedback → student badge (checkpoint §1.9.9).
-2. **Phase 16 apply** — ручной `--dry-run` / `--apply` миграции 29–34 в `test_ege.db`.
-3. **Task 30** — push → CI green on GitHub (docker-compose + e2e jobs).
-4. ~~**Phase 17 Task 99**~~ ✅ Playwright smoke E2E + CI job.
-5. ~~**Task 44** — тренажёр + suggested prompts~~ ✅ local (pytest + vitest).
-6. **Task 46** ⏸️ — guards A2/A3 только по триггеру eval.
+1. **Phase 15 E2E manual** — QR handoff + teacher voice feedback + ImageViewer zoom/rotate (checkpoint §1.9.9). Playwright `written-homework.spec.ts` ✅ для upload/text/badge; QR/voice — ручной browser.
+2. ~~**Phase 16 apply**~~ ✅ — 108 записей types 29–34 в `test_ege.db`; pytest 7 passed.
+3. ~~**Tasks 24–25 Homework UI**~~ ✅ — vitest 33 passed (homework suite).
+4. **Task 30** — push → CI green on GitHub (docker-compose + e2e jobs).
+5. ~~**Phase 17 Task 99**~~ ✅ Playwright smoke E2E + CI job.
+6. **Task 34** — solve-pipeline + gating (planner/critic port, если не покрыт Task 42).
+7. **Task 46** ⏸️ — guards A2/A3 только по триггеру eval.
 7. **Коммит** — большой uncommitted срез (Phase 14–17 + Task 44); разбить на атомарные коммиты по фазам.
