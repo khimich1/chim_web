@@ -87,7 +87,7 @@ class PgDocumentStore:
 
         documents: list[RagDocument] = []
         for row in rows:
-            documents.append(_document_from_row(row))
+            documents.append(_document_from_row(dict(row)))
         return documents
 
     async def _rebuild_async(self, documents: list[RagDocument]) -> int:
