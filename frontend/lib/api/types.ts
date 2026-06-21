@@ -203,6 +203,7 @@ export interface TeacherTheme {
   description: string | null;
   is_published: boolean;
   sort_order: number;
+  task_count: number;
   created_at: string;
   updated_at: string;
 }

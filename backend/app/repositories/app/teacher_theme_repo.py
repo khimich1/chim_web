@@ -62,6 +62,24 @@ class TeacherThemeRepository:
         result = await self._session.scalars(stmt)
         return list(result.all())
 
+    async def list_by_teacher_with_task_counts(
+        self,
+        teacher_id: uuid.UUID,
+    ) -> list[tuple[TeacherTheme, int]]:
+        """List themes with aggregated task counts in a single query."""
+        stmt = (
+            select(
+                TeacherTheme,
+                func.count(CustomTask.id).label("task_count"),
+            )
+            .outerjoin(CustomTask, CustomTask.theme_id == TeacherTheme.id)
+            .where(TeacherTheme.teacher_id == teacher_id)
+            .group_by(TeacherTheme.id)
+            .order_by(TeacherTheme.sort_order, TeacherTheme.created_at.desc())
+        )
+        result = await self._session.execute(stmt)
+        return [(theme, int(count)) for theme, count in result.all()]
+
     async def get_by_id(self, theme_id: uuid.UUID) -> TeacherTheme | None:
         return await self._session.get(TeacherTheme, theme_id)
 

@@ -120,12 +120,46 @@ def test_create_and_list_themes(client: TestClient) -> None:
     assert created["title"] == "ОВР"
     assert created["is_published"] is True
     assert created["sort_order"] == 1
+    assert created["task_count"] == 0
 
     listed = client.get("/api/teacher/themes")
     assert listed.status_code == 200
     themes = listed.json()
     assert len(themes) == 1
     assert themes[0]["id"] == created["id"]
+    assert themes[0]["task_count"] == 0
+
+
+def test_list_themes_includes_aggregated_task_count(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+
+    theme_a = _create_theme(client, title="Тема A")
+    theme_b = _create_theme(client, title="Тема B")
+
+    for i in range(3):
+        client.post(
+            f"/api/teacher/themes/{theme_a['id']}/tasks",
+            json={
+                "grading_mode": "auto",
+                "question_blocks": [{"type": "text", "content": f"Q{i}"}],
+                "correct_value": str(i),
+                "sort_order": i,
+            },
+        )
+    client.post(
+        f"/api/teacher/themes/{theme_b['id']}/tasks",
+        json={
+            "grading_mode": "auto",
+            "question_blocks": [{"type": "text", "content": "Only one"}],
+            "correct_value": "1",
+        },
+    )
+
+    listed = client.get("/api/teacher/themes")
+    assert listed.status_code == 200
+    by_id = {theme["id"]: theme for theme in listed.json()}
+    assert by_id[theme_a["id"]]["task_count"] == 3
+    assert by_id[theme_b["id"]]["task_count"] == 1
 
 
 def test_create_auto_task(client: TestClient) -> None:

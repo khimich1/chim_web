@@ -65,6 +65,7 @@ class ThemeRead(BaseModel):
     description: str | None = None
     is_published: bool
     sort_order: int
+    task_count: int = 0
     created_at: datetime
     updated_at: datetime
 

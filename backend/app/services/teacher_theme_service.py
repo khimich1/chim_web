@@ -26,8 +26,11 @@ class TeacherThemeService:
         self._repo = TeacherThemeRepository(session)
 
     async def list_themes(self, teacher_id: uuid.UUID) -> list[ThemeRead]:
-        themes = await self._repo.list_by_teacher(teacher_id)
-        return [ThemeRead.model_validate(theme) for theme in themes]
+        rows = await self._repo.list_by_teacher_with_task_counts(teacher_id)
+        return [
+            ThemeRead.model_validate(theme).model_copy(update={"task_count": count})
+            for theme, count in rows
+        ]
 
     async def create_theme(
         self,

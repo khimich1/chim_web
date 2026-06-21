@@ -7,13 +7,13 @@ import {
   getCurrentUser,
   getNotificationUnreadCount,
   getNotifications,
-  getTeacherThemesWithTaskCounts,
+  getTeacherThemes,
 } from "@/lib/api/server";
 
 export default async function TeacherThemesPage() {
   const [user, themes, notifications, unread] = await Promise.all([
     getCurrentUser(),
-    getTeacherThemesWithTaskCounts(),
+    getTeacherThemes(),
     getNotifications(),
     getNotificationUnreadCount(),
   ]);

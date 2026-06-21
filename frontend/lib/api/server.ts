@@ -21,8 +21,6 @@ import type {
   OnboardingStatus,
   OnboardingWelcome,
 } from "@/lib/api/types";
-import type { ThemeListItem } from "@/components/teacher/ThemesList";
-
 /**
  * Server-side current-user lookup for protected layouts. Forwards the incoming
  * request cookies to FastAPI; returns null when the session is missing/invalid.
@@ -205,20 +203,9 @@ export async function getTeacherThemeTasks(
   );
 }
 
-export async function getTeacherThemesWithTaskCounts(): Promise<ThemeListItem[]> {
-  const themes = await getTeacherThemes();
-  const withCounts = await Promise.all(
-    themes.map(async (theme) => {
-      const tasks = await getTeacherThemeTasks(theme.id);
-      return {
-        id: theme.id,
-        title: theme.title,
-        is_published: theme.is_published,
-        task_count: tasks.length,
-      };
-    }),
-  );
-  return withCounts;
+/** @deprecated Use getTeacherThemes — API includes task_count (Task 94). */
+export async function getTeacherThemesWithTaskCounts(): Promise<TeacherTheme[]> {
+  return getTeacherThemes();
 }
 
 export async function getCustomThemes(): Promise<CustomThemeListItem[]> {

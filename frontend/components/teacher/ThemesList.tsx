@@ -6,13 +6,12 @@ import { useState } from "react";
 
 import { ApiError } from "@/lib/api/client";
 import { createTeacherTheme } from "@/lib/api/teacher-themes";
+import type { TeacherTheme } from "@/lib/api/types";
 
-export interface ThemeListItem {
-  id: string;
-  title: string;
-  is_published: boolean;
-  task_count: number;
-}
+export type ThemeListItem = Pick<
+  TeacherTheme,
+  "id" | "title" | "is_published" | "task_count"
+>;
 
 export function ThemesList({ themes }: { themes: ThemeListItem[] }) {
   const router = useRouter();
