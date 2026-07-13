@@ -81,6 +81,10 @@ class Settings(BaseSettings):
         default=_MONOREPO_ROOT / "prepared_lectures.db",
         alias="CONTENT_LECTURES_DB_PATH",
     )
+    textbook_sections_path: Path = Field(
+        default=_MONOREPO_ROOT / "backend" / "app" / "data" / "textbook_sections.yaml",
+        alias="TEXTBOOK_SECTIONS_PATH",
+    )
 
     rag_index_path: Path = Field(
         default=_MONOREPO_ROOT / "backend" / "data" / "rag_index.json",

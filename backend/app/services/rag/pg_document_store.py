@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from app.core.config import Settings, get_settings
 from app.services.rag.documents import RagDocument
+from app.services.rag.store import load_index
 
 logger = logging.getLogger(__name__)
 
@@ -131,18 +132,22 @@ def load_documents_from_settings(settings: Settings | None = None) -> list[RagDo
 
 
 def rag_documents_ready(settings: Settings | None = None) -> bool:
-    """True when PostgreSQL keyword index has at least one document."""
+    """True when keyword RAG index is available (PostgreSQL or local JSON fallback)."""
     app_settings = settings or get_settings()
-    if not app_settings.database_url.startswith("postgresql"):
-        return False
-    try:
-        store = PgDocumentStore.from_settings(app_settings)
+    if app_settings.database_url.startswith("postgresql"):
         try:
-            return store.count() > 0
-        finally:
-            asyncio.run(store.dispose())
-    except Exception:
-        logger.exception("Failed to check RAG document store readiness")
+            store = PgDocumentStore.from_settings(app_settings)
+            try:
+                return store.count() > 0
+            finally:
+                asyncio.run(store.dispose())
+        except Exception:
+            logger.exception("Failed to check RAG document store readiness")
+            return False
+
+    try:
+        return len(load_index(app_settings.rag_index_path)) > 0
+    except (FileNotFoundError, ValueError, OSError):
         return False
 
 

@@ -78,11 +78,13 @@ def client(tmp_path: Path) -> TestClient:
             yield session
 
     get_settings.cache_clear()
+    sections_yaml = Path(__file__).resolve().parent / "fixtures" / "textbook_sections_test.yaml"
     app = create_app(
         settings=Settings(
             DATABASE_URL=db_url,
             JWT_SECRET="test-jwt-secret-for-textbook",
             CONTENT_LECTURES_DB_PATH=str(lectures_db),
+            TEXTBOOK_SECTIONS_PATH=str(sections_yaml),
         )
     )
     app.dependency_overrides[get_db] = _override_get_db
@@ -105,6 +107,9 @@ def test_student_lists_topics_in_db_order(client: TestClient) -> None:
     body = response.json()
     assert [item["topic"] for item in body] == ["Соли", "Алканы"]
     assert body[0]["chunk_count"] == 2
+    assert body[0]["section"] == "basics"
+    assert body[1]["section"] == "organic"
+    assert body[0]["video_url"] is None
 
 
 def test_student_lists_chunk_summaries_without_lecture_body(client: TestClient) -> None:

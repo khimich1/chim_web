@@ -2,6 +2,7 @@
 
 | Method | Path                                              | Role    | Response              |
 |--------|---------------------------------------------------|---------|-----------------------|
+| GET    | /api/textbook/sections                            | student | list[SectionRead]     |
 | GET    | /api/textbook/topics                              | student | list[TopicRead]       |
 | GET    | /api/textbook/topics/{topic}/chunks             | student | list[ChunkSummaryRead]|
 | GET    | /api/textbook/topics/{topic}/chunks/{idx}         | student | ChunkRead             |
@@ -13,13 +14,14 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import CurrentUser, StudentUser, get_app_settings
 from app.core.config import Settings
 from app.repositories.content.lectures import LectureContentRepo
 from app.schemas.textbook import ChunkRead, ChunkSummaryRead, TopicRead
+from app.schemas.textbook_sections import SectionRead
 from app.services.textbook_service import TextbookService
 
 router = APIRouter(prefix="/api/textbook", tags=["textbook"])
@@ -35,17 +37,27 @@ def get_lecture_repo(
 
 def get_textbook_service(
     repo: Annotated[LectureContentRepo, Depends(get_lecture_repo)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> TextbookService:
-    return TextbookService(repo)
+    return TextbookService(repo, settings.textbook_sections_path)
+
+
+@router.get("/sections", response_model=list[SectionRead])
+def list_sections(
+    _user: CurrentUser,
+    service: Annotated[TextbookService, Depends(get_textbook_service)],
+) -> list[SectionRead]:
+    return service.list_sections()
 
 
 @router.get("/topics", response_model=list[TopicRead])
 def list_topics(
     _user: CurrentUser,
     service: Annotated[TextbookService, Depends(get_textbook_service)],
+    section: Annotated[str | None, Query()] = None,
 ) -> list[TopicRead]:
     """Topic catalog for students and teachers (e.g. homework assignment)."""
-    return service.list_topics()
+    return service.list_topics(section=section)
 
 
 @router.get("/topics/{topic}/chunks", response_model=list[ChunkSummaryRead])

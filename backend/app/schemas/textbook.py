@@ -10,6 +10,8 @@ class TopicRead(BaseModel):
 
     topic: str
     chunk_count: int
+    section: str
+    video_url: str | None = None
 
 
 class ChunkSummaryRead(BaseModel):

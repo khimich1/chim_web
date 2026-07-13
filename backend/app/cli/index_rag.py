@@ -71,15 +71,14 @@ def main(argv: list[str] | None = None) -> int:
     settings = get_settings()
 
     if args.rebuild:
-        if not settings.database_url.startswith("postgresql"):
-            print(
-                "Keyword rebuild requires PostgreSQL DATABASE_URL; skipping.",
-                file=sys.stderr,
-            )
-        else:
-            retriever = Retriever([])
-            count = retriever.rebuild_index(settings)
+        retriever = Retriever([])
+        count = retriever.rebuild_index(settings)
+        if settings.database_url.startswith("postgresql"):
             print(f"Keyword index rebuilt: {count} documents in rag_documents (PostgreSQL)")
+        else:
+            print(
+                f"Keyword index rebuilt: {count} documents -> {settings.rag_index_path}"
+            )
 
     if args.embeddings:
         if not settings.database_url.startswith("postgresql"):

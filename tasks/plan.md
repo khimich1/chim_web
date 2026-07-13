@@ -1,9 +1,9 @@
 # Implementation Plan: Chemistry (chim_web) MVP
 
-**Источник:** [SPEC.md](../SPEC.md) v0.8.2 · production hardening: [`docs/ideas/production-hardening.md`](../docs/ideas/production-hardening.md) · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2 · геймификация: [`docs/ideas/student-points-leaderboard.md`](../docs/ideas/student-points-leaderboard.md) · конструктор заданий: [`docs/ideas/teacher-task-constructor.md`](../docs/ideas/teacher-task-constructor.md) · проверка письменных ДЗ: [`docs/ideas/teacher-written-homework-review.md`](../docs/ideas/teacher-written-homework-review.md) · ЕГЭ 29–34: SPEC §1.10 (`ege (копия).db`)  
+**Источник:** [SPEC.md](../SPEC.md) v0.8.3 · production hardening: [`docs/ideas/production-hardening.md`](../docs/ideas/production-hardening.md) · детали AI: [`docs/specs/tutor-rag.md`](../docs/specs/tutor-rag.md) v0.8.2 · геймификация: [`docs/ideas/student-points-leaderboard.md`](../docs/ideas/student-points-leaderboard.md) · конструктор заданий: [`docs/ideas/teacher-task-constructor.md`](../docs/ideas/teacher-task-constructor.md) · проверка письменных ДЗ: [`docs/ideas/teacher-written-homework-review.md`](../docs/ideas/teacher-written-homework-review.md) · ЕГЭ 29–34: SPEC §1.10 (`ege (копия).db`) · учебник (аудио/разделы/видео): [`docs/ideas/textbook-audio-sections-video.md`](../docs/ideas/textbook-audio-sections-video.md)  
 **Дата плана:** 2026-06-09  
-**Обновлено:** 2026-06-21 (Phase 15 Playwright written-homework spec)  
-**Статус:** MVP core + Phase 12 ✅; Phase 15 ✅ (autotests + Playwright written path; manual QR/voice pending); Phase 16 ✅ (миграция 29–34 в `test_ege.db`, 108 записей); **Phase 17** — Tasks 92–98 ✅; Task 99 ✅ local (+ written-homework spec); Tasks 24–25 ✅; см. [`docs/ideas/production-hardening.md`](../docs/ideas/production-hardening.md)
+**Обновлено:** 2026-06-22 (Phase 18 — textbook audio speed, sections, video embed)  
+**Статус:** MVP core + Phase 12 ✅; Phase 15 ✅ (autotests + Playwright written path; manual QR/voice pending); Phase 16 ✅ (миграция 29–34 в `test_ege.db`, 108 записей); **Phase 17** — Tasks 92–99 ✅; **Phase 18** — Tasks 101–104 📋 planned; Tasks 24–25 ✅; см. [`docs/ideas/production-hardening.md`](../docs/ideas/production-hardening.md)
 
 ---
 
@@ -84,7 +84,7 @@
 | 98 | Auth rate limit + TTL (17e) | ✅ done | `5ba3709`; slowapi login + tutor; `test_rate_limit.py` |
 | 99 | Playwright smoke E2E (17f) | ✅ local | login → 1 test step → submit ДЗ; CI job |
 
-**Текущий этап:** Phase 15 — автотесты ✅ + Playwright written path ✅; ручной QR/voice/zoom pending; Phase 16 ✅; Phase 17 ✅ local (99 smoke + written-homework); Task 30 — push → CI green on GitHub; Task 34 solve-pipeline pending.
+**Текущий этап:** Phase 18 planned (Tasks 101–104 — учебник); Phase 15 — ручной QR/voice pending; Phase 16–17 ✅; Task 30 — push → CI green; Task 34 solve-pipeline pending.
 
 ---
 
@@ -106,6 +106,7 @@
 | Мульти-item ДЗ (§1.7) | Tasks 39–40 | ✅ local |
 | Баллы, streak, рейтинг (§1.8) | Phase 13, Tasks 58–65 | ✅ local |
 | ЕГЭ 29–34, `self_check` в content DB (§1.10) | Phase 16, Tasks 85–91 | ✅ migration applied; pytest + vitest green |
+| Учебник: скорость аудио, разделы, видео (§1.12) | Phase 18, Tasks 101–104 | 📋 planned |
 
 **Расхождения spec ↔ подспеки:** закрыты в SPEC v0.7.3 и tutor-rag v0.8.1 (AC-6.2, tools §3, `TutorSourceCitation` без `test`).
 
@@ -1096,7 +1097,7 @@ Task 3  Content SQLite repos                 ✅
 
 **Оценка:** ~30 задач MVP + 8 задач AI-советчика (v2+, Tasks 31–38) + Tasks 39–40 (мульти-item ДЗ) + Tasks 41–47 (надёжность и расширение агента) + Tasks 48–52 (UI redesign §14) + **Tasks 53–55 (SPEC §1.3.1–1.3.2: step-dots + resume)** + **Task 56 (таблица Менделеева)** + **Task 57 (solve после неверного ответа, §1.3.4)** + **Tasks 58–65 (баллы и рейтинг, §1.8)**.
 
-**Прогресс на 2026-06-21:** Tasks 0–29 ✅ | Task 30 🟡 local CI mirror ✅ (push→GH pending) | Tasks 31–47 ✅ local (Task 46 ⏸️) | Tasks 48–57 ✅ | Tasks 58–65 ✅ local | Tasks 24–25 ✅ | Phase 14–15 ✅ local | Phase 16 ✅ | Phase 17 ✅ local (92–99) | **далее: push→CI green, Phase 15 E2E manual, Task 34 solve-pipeline**
+**Прогресс на 2026-06-22:** Tasks 0–29 ✅ | Task 30 🟡 local CI mirror ✅ (push→GH pending) | Tasks 31–47 ✅ local (Task 46 ⏸️) | Tasks 48–57 ✅ | Tasks 58–65 ✅ local | Tasks 24–25 ✅ | Phase 14–15 ✅ local | Phase 16 ✅ | Phase 17 ✅ local (92–99) | **Phase 18 📋** (101–104 textbook) | **далее: Task 101 audio speed, push→CI green, Phase 15 E2E manual**
 
 ---
 
@@ -2922,13 +2923,132 @@ npm run check:api-types
 
 ---
 
-## Следующий шаг (2026-06-21)
+## Phase 18: Учебник — скорость аудио, разделы, видео (SPEC §1.12)
 
-1. **Phase 15 E2E manual** — QR handoff + teacher voice feedback + ImageViewer zoom/rotate (checkpoint §1.9.9). Playwright `written-homework.spec.ts` ✅ для upload/text/badge; QR/voice — ручной browser.
-2. ~~**Phase 16 apply**~~ ✅ — 108 записей types 29–34 в `test_ege.db`; pytest 7 passed.
-3. ~~**Tasks 24–25 Homework UI**~~ ✅ — vitest 33 passed (homework suite).
-4. **Task 30** — push → CI green on GitHub (docker-compose + e2e jobs).
-5. ~~**Phase 17 Task 99**~~ ✅ Playwright smoke E2E + CI job.
-6. **Task 34** — solve-pipeline + gating (planner/critic port, если не покрыт Task 42).
-7. **Task 46** ⏸️ — guards A2/A3 только по триггеру eval.
-7. **Коммит** — большой uncommitted срез (Phase 14–17 + Task 44); разбить на атомарные коммиты по фазам.
+> Источник: [`docs/ideas/textbook-audio-sections-video.md`](../docs/ideas/textbook-audio-sections-video.md) · SPEC §1.12, AC-1.6–1.8.
+
+**Стратегия:** три независимых вертикальных среза (101 → 102–103 → 104). Каждый срез оставляет приложение в рабочем состоянии.
+
+---
+
+## Task 101: Пресеты скорости аудио (§1.12.1)
+
+**Description:** Добавить в `CustomAudioControls` кнопки пресетов **0.75× / 1× / 1.25× / 1.5×**; `audio.playbackRate`; сохранение в `localStorage` (`textbook-audio-rate`). Backend не меняется.
+
+**Acceptance criteria:**
+- [ ] AC-1.6: переключение пресета меняет скорость без сброса позиции
+- [ ] Выбор сохраняется между чанками и после reload
+- [ ] `aria-pressed` на активном пресете; объявление через `aria-live`
+- [ ] Стиль teal pill согласован с §14.2
+
+**Verification:**
+- [ ] `vitest` `AudioPlayer.test.tsx`: клик 1.25× → `playbackRate === 1.25`; localStorage round-trip
+- [ ] Ручная проверка: OGG чанк в Chrome + mobile viewport
+
+**Dependencies:** Task 50 (кастомный плеер) ✅
+
+**Files:**
+- `frontend/components/textbook/AudioPlayer.tsx`
+- `frontend/components/textbook/AudioPlayer.test.tsx`
+
+**Scope:** S
+
+---
+
+## Task 102: Разделы учебника — конфиг + API (§1.12.2)
+
+**Description:** `backend/app/data/textbook_sections.yaml` — mapping `section_id` → список тем + опциональный `video_url`. Сервис загружает конфиг при старте. API: `GET /api/textbook/sections`; `GET /api/textbook/topics?section=`.
+
+**Acceptance criteria:**
+- [ ] AC-1.7: три раздела `basics` / `elements` / `organic` с корректным mapping (§1.12.2)
+- [ ] `TopicRead` включает поле `section: str`
+- [ ] Без `?section` — все темы (обратная совместимость)
+- [ ] Неизвестная тема в YAML или отсутствующая в БД — pytest fail при CI / валидация при load
+
+**Verification:**
+- [ ] `pytest backend/tests/test_textbook_sections.py`
+- [ ] OpenAPI: regenerate `schema.d.ts` при изменении контракта
+
+**Dependencies:** Task 8 ✅
+
+**Files:**
+- `backend/app/data/textbook_sections.yaml`
+- `backend/app/schemas/textbook.py` (`SectionRead`, `section` на `TopicRead`)
+- `backend/app/services/textbook_sections.py` (или расширение `textbook_service`)
+- `backend/app/api/routers/textbook.py`
+- `backend/tests/test_textbook_sections.py`
+
+**Scope:** M
+
+---
+
+## Task 103: Разделы учебника — UI (§1.12.2)
+
+**Description:** `/student/textbook` — три section pill; `TopicList` фильтруется по `?section=`; счётчик тем per section. Shareable URL.
+
+**Acceptance criteria:**
+- [ ] AC-1.7: ученик видит три раздела и список тем только выбранного
+- [ ] Активный pill — teal; mobile: pills горизонтальный scroll при необходимости
+- [ ] Переход в тему сохраняет контекст (breadcrumb или back link с section)
+
+**Verification:**
+- [ ] vitest для `TopicList` / textbook page с MSW
+- [ ] Ручная проверка 360px
+
+**Dependencies:** Task 102, Task 49 (textbook redesign) ✅
+
+**Files:**
+- `frontend/app/student/textbook/page.tsx`
+- `frontend/components/textbook/TopicList.tsx`, `SectionPills.tsx` (новый)
+- `frontend/lib/api/textbook.ts`, `frontend/lib/api/types.ts`
+
+**Scope:** S
+
+---
+
+## Task 104: Видео embed в учебнике (§1.12.3)
+
+**Description:** Компонент `VideoEmbed` — responsive iframe для YouTube/VK; `video_url` из `textbook_sections.yaml` отдаётся в API темы или отдельным полем списка тем. Показ над лекцией в `ChunkViewer` (первый чанк или все чанки — на усмотрение реализации; рекомендация: **только chunk 0**).
+
+**Acceptance criteria:**
+- [ ] AC-1.8: при наличии `video_url` — embed виден; без URL — блок скрыт
+- [ ] Whitelist доменов: `youtube.com`, `youtu.be`, `vk.com`, `vkvideo.ru`
+- [ ] iframe `sandbox`; layout 16:9 на mobile без горизонтального скролла
+- [ ] Нет XSS: URL валидируется на backend (Pydantic `HttpUrl` + allowlist host)
+
+**Verification:**
+- [ ] vitest `VideoEmbed.test.tsx` (mock URL → correct embed src)
+- [ ] pytest: invalid `video_url` host → 422 или omitted at config load
+
+**Dependencies:** Task 102
+
+**Files:**
+- `frontend/components/textbook/VideoEmbed.tsx`, `VideoEmbed.test.tsx`
+- `frontend/components/textbook/ChunkViewer.tsx`
+- `backend/app/schemas/textbook.py` (`video_url: str | None` на topic metadata)
+- `backend/app/data/textbook_sections.yaml` (примеры URL — закомментированы или test fixture)
+
+**Scope:** M
+
+---
+
+### Checkpoint: Phase 18 (после Tasks 101–104)
+
+- [ ] AC-1.6–1.8 покрыты pytest + vitest
+- [ ] Ученик: три раздела → тема → чанк с аудио (speed) + опц. видео
+- [ ] `textbook_sections.yaml` — единственный источник mapping; документирован в SPEC §1.12.2
+
+---
+
+## Следующий шаг (2026-06-22)
+
+1. **Phase 18 Task 101** — пресеты скорости в `AudioPlayer` (самый быстрый срез, frontend-only).
+2. **Phase 18 Tasks 102–103** — `textbook_sections.yaml` + API + UI pills.
+3. **Phase 18 Task 104** — `VideoEmbed` после заполнения `video_url` в конфиге.
+4. **Phase 15 E2E manual** — QR handoff + teacher voice feedback + ImageViewer zoom/rotate (checkpoint §1.9.9). Playwright `written-homework.spec.ts` ✅ для upload/text/badge; QR/voice — ручной browser.
+5. ~~**Phase 16 apply**~~ ✅ — 108 записей types 29–34 в `test_ege.db`; pytest 7 passed.
+6. ~~**Tasks 24–25 Homework UI**~~ ✅ — vitest 33 passed (homework suite).
+7. **Task 30** — push → CI green on GitHub (docker-compose + e2e jobs).
+8. ~~**Phase 17 Task 99**~~ ✅ Playwright smoke E2E + CI job.
+9. **Task 34** — solve-pipeline + gating (planner/critic port, если не покрыт Task 42).
+10. **Task 46** ⏸️ — guards A2/A3 только по триггеру eval.

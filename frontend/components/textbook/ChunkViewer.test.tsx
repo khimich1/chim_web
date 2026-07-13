@@ -14,6 +14,12 @@ vi.mock("@/components/textbook/AudioPlayer", () => ({
   AudioPlayer: () => <div data-testid="audio-player" />,
 }));
 
+vi.mock("@/components/textbook/VideoEmbed", () => ({
+  VideoEmbed: ({ videoUrl }: { videoUrl: string }) => (
+    <div data-testid="video-embed">{videoUrl}</div>
+  ),
+}));
+
 const mockedGetChunk = vi.mocked(getChunk);
 
 const summaries = [
@@ -107,6 +113,46 @@ describe("ChunkViewer", () => {
     expect(
       await screen.findByRole("heading", { level: 2, name: "Свойства" }),
     ).toBeInTheDocument();
+  });
+
+  it("renders video embed only on the first chunk", async () => {
+    mockedGetChunk
+      .mockResolvedValueOnce({
+        topic: "Соли",
+        chunk_idx: 0,
+        chunk_title: "Введение",
+        lecture: "# Соли",
+        has_audio: false,
+      })
+      .mockResolvedValueOnce({
+        topic: "Соли",
+        chunk_idx: 1,
+        chunk_title: "Свойства",
+        lecture: "# Свойства",
+        has_audio: true,
+      });
+
+    render(
+      <ChunkViewer
+        topic="Соли"
+        summaries={summaries}
+        initialChunkIdx={0}
+        videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+      />,
+    );
+
+    expect(await screen.findByTestId("video-embed")).toHaveTextContent(
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    );
+
+    const navButtons = screen.getAllByRole("button", { name: /Свойства/i });
+    const sidebarButton = navButtons.find(
+      (button) => button.getAttribute("aria-current") !== "true",
+    );
+    await userEvent.click(sidebarButton!);
+
+    await screen.findByRole("heading", { level: 2, name: "Свойства" });
+    expect(screen.queryByTestId("video-embed")).not.toBeInTheDocument();
   });
 
   it("toggles mobile chunk nav panel open and closed", async () => {

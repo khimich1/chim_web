@@ -2,38 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 from app.core.config import Settings
 from app.repositories.content.base import open_readonly
+from app.repositories.content.qa_pairs import parse_qa_pairs
 from app.services.rag.documents import RagDocument, RagSource
-
-
-def _parse_qa_pairs(
-    qa_questions: str | None,
-    qa_answers: str | None,
-) -> list[tuple[str, str]]:
-    if not qa_questions or not qa_answers:
-        return []
-    try:
-        questions = json.loads(qa_questions)
-        answers = json.loads(qa_answers)
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(questions, list) or not isinstance(answers, list):
-        return []
-    pairs: list[tuple[str, str]] = []
-    for question, answer in zip(questions, answers, strict=False):
-        if (
-            isinstance(question, str)
-            and isinstance(answer, str)
-            and question.strip()
-            and answer.strip()
-        ):
-            pairs.append((question.strip(), answer.strip()))
-    return pairs
 
 
 def _lecture_doc_id(topic: str, chunk_idx: int) -> str:
@@ -87,7 +62,7 @@ def ingest_lecture_documents(lectures_db_path: Path) -> list[RagDocument]:
             )
 
         for qa_idx, (question, answer) in enumerate(
-            _parse_qa_pairs(row["qa_questions"], row["qa_answers"])
+            parse_qa_pairs(row["qa_questions"], row["qa_answers"])
         ):
             documents.append(
                 RagDocument(

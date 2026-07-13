@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { AudioPlayer } from "@/components/textbook/AudioPlayer";
 import { ChunkNav } from "@/components/textbook/ChunkNav";
 import { LectureContent } from "@/components/textbook/LectureContent";
+import { VideoEmbed } from "@/components/textbook/VideoEmbed";
 import { getChunk } from "@/lib/api/textbook";
 import { ApiError } from "@/lib/api/client";
 import type { ChunkSummary, TextbookChunk } from "@/lib/api/types";
@@ -13,10 +14,12 @@ export function ChunkViewer({
   topic,
   summaries,
   initialChunkIdx = 0,
+  videoUrl = null,
 }: {
   topic: string;
   summaries: ChunkSummary[];
   initialChunkIdx?: number;
+  videoUrl?: string | null;
 }) {
   const [chunkIdx, setChunkIdx] = useState(initialChunkIdx);
   const [chunk, setChunk] = useState<TextbookChunk | null>(null);
@@ -102,6 +105,12 @@ export function ChunkViewer({
             </header>
 
             <div className="px-4 py-6 sm:px-5">
+              {chunk.chunk_idx === 0 && videoUrl ? (
+                <div className="mb-6 max-w-[70ch]">
+                  <VideoEmbed videoUrl={videoUrl} />
+                </div>
+              ) : null}
+
               {chunk.has_audio ? (
                 <div className="mb-6 max-w-[70ch]">
                   <AudioPlayer

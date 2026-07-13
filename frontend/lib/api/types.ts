@@ -48,6 +48,14 @@ export interface OnboardingWelcome extends OnboardingStatus {
 export interface TextbookTopic {
   topic: string;
   chunk_count: number;
+  section: string;
+  video_url: string | null;
+}
+
+export interface TextbookSection {
+  section_id: string;
+  title: string;
+  topic_count: number;
 }
 
 export interface ChunkSummary {

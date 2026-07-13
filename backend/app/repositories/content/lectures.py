@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.repositories.content.base import open_readonly
-from app.services.rag.ingestion import _parse_qa_pairs
+from app.repositories.content.qa_pairs import parse_qa_pairs
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,7 +148,7 @@ class LectureContentRepo:
 
         items: list[SelfCheckQA] = []
         for row in rows:
-            for question, answer in _parse_qa_pairs(
+            for question, answer in parse_qa_pairs(
                 row["qa_questions"],
                 row["qa_answers"],
             ):

@@ -1,8 +1,8 @@
 # SPEC — Chemistry (chim_web)
 
-**Версия:** 0.8.2  
-**Дата:** 2026-06-09 (обновлено 2026-06-21)  
-**Статус:** частично согласован (§1.6 AI-советчик — адаптация `RAG_chemistry`; §14 UI redesign — визуальный язык согласован по референсам; §1.3.1 — step-dots + возобновление сессии; §1.3.3 — справочник таблицы Менделеева при тестах; §1.3.4 — solve-разбор после неверного ответа; §1.8 — баллы, streak и рейтинг — Phase 13; §1.9 — конструктор заданий преподавателя — Phase 14; §1.9.8 — фото рукописи в ДЗ vs сравнение в практике; §1.9.9 — проверка письменных ДЗ преподавателем (viewer, QR, feedback); §1.10 — письменная часть ЕГЭ 29–34 в контентной БД (миграция + `self_check`, Phase 16); §1.11 — multi-teacher на одном инстансе (Variant A, Phase 17); AC-6.2 — sources только из учебника, v0.7.3)  
+**Версия:** 0.8.3  
+**Дата:** 2026-06-09 (обновлено 2026-06-22)  
+**Статус:** частично согласован (§1.6 AI-советчик — адаптация `RAG_chemistry`; §14 UI redesign — визуальный язык согласован по референсам; §1.3.1 — step-dots + возобновление сессии; §1.3.3 — справочник таблицы Менделеева при тестах; §1.3.4 — solve-разбор после неверного ответа; §1.8 — баллы, streak и рейтинг — Phase 13; §1.9 — конструктор заданий преподавателя — Phase 14; §1.9.8 — фото рукописи в ДЗ vs сравнение в практике; §1.9.9 — проверка письменных ДЗ преподавателем (viewer, QR, feedback); §1.10 — письменная часть ЕГЭ 29–34 в контентной БД (миграция + `self_check`, Phase 16); §1.11 — multi-teacher на одном инстансе (Variant A, Phase 17); §1.12 — учебник: скорость аудио, три раздела, embed-видео (Phase 18); AC-6.2 — sources только из учебника, v0.7.3)  
 **Стек:** FastAPI + Next.js (monorepo `chim_web`, см. `AGENTS.md`)
 
 ---
@@ -20,7 +20,7 @@
 | 5 | **Треки** | У ученика один активный трек: **ЕГЭ** или **ОГЭ** (задаёт преподаватель при создании/в профиле). Контент второго трека скрыт. |
 | 6 | **Домашнее задание** | Преподаватель назначает: (а) тему/чанки учебника — ученик отмечает «Прочитано»; (б) **целый вариант** теста; (в) **подмножество заданий** из варианта (номера `type`). Срок сдачи опционален. |
 | 6a | **Подсказки в тестах** | `hint` показывается **только по запросу** ученика (кнопка «Подсказка»), не автоматически. |
-| 6b | **Порядок тем учебника** | Как в `prepared_lectures.db`: порядок первого появления темы (`ORDER BY MIN(rowid)`), не алфавит. |
+| 6b | **Порядок тем учебника** | Три раздела (§1.12.2): «Начала химии», «Химия элементов», «Органическая химия». **Внутри** раздела — порядок первого появления темы в `prepared_lectures.db` (`ORDER BY MIN(rowid)`), не алфавит. Классификация — конфиг `textbook_sections.yaml`, не колонка в read-only SQLite. |
 | 7 | **Уведомления** | In-app (колокольчик + список) на MVP. Email / Telegram / push — **вне v1**. |
 | 8 | **Деплой** | Dev: локально (venv + `npm run dev`). Prod: Docker Compose на VPS (nginx → Next + FastAPI + PostgreSQL). CI — GitHub Actions (lint + pytest + build) — **после** первого рабочего среза. |
 | 9 | **Язык UI** | Русский. |
@@ -943,9 +943,101 @@ python -m app.cli.seed_teacher --email teacher-b@example.com --password '...'
 
 Track B (`tasks/plan.md` Tasks 94–99): CI (mypy, openapi-typescript), RAG pg-only, TestSession adapters, rate limit login/tutor, Playwright smoke. **TestSession refactor (Task 97) — только после** IDOR suite (Task 93).
 
+### 1.12 Учебник: скорость аудио, разделы, видео
+
+> **Идея и обоснование:** [`docs/ideas/textbook-audio-sections-video.md`](docs/ideas/textbook-audio-sections-video.md)  
+> **План:** Phase 18, Tasks 101–104 в `tasks/plan.md`
+
+#### Цели
+
+| Роль | Зачем |
+|------|-------|
+| **Ученик** | Слушать лекции на удобной скорости; ориентироваться в программе по трём частям курса; смотреть видео-разборы там, где есть ссылка |
+| **Преподаватель** | Структура учебника соответствует папкам материалов (начала / элементы / органика); видео подключается без перекодирования на сервере |
+
+#### 1.12.1 Скорость воспроизведения аудио
+
+Кастомный плеер (§14.2, Task 50) дополняется **пресетами скорости**:
+
+| Параметр | Значение |
+|----------|----------|
+| Пресеты | **0.75×**, **1×** (default), **1.25×**, **1.5×** |
+| Реализация | `HTMLAudioElement.playbackRate` — **только frontend** |
+| Персистенция | `localStorage` ключ `textbook-audio-rate`; применяется ко всем чанкам сессии |
+| UX | Кнопки-pill рядом с громкостью; активный пресет — teal; `aria-pressed` |
+| a11y | Смена скорости объявляется через `aria-live` |
+
+**Acceptance (AC-1.6):** ученик переключает пресет → аудио продолжает с той же позиции на новой скорости; выбор сохраняется после перезагрузки страницы.
+
+**Вне scope:** ползунок произвольной скорости; перекодирование OGG на сервере; скорость для `GET /api/uploads/audio` (feedback преподавателя).
+
+#### 1.12.2 Три раздела учебника
+
+Темы из `prepared_lectures` (31 шт.) группируются в три раздела по программе курса. Mapping задаётся в **`backend/app/data/textbook_sections.yaml`** (версионируется в git; read-only SQLite **не** меняется).
+
+| `section_id` | Название (UI) | Тем (MVP) |
+|--------------|---------------|----------:|
+| `basics` | Начала химии | 9 |
+| `elements` | Химия элементов | 8 |
+| `organic` | Органическая химия | 14 |
+
+**Mapping тем (канон MVP):**
+
+| Раздел | Темы |
+|--------|------|
+| **basics** | Строение атома; Периодический закон; Химическая связь; Формула вещества; ОВР; Кислоты; Оксиды; Основания и амфотерные гидроксиды; Соли |
+| **elements** | Водород; Галогены; Кислород; Cера; Углерод и кремний; Азот и фосфор; Железо, медь, серебро, цинк; Хром, марганец и алюминий |
+| **organic** | Алканы; Алкены; Алкины; Циклоалканы и диены; Арены; Спирты; Фенол; Альдегиды и кетоны; Карбоновые кислоты и эфиры; Амины; Аминикислоты и белки; Углеводы; Применение орг веществ; Именные реакции |
+
+Темы из папок преподавателя, **отсутствующие в БД** (напр. «Валентность»), — вне MVP; добавляются при обновлении `prepared_lectures.db`.
+
+**API:**
+
+```python
+# GET /api/textbook/sections
+# Response: list[{ section_id, title, topic_count }]
+
+# GET /api/textbook/topics?section=basics|elements|organic
+# Response: list[{ topic, chunk_count, section }]  # section — для клиента
+```
+
+Без query `section` — все темы (обратная совместимость), порядок как сейчас.
+
+**UI:** `/student/textbook` — три **section pill** (§14.2); под выбранным разделом — `TopicList`. URL: `?section=basics` (shareable).
+
+**Acceptance (AC-1.7):** ученик видит три раздела; в каждом — только темы из mapping; порядок внутри раздела совпадает с БД.
+
+#### 1.12.3 Видео (MVP — embed)
+
+Поэтапное добавление видео без self-hosted CDN на MVP.
+
+| Фаза | Что | Где |
+|------|-----|-----|
+| **MVP (Phase 18)** | Опциональный `video_url` per topic в `textbook_sections.yaml`; компонент `VideoEmbed` (YouTube / VK iframe, sandbox) | Страница темы / первый чанк |
+| **Позже** | «Видео практика» как отдельный список роликов per topic | Отдельный блок или вкладка |
+| **Позже** | Welcome-видео преподавателя (onboarding US-9) | `/student` welcome |
+| **Позже** | Upload MP4 teacher → stream (паттерн `uploads/audio`) | Feedback / лекции |
+
+**Формат `video_url`:** публичный HTTPS URL YouTube (`youtube.com`, `youtu.be`) или VK Video. Парсинг embed URL — на frontend; backend отдаёт только строку из YAML.
+
+**Acceptance (AC-1.8):** если у темы задан `video_url` — ученик видит встроенный плеер над лекцией; если нет — блок скрыт. Внешний iframe не ломает layout на 360px.
+
+**Безопасность:** whitelist доменов embed; `sandbox` на iframe; не выполнять произвольный HTML из `lecture` как video.
+
+**Вне scope MVP:** хостинг MP4 в BLOB/S3; автогенерация видео из TTS; offline download.
+
+#### Связь с Phase 18
+
+| Task | Срез |
+|------|------|
+| 101 | Audio speed presets (frontend) |
+| 102 | `textbook_sections.yaml` + sections API |
+| 103 | Textbook UI: section pills + filtered TopicList |
+| 104 | `VideoEmbed` + `video_url` в конфиге |
+
 ### Success criteria (тестируемые)
 
-- [ ] Ученик с ролью `student` и треком ЕГЭ видит список тем учебника и может открыть чанк (текст + аудио).
+- [ ] Ученик с ролью `student` и треком ЕГЭ видит список тем учебника **по трём разделам** и может открыть чанк (текст + аудио + опц. видео); скорость аудио регулируется пресетами (§1.12).
 - [ ] Ученик с треком ОГЭ видит тесты ОГЭ, не видит ЕГЭ (и наоборот).
 - [ ] Тест проходится **пошагово** (Stepik-style): одно задание на экран, «Проверить» → мгновенный результат, **кружки прогресса**, итоговая сводка.
 - [ ] Ученик может **прервать и продолжить** незавершённую тест-сессию (ДЗ и свободная практика) — кнопка «Продолжить».
@@ -1189,8 +1281,11 @@ CustomTask (Phase 14, §1.9)
 **Пример контракта (фрагмент):**
 
 ```python
-# GET /api/textbook/topics
-# Response: list[{ topic: str, chunk_count: int }]
+# GET /api/textbook/sections
+# Response: list[{ section_id: str, title: str, topic_count: int }]
+
+# GET /api/textbook/topics?section=basics|elements|organic
+# Response: list[{ topic: str, chunk_count: int, section: str }]
 
 # GET /api/textbook/topics/{topic}/chunks/{idx}
 # Response: { topic, chunk_idx, chunk_title, lecture, has_audio: bool }
@@ -1277,11 +1372,14 @@ CustomTask (Phase 14, §1.9)
 
 | AC | Критерий |
 |----|----------|
-| AC-1.1 | Список тем = distinct `topic` из `prepared_lectures`, порядок как в БД (`ORDER BY MIN(rowid)`): Алканы → … → Хром, марганец и алюминий (31 тема) |
+| AC-1.1 | Список тем = distinct `topic` из `prepared_lectures`; навигация по **трём разделам** (§1.12.2); внутри раздела — порядок как в БД (`ORDER BY MIN(rowid)`) |
 | AC-1.2 | Внутри темы — чанки по `chunk_idx` с `chunk_title` |
 | AC-1.3 | Текст лекции рендерится из поля `lecture` (markdown) |
 | AC-1.4 | Аудио стримится отдельным endpoint; формат `ogg` |
 | AC-1.5 | Блок самопроверки: `qa_questions` / `qa_answers` (раскрывающиеся ответы) — опционально на MVP, если успеем |
+| AC-1.6 | Пресеты скорости аудио **0.75× / 1× / 1.25× / 1.5×**; выбор сохраняется в `localStorage` (§1.12.1) |
+| AC-1.7 | Список тем сгруппирован в три раздела: «Начала химии», «Химия элементов», «Органическая химия»; mapping — §1.12.2 |
+| AC-1.8 | Опциональное видео темы (`video_url` в конфиге) — embed YouTube/VK через `VideoEmbed` (§1.12.3) |
 
 ### US-2: Тесты (ученик, Stepik-style)
 
@@ -1391,7 +1489,8 @@ CustomTask (Phase 14, §1.9)
 | POST | `/api/auth/login` | public | Вход |
 | POST | `/api/auth/logout` | auth | Выход |
 | GET | `/api/auth/me` | auth | Текущий пользователь |
-| GET | `/api/textbook/topics` | student | Список тем |
+| GET | `/api/textbook/sections` | student | Список разделов учебника (§1.12.2) |
+| GET | `/api/textbook/topics` | student | Список тем; query `?section=basics\|elements\|organic` |
 | GET | `/api/textbook/topics/{topic}/chunks` | student | Чанки темы |
 | GET | `/api/textbook/.../audio` | student | Stream OGG |
 | GET | `/api/tests/variants` | student | Варианты (по треку) |
@@ -1435,8 +1534,8 @@ CustomTask (Phase 14, §1.9)
 |-------|------|-----------|
 | Login | all | P0 |
 | Dashboard | student / teacher | P0 |
-| Учебник: список тем | student | P0 |
-| Учебник: чанк + аудио | student | P0 |
+| Учебник: список тем (три раздела) | student | P0 → §1.12.2 (Phase 18) |
+| Учебник: чанк + аудио (+ опц. видео) | student | P0 |
 | Тесты: выбор варианта | student | P0 |
 | Тесты: вкладка **«Темы»** (кастомные задания преподавателя) | student | P1 (§1.9, Phase 14) |
 | Тесты: пошаговая сессия (Stepik UI) | student | P0 |
@@ -1462,6 +1561,7 @@ CustomTask (Phase 14, §1.9)
 | Риск | Митигация |
 |------|-----------|
 | Большие BLOB (аудио) | Stream, не грузить в JSON; HTTP cache headers |
+| Видео embed (third-party) | Whitelist доменов; sandbox iframe; не хостить MP4 на MVP (§1.12.3) |
 | Разная структура ЕГЭ vs ОГЭ | Явные enum `ExamTrack` + разные query в content repo |
 | Нестандартные ответы | Начать с exact match; логировать mismatch для доработки |
 | IDOR между преподавателями | `teacher_id` на всех tenant endpoints; suite `tests/multi_teacher/`; 403/404, не 200 |
@@ -1590,7 +1690,8 @@ CustomTask (Phase 14, §1.9)
 | **Callout-боксы** | `Пример` (голубой `--chem-blue`/light), `Важно` (персик/gold), `Запомни` — иконка + цветная подложка. **Заменяют эмодзи** 📌💡 из контента | Учебник |
 | **Formula chips** | Формулы (`CH4`, `CnH2n+2`) моноширинным с лёгкой подложкой `--chem-blue`/10% | Учебник, тесты |
 | **Цветной акцентный текст** | Термины — `--text-negative`/`--text-positive`/`--text-accent`; задаётся в контенте (markdown), не хардкодом | Учебник |
-| **Custom audio player** | Кастомный плеер (pill): круглая teal play-кнопка, teal прогресс, тайминг. **Заменяет нативный `<audio controls>`** | Учебник |
+| **Custom audio player** | Кастомный плеер (pill): круглая teal play-кнопка, teal прогресс, тайминг, **пресеты скорости** 0.75×–1.5× (§1.12.1). **Заменяет нативный `<audio controls>`** | Учебник |
+| **VideoEmbed** | iframe YouTube/VK для `video_url` темы; responsive 16:9; whitelist доменов (§1.12.3) | Учебник |
 | **Decorative blobs** | Органические пятна по углам (низкая прозрачность), `--blob-*`. Чисто декор, `aria-hidden` | Login, дашборд, модалки, итог теста |
 | **Collapsible chunk nav** | Мобильная сворачиваемая панель списка чанков сверху | Учебник (mobile) |
 | **Test/worksheet modal** | Карточка с `×`, **StepProgressDots** («Шаг N из M» + кружки), полями ответа | Stepik-тесты |
@@ -1638,7 +1739,7 @@ CustomTask (Phase 14, §1.9)
 ### 14.7 Success criteria (UI redesign)
 
 - [ ] Единые токены палитры в `globals.css`; teal — главный акцент; логотип-колба в шапке кабинета.
-- [ ] Страница учебника: карточка контента, section pill, callout-боксы, formula chips, кастомный плеер, активный пункт сайдбара с teal-индикатором.
+- [ ] Страница учебника: карточка контента, section pill, callout-боксы, formula chips, кастомный плеер **с пресетами скорости**, активный пункт сайдбара с teal-индикатором; **три раздела** на списке тем (§1.12.2).
 - [ ] **Мобилка работает:** сворачиваемая навигация чанков, читаемый одноколоночный контент, sticky-кнопки; проверено на 360–414px.
 - [ ] Тесты (Stepik): **StepProgressDots** вместо progress bar; цвета по §1.3.1; кликабельная навигация.
 - [ ] Тесты (Stepik): **PeriodicTableOverlay** — кнопка и modal с таблицей Менделеева (§1.3.3).
@@ -1649,6 +1750,7 @@ CustomTask (Phase 14, §1.9)
 ---
 
 *Changelog:*  
+- 0.8.3 — §1.12 **учебник: скорость аудио, три раздела, embed-видео**: AC-1.6–1.8; допущение 6b; API `/api/textbook/sections`, `?section=`; компоненты audio speed presets + `VideoEmbed`; mapping 31 тем → basics/elements/organic; идея — `docs/ideas/textbook-audio-sections-video.md`; план — Phase 18 (Tasks 101–104).  
 - 0.8.2 — §1.11 **multi-teacher на одном инстансе (Variant A)**: допущения §3/§4/§15; provisioning `seed_teacher` × N; три слоя данных (shared / cross-tenant leaderboard / tenant `teacher_id`); AC-MT.1–MT.5; IDOR checklist + `tests/multi_teacher/`; связь с Phase 17 (`docs/ideas/production-hardening.md`, Tasks 92–99). Обновлены §1.8 (leaderboard cross-tenant), «Для кого», §5 Testing, §6 Boundaries, §10 Risks, §11. Убрано «один преподаватель на инстанс».  
 - 0.8.1 — §1.10 **письменная часть ЕГЭ 29–34 в content DB**: источник `ege (копия).db`, миграция в `test_ege.db`, `self_check` (§1.9.8/1.9.9), не в score; обновлены §1.4–1.5 (не скрывать до AI); AC-2.1; план Phase 16 (`tasks/plan.md`, Tasks 85–91). Код **не** в scope этого релиза спеки.  
 - 0.8.0 — §1.9.9 **проверка письменных ДЗ преподавателем**: `ImageViewer` + эталон; QR handoff для съёмки с телефона; feedback голос/фото/текст per-step + опционально на сдачу; `has_teacher_feedback` / бейдж «Есть разбор»; без пересдачи и без статусов принято/доработка; AC-3.9, AC-7.11–7.16; идея — `docs/ideas/teacher-written-homework-review.md`; план — Phase 15.  

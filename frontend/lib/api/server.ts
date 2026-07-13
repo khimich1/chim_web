@@ -16,6 +16,7 @@ import type {
   TestTaskType,
   TestVariant,
   TextbookTopic,
+  TextbookSection,
   Track,
   User,
   OnboardingStatus,
@@ -88,8 +89,20 @@ async function fetchWithCookies<T>(path: string): Promise<T | null> {
   return (await response.json()) as T;
 }
 
-export async function getTextbookTopics(): Promise<TextbookTopic[]> {
-  return (await fetchWithCookies<TextbookTopic[]>("/api/textbook/topics")) ?? [];
+export async function getTextbookSections(): Promise<TextbookSection[]> {
+  return (
+    (await fetchWithCookies<TextbookSection[]>("/api/textbook/sections")) ?? []
+  );
+}
+
+export async function getTextbookTopics(
+  section?: string,
+): Promise<TextbookTopic[]> {
+  const query = section ? `?section=${encodeURIComponent(section)}` : "";
+  return (
+    (await fetchWithCookies<TextbookTopic[]>(`/api/textbook/topics${query}`)) ??
+    []
+  );
 }
 
 export async function getTextbookChunks(topic: string): Promise<ChunkSummary[]> {

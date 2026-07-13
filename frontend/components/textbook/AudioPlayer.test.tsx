@@ -28,6 +28,7 @@ describe("formatAudioTime", () => {
 describe("AudioPlayer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     Object.defineProperty(globalThis.URL, "createObjectURL", {
       configurable: true,
       writable: true,
@@ -147,5 +148,57 @@ describe("AudioPlayer", () => {
 
     fireEvent.keyDown(player, { key: "ArrowLeft" });
     expect(audio.currentTime).toBe(30);
+  });
+
+  it("changes playback rate without resetting position and persists to localStorage", async () => {
+    mockedFetchAudioBlob.mockResolvedValue(new Blob(["audio"], { type: "audio/ogg" }));
+
+    render(<AudioPlayer topic="Соли" chunkIdx={1} hasAudio />);
+
+    const audio = await waitFor(() => {
+      const element = document.querySelector("audio") as HTMLAudioElement | null;
+      if (!element) {
+        throw new Error("audio element not mounted");
+      }
+      return element;
+    });
+
+    await act(async () => {
+      Object.defineProperty(audio, "duration", {
+        configurable: true,
+        value: 120,
+      });
+      audio.currentTime = 42;
+      fireEvent.loadedMetadata(audio);
+      fireEvent.timeUpdate(audio);
+    });
+
+    const speedButton = await screen.findByRole("button", {
+      name: "Скорость 1.25×",
+    });
+    await userEvent.click(speedButton);
+
+    expect(audio.playbackRate).toBe(1.25);
+    expect(audio.currentTime).toBe(42);
+    expect(window.localStorage.getItem("textbook-audio-rate")).toBe("1.25");
+    expect(speedButton).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Скорость 1.25×")).toHaveClass("sr-only");
+  });
+
+  it("restores playback rate from localStorage on mount", async () => {
+    window.localStorage.setItem("textbook-audio-rate", "1.5");
+    mockedFetchAudioBlob.mockResolvedValue(new Blob(["audio"], { type: "audio/ogg" }));
+
+    render(<AudioPlayer topic="Соли" chunkIdx={1} hasAudio />);
+
+    const speedButton = await screen.findByRole("button", {
+      name: "Скорость 1.5×",
+    });
+    expect(speedButton).toHaveAttribute("aria-pressed", "true");
+
+    await waitFor(() => {
+      const audio = document.querySelector("audio") as HTMLAudioElement | null;
+      expect(audio?.playbackRate).toBe(1.5);
+    });
   });
 });

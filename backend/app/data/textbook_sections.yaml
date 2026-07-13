@@ -1,0 +1,42 @@
+# Textbook section mapping — SPEC §1.12.2 (31 topics, read-only DB order preserved per section)
+sections:
+  basics:
+    title: "Начала химии"
+    topics:
+      - topic: "Строение атома"
+      - topic: "Периодический закон"
+      - topic: "Химическая связь"
+      - topic: "Формула вещества"
+      - topic: "ОВР"
+      - topic: "Кислоты"
+      - topic: "Оксиды"
+      - topic: "Основания и амфотерные гидроксиды"
+      - topic: "Соли"
+  elements:
+    title: "Химия элементов"
+    topics:
+      - topic: "Водород"
+      - topic: "Галогены"
+      - topic: "Кислород"
+      - topic: "Cера"
+      - topic: "Углерод и кремний"
+      - topic: "Азот и фосфор"
+      - topic: "Железо, медь, серебро, цинк"
+      - topic: "Хром, марганец и алюминий"
+  organic:
+    title: "Органическая химия"
+    topics:
+      - topic: "Алканы"
+      - topic: "Алкены"
+      - topic: "Алкины"
+      - topic: "Циклоалканы и диены"
+      - topic: "Арены"
+      - topic: "Спирты"
+      - topic: "Фенол"
+      - topic: "Альдегиды и кетоны"
+      - topic: "Карбоновые кислоты и эфиры"
+      - topic: "Амины"
+      - topic: "Аминикислоты и белки"
+      - topic: "Углеводы"
+      - topic: "Применение орг веществ"
+      - topic: "Именные реакции"

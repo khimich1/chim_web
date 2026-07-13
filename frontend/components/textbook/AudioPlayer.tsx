@@ -13,6 +13,33 @@ import {
 import { fetchAudioBlob } from "@/lib/api/textbook";
 
 const SEEK_STEP_SECONDS = 5;
+const AUDIO_RATE_STORAGE_KEY = "textbook-audio-rate";
+const AUDIO_RATE_PRESETS = [0.75, 1, 1.25, 1.5] as const;
+type AudioRatePreset = (typeof AUDIO_RATE_PRESETS)[number];
+
+function isAudioRatePreset(value: number): value is AudioRatePreset {
+  return AUDIO_RATE_PRESETS.includes(value as AudioRatePreset);
+}
+
+function readStoredAudioRate(): AudioRatePreset {
+  if (typeof window === "undefined") {
+    return 1;
+  }
+  try {
+    const raw = window.localStorage.getItem(AUDIO_RATE_STORAGE_KEY);
+    if (!raw) {
+      return 1;
+    }
+    const parsed = Number.parseFloat(raw);
+    return isAudioRatePreset(parsed) ? parsed : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function formatRateLabel(rate: AudioRatePreset): string {
+  return rate === 1 ? "1×" : `${rate}×`;
+}
 
 export function formatAudioTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) {
@@ -48,12 +75,32 @@ function CustomAudioControls({ src }: { src: string }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
+  const [playbackRate, setPlaybackRate] = useState<AudioRatePreset>(() =>
+    readStoredAudioRate(),
+  );
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
 
   const announce = useCallback((message: string) => {
     setStatusMessage(message);
   }, []);
+
+  const setRate = useCallback(
+    (rate: AudioRatePreset) => {
+      const audio = audioRef.current;
+      if (audio) {
+        audio.playbackRate = rate;
+      }
+      setPlaybackRate(rate);
+      try {
+        window.localStorage.setItem(AUDIO_RATE_STORAGE_KEY, String(rate));
+      } catch {
+        // ignore storage errors
+      }
+      announce(`Скорость ${formatRateLabel(rate)}`);
+    },
+    [announce],
+  );
 
   const togglePlayPause = useCallback(async () => {
     const audio = audioRef.current;
@@ -126,6 +173,7 @@ function CustomAudioControls({ src }: { src: string }) {
     }
 
     audio.volume = volume;
+    audio.playbackRate = playbackRate;
 
     const onTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
@@ -167,7 +215,14 @@ function CustomAudioControls({ src }: { src: string }) {
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("error", onError);
     };
-  }, [announce, src, volume]);
+  }, [announce, playbackRate, src, volume]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.playbackRate = playbackRate;
+    }
+  }, [playbackRate, src]);
 
   useEffect(() => {
     setCurrentTime(0);
@@ -263,6 +318,30 @@ function CustomAudioControls({ src }: { src: string }) {
               }
             }}
           />
+
+          <div
+            role="group"
+            aria-label="Скорость воспроизведения"
+            className="chem-audio-player__speed"
+          >
+            {AUDIO_RATE_PRESETS.map((rate) => {
+              const active = playbackRate === rate;
+              return (
+                <button
+                  key={rate}
+                  type="button"
+                  aria-pressed={active}
+                  aria-label={`Скорость ${formatRateLabel(rate)}`}
+                  className={`chem-audio-player__speed-btn${
+                    active ? " chem-audio-player__speed-btn--active" : ""
+                  }`}
+                  onClick={() => setRate(rate)}
+                >
+                  {formatRateLabel(rate)}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 

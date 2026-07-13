@@ -1,0 +1,12 @@
+sections:
+  basics:
+    title: "Начала химии"
+    topics:
+      - topic: "Соли"
+  elements:
+    title: "Химия элементов"
+    topics: []
+  organic:
+    title: "Органическая химия"
+    topics:
+      - topic: "Алканы"
