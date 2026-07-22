@@ -2,6 +2,12 @@
 
 /* SPEC §14.1 — design tokens (teal primary, warm paper surfaces) */
 :root {
+  /* Local system fonts — avoids next/font/google network fetch at dev compile time */
+  --font-geist-sans: system-ui, -apple-system, "Segoe UI", Roboto, Arial, Helvetica,
+    sans-serif;
+  --font-geist-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas,
+    monospace;
+
   /* Surfaces */
   --chem-bg: #fbf5ea;
   --chem-card: #ffffff;

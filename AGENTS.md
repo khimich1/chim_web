@@ -4,6 +4,13 @@
 
 **Принцип:** бизнес-логика только в `backend/`. `frontend/` — presentation + вызовы API.
 
+## Онбординг
+
+| Документ | Содержание |
+|----------|------------|
+| [`docs/onboarding-developer.md`](docs/onboarding-developer.md) | Проект, установка, архитектура, чеклист |
+| [`docs/development-workflow.md`](docs/development-workflow.md) | Правила разработки, git, SPEC/plan, PR |
+
 ## Структура monorepo
 
 ```
