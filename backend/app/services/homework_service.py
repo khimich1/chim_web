@@ -35,13 +35,13 @@ from app.schemas.homework import (
     StepFeedbackEmbeddedRead,
 )
 from app.services.content_grading import get_content_grading_mode
-from app.services.custom_test_session_service import _answer_image_url
 from app.services.homework_mapper import to_homework_read
 from app.services.homework_validation import validate_homework_items
 from app.services.image_substitution import (
     reference_answer_blocks_from_correct_ans,
     substitute_image_placeholders,
 )
+from app.services.test_session.common import answer_image_urls, coerce_answer_image_ids
 
 RESTORE_TTL = timedelta(seconds=30)
 _CANCELLABLE = frozenset({HomeworkStatus.ASSIGNED, HomeworkStatus.IN_PROGRESS})
@@ -114,7 +114,9 @@ class HomeworkService:
                 question_blocks=task.question_blocks,
                 reference_answer=task.reference_answer,
                 answer=step.answer,
-                answer_image_url=_answer_image_url(step.answer_image_id),
+                answer_image_urls=answer_image_urls(
+                    coerce_answer_image_ids(step.answer_image_ids)
+                ),
                 status=step.status,
                 feedback=self._embed_feedback(step_feedback),
             )
@@ -139,7 +141,9 @@ class HomeworkService:
                     question.correct_ans
                 ),
                 answer=step.answer,
-                answer_image_url=_answer_image_url(step.answer_image_id),
+                answer_image_urls=answer_image_urls(
+                    coerce_answer_image_ids(step.answer_image_ids)
+                ),
                 status=step.status,
                 feedback=self._embed_feedback(step_feedback),
             )

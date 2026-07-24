@@ -227,3 +227,63 @@ def test_get_image_rbac_owner_only(client: TestClient) -> None:
     assert _login(client, STUDENT_EMAIL, STUDENT_PASS).status_code == 200
     allowed = client.get(f"/api/uploads/images/{image_id}")
     assert allowed.status_code == 200
+
+
+def test_student_can_view_images_in_teacher_theme_tasks(client: TestClient) -> None:
+    """Regression: students need question/reference images from their teacher's themes."""
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+
+    question_upload = client.post(
+        "/api/uploads/images",
+        files={"file": ("question.png", PNG_BYTES, "image/png")},
+    )
+    assert question_upload.status_code == 201
+    question_id = question_upload.json()["id"]
+    question_url = question_upload.json()["url"]
+
+    reference_upload = client.post(
+        "/api/uploads/images",
+        files={"file": ("reference.png", PNG_BYTES, "image/png")},
+    )
+    assert reference_upload.status_code == 201
+    reference_id = reference_upload.json()["id"]
+    reference_url = reference_upload.json()["url"]
+
+    orphan_upload = client.post(
+        "/api/uploads/images",
+        files={"file": ("orphan.png", PNG_BYTES, "image/png")},
+    )
+    assert orphan_upload.status_code == 201
+    orphan_id = orphan_upload.json()["id"]
+
+    theme = client.post(
+        "/api/teacher/themes",
+        json={"title": "С самопроверкой", "is_published": True},
+    )
+    assert theme.status_code == 201
+    theme_id = theme.json()["id"]
+
+    task = client.post(
+        f"/api/teacher/themes/{theme_id}/tasks",
+        json={
+            "title": "Самопроверка",
+            "grading_mode": "self_check",
+            "question_blocks": [{"type": "image", "url": question_url}],
+            "reference_answer": [{"type": "image", "url": reference_url}],
+        },
+    )
+    assert task.status_code == 201, task.text
+
+    client.post("/api/auth/logout")
+    assert _login(client, STUDENT_EMAIL, STUDENT_PASS).status_code == 200
+
+    question_get = client.get(f"/api/uploads/images/{question_id}")
+    assert question_get.status_code == 200
+    assert question_get.content == PNG_BYTES
+
+    reference_get = client.get(f"/api/uploads/images/{reference_id}")
+    assert reference_get.status_code == 200
+    assert reference_get.content == PNG_BYTES
+
+    orphan_get = client.get(f"/api/uploads/images/{orphan_id}")
+    assert orphan_get.status_code == 403

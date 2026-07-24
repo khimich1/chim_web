@@ -121,7 +121,7 @@ class HomeworkSubmissionStepRead(BaseModel):
     question_blocks: list[dict] = Field(default_factory=list)
     reference_answer: list[dict] | None = None
     answer: str | None = None
-    answer_image_url: str | None = None
+    answer_image_urls: list[str] = Field(default_factory=list)
     status: StepStatus
     feedback: StepFeedbackEmbeddedRead | None = None
 

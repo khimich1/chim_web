@@ -8,9 +8,12 @@ from sqlalchemy import cast, select, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
+    CustomTask,
     HomeworkAssignment,
     HomeworkSubmission,
     HomeworkSubmissionFeedback,
+    StudentProfile,
+    TeacherTheme,
     TestSession,
     TestSessionStep,
     TestSessionStepFeedback,
@@ -61,7 +64,10 @@ class UploadedImageRepository:
                 HomeworkAssignment.id == TestSession.homework_assignment_id,
             )
             .where(
-                TestSessionStep.answer_image_id == image_id,
+                self._image_id_in_json_array(
+                    TestSessionStep.answer_image_ids,
+                    image_id,
+                ),
                 HomeworkAssignment.teacher_id == teacher_id,
             )
             .limit(1)
@@ -123,7 +129,7 @@ class UploadedImageRepository:
         student_id: uuid.UUID,
         image_id: uuid.UUID,
     ) -> bool:
-        """Student answer images or teacher feedback images on their homework."""
+        """Student answer images, theme content, or published teacher feedback."""
         answer_stmt = (
             select(TestSessionStep.id)
             .join(TestSession, TestSessionStep.session_id == TestSession.id)
@@ -132,12 +138,18 @@ class UploadedImageRepository:
                 HomeworkAssignment.id == TestSession.homework_assignment_id,
             )
             .where(
-                TestSessionStep.answer_image_id == image_id,
+                self._image_id_in_json_array(
+                    TestSessionStep.answer_image_ids,
+                    image_id,
+                ),
                 HomeworkAssignment.student_id == student_id,
             )
             .limit(1)
         )
         if await self._session.scalar(answer_stmt) is not None:
+            return True
+
+        if await self.student_can_view_theme_content_image(student_id, image_id):
             return True
 
         step_fb_stmt = (
@@ -185,6 +197,33 @@ class UploadedImageRepository:
             .limit(1)
         )
         return await self._session.scalar(sub_fb_stmt) is not None
+
+    async def student_can_view_theme_content_image(
+        self,
+        student_id: uuid.UUID,
+        image_id: uuid.UUID,
+    ) -> bool:
+        """Question/reference images in custom tasks of the student's teacher."""
+        needle = f"/api/uploads/images/{image_id}"
+        stmt = (
+            select(CustomTask.id)
+            .join(TeacherTheme, CustomTask.theme_id == TeacherTheme.id)
+            .join(
+                StudentProfile,
+                StudentProfile.teacher_id == TeacherTheme.teacher_id,
+            )
+            .join(UploadedImage, UploadedImage.id == image_id)
+            .where(
+                StudentProfile.user_id == student_id,
+                UploadedImage.owner_id == TeacherTheme.teacher_id,
+                (
+                    cast(CustomTask.question_blocks, String).like(f"%{needle}%")
+                    | cast(CustomTask.reference_answer, String).like(f"%{needle}%")
+                ),
+            )
+            .limit(1)
+        )
+        return await self._session.scalar(stmt) is not None
 
 
 class UploadedAudioRepository:

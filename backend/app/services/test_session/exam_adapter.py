@@ -39,7 +39,10 @@ from app.services.image_substitution import (
 from app.services.onboarding_service import OnboardingService
 from app.services.test_session.common import (
     SessionAdapterBase,
-    answer_image_url,
+    answer_image_urls,
+    append_answer_image_id,
+    coerce_answer_image_ids,
+    remove_answer_image_id,
     session_duration_minutes,
 )
 
@@ -188,11 +191,6 @@ class ExamSessionAdapter(SessionAdapterBase):
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Session already completed",
             )
-        if test_session.homework_assignment_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Answer image upload is only required for homework sessions",
-            )
         repo = self.content_repo(test_session.track)
         question = self.require_question(repo, self.require_step_test_id(step))
         if get_content_grading_mode(test_session.track, question.type) != "self_check":
@@ -203,7 +201,7 @@ class ExamSessionAdapter(SessionAdapterBase):
         if step.status == StepStatus.CHECKED:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot replace photo after compare",
+                detail="Cannot change photos after compare",
             )
 
         image = await self._upload_repo.get_by_id(answer_image_id)
@@ -218,13 +216,47 @@ class ExamSessionAdapter(SessionAdapterBase):
                 detail="Not your image",
             )
 
-        step.answer_image_id = answer_image_id
+        ids = append_answer_image_id(step, answer_image_id)
         await self._session.commit()
 
         return StepAttachAnswerImageResponse(
             position=step.position,
-            answer_image_id=answer_image_id,
-            answer_image_url=answer_image_url(answer_image_id),
+            answer_image_ids=ids,
+            answer_image_urls=answer_image_urls(ids),
+        )
+
+    async def remove_answer_image(
+        self,
+        student: User,
+        test_session: TestSession,
+        step: TestSessionStep,
+        image_id: uuid.UUID,
+    ) -> StepAttachAnswerImageResponse:
+        if test_session.status == TestSessionStatus.COMPLETED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Session already completed",
+            )
+        repo = self.content_repo(test_session.track)
+        question = self.require_question(repo, self.require_step_test_id(step))
+        if get_content_grading_mode(test_session.track, question.type) != "self_check":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Answer image is only for self_check steps",
+            )
+        if step.status == StepStatus.CHECKED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot change photos after compare",
+            )
+
+        ids = remove_answer_image_id(step, image_id)
+        await self._session.commit()
+
+        return StepAttachAnswerImageResponse(
+            position=step.position,
+            answer_image_ids=ids,
+            answer_image_urls=answer_image_urls(ids),
         )
 
     async def compare_step(
@@ -257,7 +289,10 @@ class ExamSessionAdapter(SessionAdapterBase):
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Step already checked",
             )
-        if test_session.homework_assignment_id is not None and step.answer_image_id is None:
+        if (
+            test_session.homework_assignment_id is not None
+            and len(coerce_answer_image_ids(step.answer_image_ids)) < 1
+        ):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Answer image is required for self_check homework steps",
@@ -352,8 +387,10 @@ class ExamSessionAdapter(SessionAdapterBase):
                     ),
                     status=step.status,
                     answer=step.answer,
-                    answer_image_id=step.answer_image_id,
-                    answer_image_url=answer_image_url(step.answer_image_id),
+                    answer_image_ids=coerce_answer_image_ids(step.answer_image_ids),
+                    answer_image_urls=answer_image_urls(
+                        coerce_answer_image_ids(step.answer_image_ids)
+                    ),
                     is_correct=step.is_correct,
                     hint_used=step.hint_used,
                 )
@@ -380,6 +417,7 @@ class ExamSessionAdapter(SessionAdapterBase):
         repo: ExamContentRepo,
     ) -> StepRead:
         question = self.require_question(repo, self.require_step_test_id(step))
+        ids = coerce_answer_image_ids(step.answer_image_ids)
         return StepRead(
             position=step.position,
             test_id=step.test_id,
@@ -389,8 +427,8 @@ class ExamSessionAdapter(SessionAdapterBase):
             grading_mode=step_grading_mode_for_exam(test_session.track, question.type),
             status=step.status,
             answer=step.answer,
-            answer_image_id=step.answer_image_id,
-            answer_image_url=answer_image_url(step.answer_image_id),
+            answer_image_ids=ids,
+            answer_image_urls=answer_image_urls(ids),
             is_correct=step.is_correct,
             hint_used=step.hint_used,
         )

@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import QRCode from "react-qr-code";
 
+import { AuthenticatedImage } from "@/components/common/AuthenticatedImage";
 import { CustomQuestionContent } from "@/components/tests/CustomQuestionContent";
 import { QuestionContent } from "@/components/tests/QuestionContent";
 import { StepProgressDots } from "@/components/tests/StepProgressDots";
@@ -16,6 +17,7 @@ import {
   compareStep,
   completeSession,
   getSession,
+  removeAnswerImage,
 } from "@/lib/api/tests";
 import type { ContentBlock, TestSession, TestStep } from "@/lib/api/types";
 import { useTutorChat } from "@/lib/tutor/TutorChatContext";
@@ -24,9 +26,20 @@ import {
   isCustomStep,
 } from "@/lib/tests/grading-utils";
 import {
+  CONTENT_IMAGE_CLASS,
   IMAGE_INTAKE_HINT,
   imageFilesFromDataTransfer,
 } from "@/lib/image-intake";
+
+const MAX_ANSWER_IMAGES = 3;
+
+function stepAnswerImageIds(step: TestStep | undefined): string[] {
+  return step?.answer_image_ids ?? [];
+}
+
+function stepAnswerImageUrls(step: TestStep | undefined): string[] {
+  return step?.answer_image_urls ?? [];
+}
 
 function findFirstUnchecked(steps: TestStep[]): number {
   const index = steps.findIndex((step) => step.status !== "checked");
@@ -64,16 +77,17 @@ export function StepView({ session }: { session: TestSession }) {
   const [referenceAnswer, setReferenceAnswer] = useState<ContentBlock[] | null>(
     null,
   );
-  const [answerImageId, setAnswerImageId] = useState<string | null>(
-    session.steps[initialIndex]?.answer_image_id ?? null,
+  const [answerImageIds, setAnswerImageIds] = useState<string[]>(
+    stepAnswerImageIds(session.steps[initialIndex]),
   );
-  const [answerImageUrl, setAnswerImageUrl] = useState<string | null>(
-    session.steps[initialIndex]?.answer_image_url ?? null,
+  const [answerImageUrls, setAnswerImageUrls] = useState<string[]>(
+    stepAnswerImageUrls(session.steps[initialIndex]),
   );
   const [uploadingAnswerImage, setUploadingAnswerImage] = useState(false);
   const [handoffUrl, setHandoffUrl] = useState<string | null>(null);
   const [handoffLoading, setHandoffLoading] = useState(false);
   const [handoffPolling, setHandoffPolling] = useState(false);
+  const [handoffBaselineCount, setHandoffBaselineCount] = useState(0);
   const [photoReceivedFromPhone, setPhotoReceivedFromPhone] = useState(false);
   const [checking, setChecking] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -85,6 +99,8 @@ export function StepView({ session }: { session: TestSession }) {
   const isHomeworkSession = session.homework_assignment_id != null;
   const requiresPhoto = isHomeworkSession && isSelfCheck;
   const isChecked = step?.status === "checked";
+  const remainingSlots = MAX_ANSWER_IMAGES - answerImageIds.length;
+  const canAddPhotos = isSelfCheck && !isChecked && remainingSlots > 0;
 
   const checkedCount = useMemo(
     () => steps.filter((s) => s.status === "checked").length,
@@ -96,12 +112,32 @@ export function StepView({ session }: { session: TestSession }) {
     [steps],
   );
 
+  function applyAnswerImages(
+    position: number,
+    ids: string[],
+    urls: string[],
+  ) {
+    setAnswerImageIds(ids);
+    setAnswerImageUrls(urls);
+    setSteps((prev) =>
+      prev.map((item) =>
+        item.position === position
+          ? {
+              ...item,
+              answer_image_ids: ids,
+              answer_image_urls: urls,
+            }
+          : item,
+      ),
+    );
+  }
+
   function goTo(index: number) {
     setCurrent(index);
     setAnswer(steps[index]?.answer ?? "");
     setReferenceAnswer(null);
-    setAnswerImageId(steps[index]?.answer_image_id ?? null);
-    setAnswerImageUrl(steps[index]?.answer_image_url ?? null);
+    setAnswerImageIds(stepAnswerImageIds(steps[index]));
+    setAnswerImageUrls(stepAnswerImageUrls(steps[index]));
     setHandoffUrl(null);
     setHandoffPolling(false);
     setPhotoReceivedFromPhone(false);
@@ -115,18 +151,20 @@ export function StepView({ session }: { session: TestSession }) {
     try {
       const updated = await getSession(session.id);
       const updatedStep = updated.steps.find((item) => item.position === step.position);
-      if (!updatedStep?.answer_image_id) {
+      const ids = stepAnswerImageIds(updatedStep);
+      if (ids.length <= handoffBaselineCount) {
         return;
       }
-      setAnswerImageId(updatedStep.answer_image_id);
-      setAnswerImageUrl(updatedStep.answer_image_url ?? null);
+      const urls = stepAnswerImageUrls(updatedStep);
+      setAnswerImageIds(ids);
+      setAnswerImageUrls(urls);
       setSteps((prev) =>
         prev.map((item) =>
           item.position === step.position
             ? {
                 ...item,
-                answer_image_id: updatedStep.answer_image_id,
-                answer_image_url: updatedStep.answer_image_url,
+                answer_image_ids: ids,
+                answer_image_urls: urls,
               }
             : item,
         ),
@@ -137,10 +175,13 @@ export function StepView({ session }: { session: TestSession }) {
     } catch {
       // polling is best-effort until photo arrives or handoff expires
     }
-  }, [session.id, step]);
+  }, [session.id, step, handoffBaselineCount]);
 
   useEffect(() => {
-    if (!requiresPhoto || !handoffPolling || answerImageId || isChecked) {
+    if (!requiresPhoto || !handoffPolling || isChecked) {
+      return;
+    }
+    if (answerImageIds.length >= MAX_ANSWER_IMAGES) {
       return;
     }
     const intervalId = window.setInterval(() => {
@@ -151,19 +192,20 @@ export function StepView({ session }: { session: TestSession }) {
   }, [
     requiresPhoto,
     handoffPolling,
-    answerImageId,
+    answerImageIds.length,
     isChecked,
     pollHandoffPhoto,
   ]);
 
   async function handleStartHandoff() {
-    if (!step) {
+    if (!step || !canAddPhotos) {
       return;
     }
     setError(null);
     setHandoffLoading(true);
     try {
       const result = await createHandoff(session.id, step.position);
+      setHandoffBaselineCount(answerImageIds.length);
       setHandoffUrl(result.capture_url);
       setHandoffPolling(true);
       setPhotoReceivedFromPhone(false);
@@ -182,32 +224,32 @@ export function StepView({ session }: { session: TestSession }) {
     return answer.trim();
   }
 
-  async function handleAnswerImageUpload(file: File) {
-    if (!step) {
+  async function handleAnswerImageUpload(files: File[], truncated = false) {
+    if (!step || files.length === 0 || !canAddPhotos) {
       return;
     }
     setError(null);
     setUploadingAnswerImage(true);
     try {
-      const result = await uploadImage(file);
-      const attached = await attachAnswerImage(
-        session.id,
-        step.position,
-        result.id,
-      );
-      setAnswerImageId(attached.answer_image_id);
-      setAnswerImageUrl(attached.answer_image_url);
-      setSteps((prev) =>
-        prev.map((s) =>
-          s.position === step.position
-            ? {
-                ...s,
-                answer_image_id: attached.answer_image_id,
-                answer_image_url: attached.answer_image_url,
-              }
-            : s,
-        ),
-      );
+      let ids = answerImageIds;
+      let urls = answerImageUrls;
+      for (const file of files) {
+        if (ids.length >= MAX_ANSWER_IMAGES) {
+          break;
+        }
+        const result = await uploadImage(file);
+        const attached = await attachAnswerImage(
+          session.id,
+          step.position,
+          result.id,
+        );
+        ids = attached.answer_image_ids;
+        urls = attached.answer_image_urls;
+        applyAnswerImages(step.position, ids, urls);
+      }
+      if (truncated) {
+        setError(`Можно прикрепить не больше ${MAX_ANSWER_IMAGES} фото.`);
+      }
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -217,6 +259,69 @@ export function StepView({ session }: { session: TestSession }) {
     } finally {
       setUploadingAnswerImage(false);
     }
+  }
+
+  async function handleRemoveAnswerImage(imageId: string) {
+    if (!step || isChecked) {
+      return;
+    }
+    setError(null);
+    try {
+      const result = await removeAnswerImage(session.id, step.position, imageId);
+      applyAnswerImages(
+        step.position,
+        result.answer_image_ids,
+        result.answer_image_urls,
+      );
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Не удалось удалить изображение.",
+      );
+    }
+  }
+
+  function handleIntakePaste(event: React.ClipboardEvent) {
+    if (!canAddPhotos || uploadingAnswerImage) {
+      return;
+    }
+    const { files, truncated } = imageFilesFromDataTransfer(
+      event.clipboardData,
+      { limit: remainingSlots },
+    );
+    if (files.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    void handleAnswerImageUpload(files, truncated);
+  }
+
+  function handleIntakeDragOver(event: React.DragEvent) {
+    if (!canAddPhotos || uploadingAnswerImage) {
+      return;
+    }
+    const { files } = imageFilesFromDataTransfer(event.dataTransfer, {
+      limit: remainingSlots,
+    });
+    if (files.length === 0) {
+      return;
+    }
+    event.preventDefault();
+  }
+
+  function handleIntakeDrop(event: React.DragEvent) {
+    if (!canAddPhotos || uploadingAnswerImage) {
+      return;
+    }
+    const { files, truncated } = imageFilesFromDataTransfer(event.dataTransfer, {
+      limit: remainingSlots,
+    });
+    if (files.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    void handleAnswerImageUpload(files, truncated);
   }
 
   async function handleCheck() {
@@ -329,7 +434,7 @@ export function StepView({ session }: { session: TestSession }) {
       return true;
     }
     if (isSelfCheck) {
-      return requiresPhoto ? !answerImageId : false;
+      return requiresPhoto ? answerImageIds.length < 1 : false;
     }
     return answer.trim() === "";
   })();
@@ -342,7 +447,7 @@ export function StepView({ session }: { session: TestSession }) {
         onSelect={goTo}
       />
 
-      <article className="chem-card overflow-hidden rounded-xl pb-36 sm:pb-6">
+      <article className="chem-card overflow-hidden rounded-xl">
         <header className="flex items-center gap-4 bg-chem-teal px-4 py-4 text-white sm:px-5">
           <span
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 text-sm font-bold"
@@ -368,89 +473,87 @@ export function StepView({ session }: { session: TestSession }) {
           ) : null}
 
           <div className="mt-5 flex flex-col gap-2">
-            <label
-              htmlFor="answer-input"
-              className="text-sm font-medium text-zinc-700"
-            >
-              Ваш ответ
-            </label>
-            <input
-              id="answer-input"
-              type="text"
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              disabled={isChecked}
-              className="chem-input min-h-[44px] w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 disabled:bg-zinc-50"
-            />
-            {requiresPhoto ? (
+            {isSelfCheck ? (
               <div
                 className="flex flex-col gap-3"
                 data-testid="answer-image-intake"
-                onPaste={(event) => {
-                  if (isChecked || uploadingAnswerImage) {
-                    return;
-                  }
-                  const { files } = imageFilesFromDataTransfer(
-                    event.clipboardData,
-                    { limit: 1 },
-                  );
-                  if (files.length === 0) {
-                    return;
-                  }
-                  event.preventDefault();
-                  void handleAnswerImageUpload(files[0]!);
-                }}
-                onDragOver={(event) => {
-                  if (isChecked || uploadingAnswerImage) {
-                    return;
-                  }
-                  const { files } = imageFilesFromDataTransfer(
-                    event.dataTransfer,
-                    { limit: 1 },
-                  );
-                  if (files.length === 0) {
-                    return;
-                  }
-                  event.preventDefault();
-                }}
-                onDrop={(event) => {
-                  if (isChecked || uploadingAnswerImage) {
-                    return;
-                  }
-                  const { files } = imageFilesFromDataTransfer(
-                    event.dataTransfer,
-                    { limit: 1 },
-                  );
-                  if (files.length === 0) {
-                    return;
-                  }
-                  event.preventDefault();
-                  void handleAnswerImageUpload(files[0]!);
-                }}
+                onPaste={handleIntakePaste}
+                onDragOver={handleIntakeDragOver}
+                onDrop={handleIntakeDrop}
               >
+                <label
+                  htmlFor="answer-input"
+                  className="text-sm font-medium text-zinc-700"
+                >
+                  Ваш ответ
+                </label>
+                <input
+                  id="answer-input"
+                  type="text"
+                  value={answer}
+                  onChange={(e) => setAnswer(e.target.value)}
+                  disabled={isChecked}
+                  className="chem-input min-h-[44px] w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 disabled:bg-zinc-50"
+                />
                 <p className="text-xs text-zinc-500">{IMAGE_INTAKE_HINT}</p>
+                <p className="text-xs text-zinc-500">
+                  Фото: {answerImageIds.length} из {MAX_ANSWER_IMAGES}
+                </p>
+
+                {answerImageUrls.length > 0 ? (
+                  <ul className="flex flex-wrap gap-3">
+                    {answerImageUrls.map((url, index) => {
+                      const imageId = answerImageIds[index];
+                      return (
+                        <li key={url} className="relative w-28">
+                          <AuthenticatedImage
+                            src={url}
+                            alt={`Фото ответа ${index + 1}`}
+                            className={`${CONTENT_IMAGE_CLASS} my-0 h-24 w-28 object-cover`}
+                          />
+                          {!isChecked && imageId ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleRemoveAnswerImage(imageId)}
+                              className="mt-1 text-xs text-[var(--chem-crimson)] hover:underline"
+                            >
+                              Удалить
+                            </button>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+
                 <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleStartHandoff()}
-                    disabled={isChecked || handoffLoading || !!answerImageId}
-                    className="rounded-md border border-chem-teal bg-chem-teal-soft px-3 py-1.5 text-sm text-chem-teal-dark hover:border-chem-teal disabled:opacity-60"
-                  >
-                    {handoffLoading
-                      ? "Создание QR…"
-                      : "Сфотографировать с телефона"}
-                  </button>
-                  <label className="cursor-pointer rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:border-zinc-400">
+                  {requiresPhoto ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleStartHandoff()}
+                      disabled={!canAddPhotos || handoffLoading}
+                      className="rounded-md border border-chem-teal bg-chem-teal-soft px-3 py-1.5 text-sm text-chem-teal-dark hover:border-chem-teal disabled:opacity-60"
+                    >
+                      {handoffLoading
+                        ? "Создание QR…"
+                        : "Сфотографировать с телефона"}
+                    </button>
+                  ) : null}
+                  <label className="cursor-pointer rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:border-zinc-400 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
                     {uploadingAnswerImage ? "Загрузка…" : "Прикрепить с этого устройства"}
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
+                      multiple
                       className="sr-only"
-                      disabled={isChecked || uploadingAnswerImage}
+                      disabled={!canAddPhotos || uploadingAnswerImage}
                       onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          void handleAnswerImageUpload(file);
+                        const selected = Array.from(e.target.files ?? []);
+                        const limit = remainingSlots;
+                        const files = selected.slice(0, limit);
+                        const truncated = selected.length > limit;
+                        if (files.length > 0) {
+                          void handleAnswerImageUpload(files, truncated);
                         }
                         e.target.value = "";
                       }}
@@ -470,17 +573,35 @@ export function StepView({ session }: { session: TestSession }) {
                   </div>
                 ) : null}
 
-                {answerImageUrl || photoReceivedFromPhone ? (
+                {photoReceivedFromPhone ? (
                   <span className="text-xs text-chem-teal-dark">
-                    {photoReceivedFromPhone ? "Фото получено с телефона" : "Фото прикреплено"}
+                    Фото получено с телефона
                   </span>
-                ) : (
+                ) : null}
+                {requiresPhoto && answerImageIds.length < 1 ? (
                   <span className="text-xs text-zinc-500">
                     Фото обязательно перед сравнением
                   </span>
-                )}
+                ) : null}
               </div>
-            ) : null}
+            ) : (
+              <>
+                <label
+                  htmlFor="answer-input"
+                  className="text-sm font-medium text-zinc-700"
+                >
+                  Ваш ответ
+                </label>
+                <input
+                  id="answer-input"
+                  type="text"
+                  value={answer}
+                  onChange={(e) => setAnswer(e.target.value)}
+                  disabled={isChecked}
+                  className="chem-input min-h-[44px] w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 disabled:bg-zinc-50"
+                />
+              </>
+            )}
           </div>
 
           {showAskTutor ? (
@@ -531,20 +652,13 @@ export function StepView({ session }: { session: TestSession }) {
               {error}
             </p>
           ) : null}
-        </div>
-      </article>
 
-      <div
-        className="fixed bottom-0 left-0 right-0 z-10 border-t border-zinc-200 bg-white/95 backdrop-blur-sm sm:static sm:border-t-0 sm:bg-transparent sm:backdrop-blur-none"
-        aria-label="Действия с заданием"
-      >
-        <div className="mx-auto flex max-w-3xl flex-col gap-2 px-4 py-3 sm:px-0">
-          <div className="flex gap-2 sm:mt-2">
+          <div className="mt-6" aria-label="Действия с заданием">
             <button
               type="button"
               onClick={isSelfCheck ? handleCompare : handleCheck}
               disabled={actionDisabled}
-              className="chem-btn-primary min-h-[44px] flex-1 px-4 py-2.5 text-sm disabled:opacity-60 sm:flex-none sm:px-5"
+              className="chem-btn-primary min-h-[44px] w-full px-4 py-2.5 text-sm disabled:opacity-60 sm:w-auto sm:px-5"
             >
               {checking
                 ? "Обработка…"
@@ -557,9 +671,9 @@ export function StepView({ session }: { session: TestSession }) {
 
         <nav
           aria-label="Навигация по заданиям"
-          className="border-t border-zinc-200 px-4 py-3 sm:mt-2 sm:border-t sm:border-zinc-200 sm:px-0"
+          className="border-t border-zinc-200 px-4 py-3 sm:px-5"
         >
-          <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3">
             <button
               type="button"
               onClick={() => goTo(current - 1)}
@@ -595,7 +709,7 @@ export function StepView({ session }: { session: TestSession }) {
             )}
           </div>
         </nav>
-      </div>
+      </article>
     </div>
   );
 }

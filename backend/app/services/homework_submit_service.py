@@ -38,6 +38,7 @@ from app.models import (
     User,
 )
 from app.models.enums import GradingMode, HomeworkItemKind, StepStatus
+from app.services.test_session.common import coerce_answer_image_ids
 from app.core.config import Settings, get_settings
 from app.repositories.app.homework_repo import HomeworkRepository
 from app.repositories.app.notification_repo import NotificationRepository
@@ -440,7 +441,7 @@ class HomeworkSubmitService:
                 continue
             if not await self._step_requires_homework_photo(step, test_session.track):
                 continue
-            if step.answer_image_id is None:
+            if len(coerce_answer_image_ids(step.answer_image_ids)) < 1:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=(

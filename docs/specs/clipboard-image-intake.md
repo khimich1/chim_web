@@ -33,7 +33,7 @@
    |-------|--------|
    | `ContentBlocksEditor` | до **10** image-файлов за одно drop/paste-событие (мягкий потолок; лишние игнор + короткое сообщение) |
    | `StepFeedbackForm` | до заполнения слотов (**макс. 5** фото всего на форму) |
-   | `StepView` | **1** ответ-картинка: при нескольких файлах берём **первый** (replace текущего) |
+   | `StepView` | **superseded:** лимит **3** фото на шаг (`answer_image_ids[]`), append до заполнения — см. [`student-multi-photo-answer-paste.md`](student-multi-photo-answer-paste.md). Ранее здесь был limit=1 (replace). |
 10. **UI hint обязателен** на каждой зоне intake в MVP: короткий текст вроде «Можно вставить из буфера (Ctrl+V) или перетащить файл».
 11. **CapturePage** = страница `/capture?token=…` для ученика: чеклист + камера/файл → handoff фото ДЗ. **Не** конструктор заданий. В этот релиз **не** подключаем.
 12. **Этот spec supersedes** краткое описание paste в `teacher-cabinet-ux.md` §8 (media). После approve — в teacher-cabinet добавить ссылку «детали → clipboard-image-intake.md»; lightbox остаётся отдельной задачей cabinet UX.
@@ -67,7 +67,7 @@
 | US-CI-2 | Как преподаватель, перетаскиваю файлы на редактор | Drop 1..N image (N≤10) → N image-блоков; лишние отсекаются с сообщением |
 | US-CI-2b | Как преподаватель, вижу подсказку про paste/DnD | В зоне редактора есть видимый hint про Ctrl+V и перетаскивание |
 | US-CI-3 | Как преподаватель, вижу крупное превью в редакторе | Image-блок не меньше «как в тесте» (`max-w-full`, без мелкого thumbnail) |
-| US-CI-4 | Как ученик, вставляю/дропаю ответ-картинку в StepView | Paste/DnD вызывают тот же путь, что file input → `attachAnswerImage` |
+| US-CI-4 | Как ученик, вставляю/дропаю ответ-картинку в StepView | Paste/DnD вызывают тот же путь, что file input → `attachAnswerImage` (**актуальный лимит/галерея:** [`student-multi-photo-answer-paste.md`](student-multi-photo-answer-paste.md)) |
 | US-CI-5 | Как преподаватель, вставляю фото в StepFeedbackForm | Paste/DnD при `<5` фото; превью читаемое, не 80×80 crop |
 | US-CI-6 | Как система, отклоняю не-image | GIF/PDF/текст-only clipboard → нет upload; ошибка или no-op для text |
 

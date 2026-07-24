@@ -8,7 +8,9 @@ export function HomeworkSubmissionPhotos({
 }: {
   steps: HomeworkSubmissionStep[];
 }) {
-  const photoSteps = steps.filter((step) => step.answer_image_url);
+  const photoSteps = steps.filter(
+    (step) => (step.answer_image_urls?.length ?? 0) > 0,
+  );
 
   if (photoSteps.length === 0) {
     return null;
@@ -30,13 +32,17 @@ export function HomeworkSubmissionPhotos({
                 </span>
               ) : null}
             </p>
-            {step.answer_image_url ? (
-              <AuthenticatedImage
-                src={step.answer_image_url}
-                alt={`Фото ответа к заданию ${step.position + 1}`}
-                className="mt-2 max-h-64 rounded-md border border-zinc-200 object-contain"
-              />
-            ) : null}
+            <ul className="mt-2 flex flex-col gap-2">
+              {step.answer_image_urls.map((url, index) => (
+                <li key={url}>
+                  <AuthenticatedImage
+                    src={url}
+                    alt={`Фото ответа к заданию ${step.position + 1}, страница ${index + 1}`}
+                    className="max-h-64 rounded-md border border-zinc-200 object-contain"
+                  />
+                </li>
+              ))}
+            </ul>
           </li>
         ))}
       </ul>

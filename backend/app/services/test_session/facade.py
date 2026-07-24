@@ -150,6 +150,29 @@ class TestSessionService:
             answer_image_id,
         )
 
+    async def remove_answer_image(
+        self,
+        student: User,
+        session_id: uuid.UUID,
+        position: int,
+        image_id: uuid.UUID,
+    ) -> StepAttachAnswerImageResponse:
+        test_session = await self._exam.load_owned_session(student, session_id)
+        step = self._exam.find_step(test_session, position)
+        if step.custom_task_id is not None:
+            return await self._custom.remove_answer_image(
+                student,
+                session_id,
+                position,
+                image_id,
+            )
+        return await self._exam.remove_answer_image(
+            student,
+            test_session,
+            step,
+            image_id,
+        )
+
     async def compare_step(
         self,
         student: User,

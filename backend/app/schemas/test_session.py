@@ -69,8 +69,8 @@ class StepRead(BaseModel):
     grading_mode: GradingMode | None = None
     status: StepStatus
     answer: str | None = None
-    answer_image_id: uuid.UUID | None = None
-    answer_image_url: str | None = None
+    answer_image_ids: list[uuid.UUID] = Field(default_factory=list)
+    answer_image_urls: list[str] = Field(default_factory=list)
     is_correct: bool | None = None
     hint_used: bool
 
@@ -102,8 +102,8 @@ class StepAttachAnswerImageRequest(BaseModel):
 
 class StepAttachAnswerImageResponse(BaseModel):
     position: int
-    answer_image_id: uuid.UUID
-    answer_image_url: str
+    answer_image_ids: list[uuid.UUID]
+    answer_image_urls: list[str]
 
 
 class StepCheckResponse(BaseModel):

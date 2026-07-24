@@ -33,7 +33,8 @@ from app.services.activity_service import ActivityService
 from app.services.onboarding_service import OnboardingService
 from app.services.test_session.common import (
     SessionAdapterBase,
-    answer_image_url,
+    answer_image_urls,
+    coerce_answer_image_ids,
     session_duration_minutes,
 )
 from app.services.test_session.custom_adapter import CustomSessionAdapter
@@ -288,8 +289,10 @@ class HomeworkSessionAdapter(SessionAdapterBase):
                         grading_mode=task.grading_mode,
                         status=step.status,
                         answer=step.answer,
-                        answer_image_id=step.answer_image_id,
-                        answer_image_url=answer_image_url(step.answer_image_id),
+                        answer_image_ids=coerce_answer_image_ids(step.answer_image_ids),
+                        answer_image_urls=answer_image_urls(
+                            coerce_answer_image_ids(step.answer_image_ids)
+                        ),
                         is_correct=step.is_correct,
                         hint_used=step.hint_used,
                     )

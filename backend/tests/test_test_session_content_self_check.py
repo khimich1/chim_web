@@ -267,7 +267,8 @@ def test_homework_attach_and_compare_with_photo(client: TestClient) -> None:
         json={"answer_image_id": image_id},
     )
     assert attach.status_code == 200, attach.text
-    assert attach.json()["answer_image_id"] == image_id
+    assert attach.json()["answer_image_ids"] == [image_id]
+    assert attach.json()["answer_image_urls"] == [f"/api/uploads/images/{image_id}"]
 
     compare = client.post(
         f"/api/tests/sessions/{session['id']}/steps/{position}/compare",

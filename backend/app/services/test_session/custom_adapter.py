@@ -37,7 +37,10 @@ from app.services.activity_service import ActivityService
 from app.services.onboarding_service import OnboardingService
 from app.services.test_session.common import (
     SessionAdapterBase,
-    answer_image_url,
+    answer_image_urls,
+    append_answer_image_id,
+    coerce_answer_image_ids,
+    remove_answer_image_id,
     session_duration_minutes,
 )
 
@@ -191,11 +194,6 @@ class CustomSessionAdapter(SessionAdapterBase):
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Session already completed",
             )
-        if test_session.homework_assignment_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Answer image upload is only required for homework sessions",
-            )
 
         step = self.find_step(test_session, position)
         task = await self._require_task(step)
@@ -207,7 +205,7 @@ class CustomSessionAdapter(SessionAdapterBase):
         if step.status == StepStatus.CHECKED:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot replace photo after compare",
+                detail="Cannot change photos after compare",
             )
 
         image = await self._upload_repo.get_by_id(answer_image_id)
@@ -222,13 +220,49 @@ class CustomSessionAdapter(SessionAdapterBase):
                 detail="Not your image",
             )
 
-        step.answer_image_id = answer_image_id
+        ids = append_answer_image_id(step, answer_image_id)
         await self._session.commit()
 
         return StepAttachAnswerImageResponse(
             position=step.position,
-            answer_image_id=answer_image_id,
-            answer_image_url=answer_image_url(answer_image_id),
+            answer_image_ids=ids,
+            answer_image_urls=answer_image_urls(ids),
+        )
+
+    async def remove_answer_image(
+        self,
+        student: User,
+        session_id: uuid.UUID,
+        position: int,
+        image_id: uuid.UUID,
+    ) -> StepAttachAnswerImageResponse:
+        test_session = await self._load_owned_custom_session(student, session_id)
+        if test_session.status == TestSessionStatus.COMPLETED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Session already completed",
+            )
+
+        step = self.find_step(test_session, position)
+        task = await self._require_task(step)
+        if task.grading_mode != GradingMode.SELF_CHECK:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Answer image is only for self_check steps",
+            )
+        if step.status == StepStatus.CHECKED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot change photos after compare",
+            )
+
+        ids = remove_answer_image_id(step, image_id)
+        await self._session.commit()
+
+        return StepAttachAnswerImageResponse(
+            position=step.position,
+            answer_image_ids=ids,
+            answer_image_urls=answer_image_urls(ids),
         )
 
     async def compare_step(
@@ -261,7 +295,10 @@ class CustomSessionAdapter(SessionAdapterBase):
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Step already checked",
             )
-        if test_session.homework_assignment_id is not None and step.answer_image_id is None:
+        if (
+            test_session.homework_assignment_id is not None
+            and len(coerce_answer_image_ids(step.answer_image_ids)) < 1
+        ):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Answer image is required for self_check homework steps",
@@ -343,8 +380,10 @@ class CustomSessionAdapter(SessionAdapterBase):
                     grading_mode=task.grading_mode,
                     status=step.status,
                     answer=step.answer,
-                    answer_image_id=step.answer_image_id,
-                    answer_image_url=answer_image_url(step.answer_image_id),
+                    answer_image_ids=coerce_answer_image_ids(step.answer_image_ids),
+                    answer_image_urls=answer_image_urls(
+                        coerce_answer_image_ids(step.answer_image_ids)
+                    ),
                     is_correct=step.is_correct,
                     hint_used=step.hint_used,
                 )
