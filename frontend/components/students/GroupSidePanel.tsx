@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState, type RefObject } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState, type RefObject } from "react";
 
 import { SidePanelShell } from "@/components/students/SidePanelShell";
 import { ApiError } from "@/lib/api/client";
@@ -10,8 +11,49 @@ import {
   replaceTeacherGroupMembers,
   type StudentGroupDetail,
 } from "@/lib/api/groups";
+import {
+  cancelHomework,
+  listHomework,
+  restoreHomework,
+} from "@/lib/api/homework";
 import { assignHomeworkTemplate } from "@/lib/api/templates";
-import type { HomeworkTemplate, Student } from "@/lib/api/types";
+import type { HomeworkAssignment, HomeworkTemplate, Student } from "@/lib/api/types";
+import {
+  formatWaveSummary,
+  groupHomeworkWaves,
+  type GroupHomeworkWave,
+} from "@/lib/students/groupHomeworkWaves";
+
+const UNDO_MS = 30_000;
+
+function formatDue(iso: string | null): string {
+  if (!iso) {
+    return "без срока";
+  }
+  return new Intl.DateTimeFormat("ru-RU", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(iso));
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.5 6.5v8m3.5-8v8m3.5-8v8M4 5.5h12m-1 0-.7 10.2A1.5 1.5 0 0 1 12.8 17H7.2a1.5 1.5 0 0 1-1.5-1.3L5 5.5m3-.8A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.7V5.5"
+      />
+    </svg>
+  );
+}
 
 export function GroupSidePanel({
   group,
@@ -45,6 +87,79 @@ export function GroupSidePanel({
   const [message, setMessage] = useState<string | null>(null);
   const [assignSuccess, setAssignSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [homework, setHomework] = useState<HomeworkAssignment[]>([]);
+  const [homeworkLoading, setHomeworkLoading] = useState(true);
+  const [homeworkError, setHomeworkError] = useState<string | null>(null);
+  const [undo, setUndo] = useState<{
+    anchorId: string;
+    title: string;
+    cancelledCount: number;
+    skippedSubmittedCount: number;
+  } | null>(null);
+
+  const loadHomework = useCallback(async () => {
+    setHomeworkError(null);
+    try {
+      const all = await listHomework();
+      setHomework(all.filter((row) => row.source_group_id === group.id));
+    } catch (err) {
+      setHomework([]);
+      setHomeworkError(
+        err instanceof ApiError
+          ? err.message || "Не удалось загрузить историю раздач."
+          : "Не удалось загрузить историю раздач.",
+      );
+    } finally {
+      setHomeworkLoading(false);
+    }
+  }, [group.id]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const all = await listHomework();
+        if (cancelled) {
+          return;
+        }
+        setHomework(all.filter((row) => row.source_group_id === group.id));
+        setHomeworkError(null);
+      } catch (err) {
+        if (cancelled) {
+          return;
+        }
+        setHomework([]);
+        setHomeworkError(
+          err instanceof ApiError
+            ? err.message || "Не удалось загрузить историю раздач."
+            : "Не удалось загрузить историю раздач.",
+        );
+      } finally {
+        if (!cancelled) {
+          setHomeworkLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, group.id]);
+
+  useEffect(() => {
+    if (!undo) {
+      return;
+    }
+    const timer = window.setTimeout(() => setUndo(null), UNDO_MS);
+    return () => window.clearTimeout(timer);
+  }, [undo]);
+
+  const waves = useMemo(
+    () => groupHomeworkWaves(homework, group.id),
+    [homework, group.id],
+  );
 
   const inGroupStudents = useMemo(() => {
     return students.filter((student) => draftMemberIds.includes(student.id));
@@ -151,6 +266,7 @@ export function GroupSidePanel({
     setBusy(true);
     setError(null);
     setMessage(null);
+    setUndo(null);
     try {
       const created = await assignHomeworkTemplate(templateId, {
         group_id: group.id,
@@ -159,12 +275,59 @@ export function GroupSidePanel({
       setAssignSuccess(
         `«${templateTitle}» — назначено ученикам: ${created.length}`,
       );
+      await loadHomework();
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message || "Не удалось назначить задание группе.");
       } else {
         setError("Не удалось назначить задание группе.");
       }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCancelWave(wave: GroupHomeworkWave) {
+    setBusy(true);
+    setError(null);
+    setAssignSuccess(null);
+    try {
+      const result = await cancelHomework(wave.anchorId, "wave");
+      setUndo({
+        anchorId: wave.anchorId,
+        title: wave.title,
+        cancelledCount: result.cancelled_ids.length,
+        skippedSubmittedCount: result.skipped_submitted_count,
+      });
+      await loadHomework();
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message || "Не удалось отозвать раздачу."
+          : "Не удалось отозвать раздачу.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRestoreWave() {
+    if (!undo) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await restoreHomework(undo.anchorId, "wave");
+      setUndo(null);
+      await loadHomework();
+    } catch (err) {
+      setUndo(null);
+      setError(
+        err instanceof ApiError
+          ? err.message || "Не удалось вернуть раздачу (окно 30 с истекло)."
+          : "Не удалось вернуть раздачу.",
+      );
     } finally {
       setBusy(false);
     }
@@ -181,6 +344,7 @@ export function GroupSidePanel({
     setError(null);
     setMessage(null);
     setAssignSuccess(null);
+    setUndo(null);
     try {
       await deleteTeacherGroup(group.id);
       onDeleted();
@@ -361,6 +525,90 @@ export function GroupSidePanel({
             Сохранить состав
           </button>
         </section>
+
+        <section
+          className="flex flex-col gap-2"
+          aria-labelledby="group-hw-history-heading"
+        >
+          <h3
+            id="group-hw-history-heading"
+            className="text-sm font-semibold text-zinc-900"
+          >
+            История раздач
+          </h3>
+          {homeworkError ? (
+            <p role="alert" className="text-sm text-[var(--chem-crimson)]">
+              {homeworkError}
+            </p>
+          ) : null}
+          {homeworkLoading ? (
+            <p className="text-sm text-zinc-500">Загрузка…</p>
+          ) : waves.length === 0 ? (
+            <p className="text-sm text-zinc-500">Пока нет раздач этой группе.</p>
+          ) : (
+            <ul className="flex flex-col gap-2" aria-label="История раздач">
+              {waves.map((wave) => (
+                <li
+                  key={wave.assignBatchId}
+                  className="flex items-start justify-between gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                >
+                  <div className="min-w-0">
+                    <Link
+                      href={`/teacher/homework/${wave.anchorId}`}
+                      className="font-medium text-zinc-900 hover:underline"
+                    >
+                      {wave.title}
+                    </Link>
+                    <p className="text-zinc-500">
+                      {wave.allCancelled ? (
+                        <span className="font-medium text-[var(--chem-crimson)]">
+                          Отозвано
+                        </span>
+                      ) : (
+                        formatWaveSummary(wave)
+                      )}{" "}
+                      · {formatDue(wave.dueAt)}
+                    </p>
+                  </div>
+                  {wave.canCancel ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      aria-label={`Отозвать задание «${wave.title}»`}
+                      onClick={() => void handleCancelWave(wave)}
+                      className="shrink-0 rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-[var(--chem-crimson)] disabled:opacity-60"
+                    >
+                      <TrashIcon />
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {undo ? (
+          <div
+            role="status"
+            className="chem-callout chem-callout-remember flex flex-wrap items-center justify-between gap-3"
+          >
+            <p className="text-sm font-medium text-chem-teal-dark">
+              Отозвано: «{undo.title}» — {undo.cancelledCount}
+              {undo.skippedSubmittedCount > 0
+                ? ` (сдано не тронуто: ${undo.skippedSubmittedCount})`
+                : ""}
+              .
+            </p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void handleRestoreWave()}
+              className="shrink-0 rounded-md border border-chem-teal/40 bg-white px-3 py-1.5 text-sm font-medium text-chem-teal-dark hover:bg-white/80 disabled:opacity-60"
+            >
+              Вернуть
+            </button>
+          </div>
+        ) : null}
 
         <section className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-zinc-900">

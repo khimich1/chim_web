@@ -127,6 +127,7 @@ class HomeworkTemplateService:
                 student_id=data.student_id,
                 due_at=data.due_at,
                 source_group_id=None,
+                assign_batch_id=None,
             )
             await self._session.commit()
             reloaded = await self._homework.get_by_id(assignment.id)
@@ -184,6 +185,7 @@ class HomeworkTemplateService:
             member_students.append(student)
 
         created_ids: list[uuid.UUID] = []
+        assign_batch_id = uuid.uuid4()
         for student in member_students:
             assignment = await self._create_assignment_for_student(
                 teacher=teacher,
@@ -192,6 +194,7 @@ class HomeworkTemplateService:
                 student_id=student.id,
                 due_at=due_at,
                 source_group_id=group.id,
+                assign_batch_id=assign_batch_id,
                 student=student,
             )
             created_ids.append(assignment.id)
@@ -214,6 +217,7 @@ class HomeworkTemplateService:
         student_id: uuid.UUID,
         due_at,
         source_group_id: uuid.UUID | None,
+        assign_batch_id: uuid.UUID | None = None,
         student: User | None = None,
     ) -> HomeworkAssignment:
         if student is None:
@@ -245,6 +249,7 @@ class HomeworkTemplateService:
             status=HomeworkStatus.ASSIGNED,
             template_id=template.id,
             source_group_id=source_group_id,
+            assign_batch_id=assign_batch_id,
             item_progress=[
                 HomeworkItemProgress(
                     item_index=index,

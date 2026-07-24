@@ -27,6 +27,12 @@ vi.mock("@/lib/api/templates", () => ({
   assignHomeworkTemplate: vi.fn(),
 }));
 
+vi.mock("@/lib/api/homework", () => ({
+  listHomework: vi.fn().mockResolvedValue([]),
+  cancelHomework: vi.fn(),
+  restoreHomework: vi.fn(),
+}));
+
 const mockedList = vi.mocked(listTeacherGroups);
 const mockedGet = vi.mocked(getTeacherGroup);
 const mockedCreate = vi.mocked(createTeacherGroup);

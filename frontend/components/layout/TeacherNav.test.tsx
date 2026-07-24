@@ -38,6 +38,12 @@ describe("TeacherNav", () => {
       "href",
       "/teacher/students",
     );
+    expect(
+      screen.getByRole("link", { name: "Конструктор заданий" }),
+    ).toHaveAttribute("href", "/teacher/themes");
+    expect(screen.getByRole("link", { name: "Конструктор заданий" })).toHaveTextContent(
+      "Конструктор",
+    );
     expect(screen.getByRole("link", { name: "Задания" })).toHaveAttribute(
       "href",
       "/teacher/homework",

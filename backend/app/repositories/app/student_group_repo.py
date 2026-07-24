@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -134,7 +135,10 @@ class StudentGroupRepository:
                     [HomeworkStatus.ASSIGNED, HomeworkStatus.IN_PROGRESS]
                 ),
             )
-            .values(status=HomeworkStatus.CANCELLED)
+            .values(
+                status=HomeworkStatus.CANCELLED,
+                cancelled_at=datetime.now(timezone.utc),
+            )
         )
         result = await self._session.execute(stmt)
         return int(result.rowcount or 0)
@@ -148,7 +152,10 @@ class StudentGroupRepository:
                     [HomeworkStatus.ASSIGNED, HomeworkStatus.IN_PROGRESS]
                 ),
             )
-            .values(status=HomeworkStatus.CANCELLED)
+            .values(
+                status=HomeworkStatus.CANCELLED,
+                cancelled_at=datetime.now(timezone.utc),
+            )
         )
         result = await self._session.execute(stmt)
         return int(result.rowcount or 0)

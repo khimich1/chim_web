@@ -279,6 +279,7 @@ def test_remove_member_cancels_unsubmitted_group_homework(
     detail_a = client.get(f"/api/homework/{assignment_id}")
     assert detail_a.status_code == 200
     assert detail_a.json()["status"] == "cancelled"
+    assert detail_a.json()["cancelled_at"] is not None
 
     detail_b = client.get(f"/api/homework/{submitted_id}")
     assert detail_b.status_code == 200
@@ -314,6 +315,7 @@ def test_delete_group_revokes_and_removes(client: TestClient) -> None:
     detail = client.get(f"/api/homework/{assignment_id}")
     assert detail.status_code == 200
     assert detail.json()["status"] == "cancelled"
+    assert detail.json()["cancelled_at"] is not None
 
 
 def test_other_teacher_cannot_access_group(client: TestClient) -> None:

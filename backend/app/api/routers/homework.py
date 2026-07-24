@@ -22,7 +22,15 @@ from app.api.deps import CurrentUser, StudentUser, TeacherUser, get_activity_ser
 from app.core.config import Settings
 from app.db.session import get_db
 from app.models.enums import UserRole
-from app.schemas.homework import HomeworkCreate, HomeworkRead, HomeworkSubmitRequest
+from app.schemas.homework import (
+    HomeworkCancelRequest,
+    HomeworkCancelResponse,
+    HomeworkCreate,
+    HomeworkRead,
+    HomeworkRestoreRequest,
+    HomeworkRestoreResponse,
+    HomeworkSubmitRequest,
+)
 from app.schemas.homework_feedback import (
     FeedbackContentRead,
     StepFeedbackRead,
@@ -90,6 +98,44 @@ async def submit_homework(
     service: Annotated[HomeworkSubmitService, Depends(get_homework_submit_service)],
 ) -> HomeworkRead:
     return await service.submit(student, assignment_id, payload)
+
+
+@router.post(
+    "/{assignment_id}/cancel",
+    response_model=HomeworkCancelResponse,
+    summary="Cancel homework (teacher)",
+)
+async def cancel_homework(
+    assignment_id: uuid.UUID,
+    teacher: TeacherUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
+    payload: HomeworkCancelRequest | None = None,
+) -> HomeworkCancelResponse:
+    return await HomeworkService(db, settings).cancel_assignment(
+        teacher,
+        assignment_id,
+        payload,
+    )
+
+
+@router.post(
+    "/{assignment_id}/restore",
+    response_model=HomeworkRestoreResponse,
+    summary="Restore cancelled homework within 30s (teacher)",
+)
+async def restore_homework(
+    assignment_id: uuid.UUID,
+    teacher: TeacherUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
+    payload: HomeworkRestoreRequest | None = None,
+) -> HomeworkRestoreResponse:
+    return await HomeworkService(db, settings).restore_assignment(
+        teacher,
+        assignment_id,
+        payload,
+    )
 
 
 @router.post("/{assignment_id}/reopen", response_model=HomeworkRead)

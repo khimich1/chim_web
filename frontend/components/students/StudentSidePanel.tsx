@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation";
 import { SidePanelShell } from "@/components/students/SidePanelShell";
 import { TrackBadge } from "@/components/ui/TrackBadge";
 import { ApiError } from "@/lib/api/client";
-import { listHomework } from "@/lib/api/homework";
+import {
+  cancelHomework,
+  listHomework,
+  restoreHomework,
+} from "@/lib/api/homework";
 import {
   deleteStudent,
   resetStudentPassword,
@@ -28,6 +32,31 @@ const STATUS_LABEL: Record<HomeworkStatus, string> = {
   reviewed: "Проверено",
   cancelled: "Отменено",
 };
+
+const UNDO_MS = 30_000;
+
+function canCancelStatus(status: HomeworkStatus): boolean {
+  return status === "assigned" || status === "in_progress";
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.5 6.5v8m3.5-8v8m3.5-8v8M4 5.5h12m-1 0-.7 10.2A1.5 1.5 0 0 1 12.8 17H7.2a1.5 1.5 0 0 1-1.5-1.3L5 5.5m3-.8A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.7V5.5"
+      />
+    </svg>
+  );
+}
 
 function formatDue(iso: string | null): string {
   if (!iso) {
@@ -74,6 +103,10 @@ export function StudentSidePanel({
   const [homework, setHomework] = useState<HomeworkAssignment[]>([]);
   const [homeworkLoading, setHomeworkLoading] = useState(true);
   const [homeworkError, setHomeworkError] = useState<string | null>(null);
+  const [undo, setUndo] = useState<{
+    assignmentId: string;
+    title: string;
+  } | null>(null);
 
   const loadHomework = useCallback(async () => {
     setHomeworkError(null);
@@ -91,6 +124,14 @@ export function StudentSidePanel({
       setHomeworkLoading(false);
     }
   }, [student.id]);
+
+  useEffect(() => {
+    if (!undo) {
+      return;
+    }
+    const timer = window.setTimeout(() => setUndo(null), UNDO_MS);
+    return () => window.clearTimeout(timer);
+  }, [undo]);
 
   useEffect(() => {
     let cancelled = false;
@@ -197,6 +238,49 @@ export function StudentSidePanel({
       } else {
         setError("Не удалось удалить ученика. Попробуйте позже.");
       }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCancel(row: HomeworkAssignment) {
+    setBusy(true);
+    setError(null);
+    setAssignSuccess(null);
+    try {
+      await cancelHomework(row.id, "single");
+      setUndo({ assignmentId: row.id, title: row.title });
+      await loadHomework();
+      router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message || "Не удалось отозвать задание."
+          : "Не удалось отозвать задание.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRestore() {
+    if (!undo) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await restoreHomework(undo.assignmentId, "single");
+      setUndo(null);
+      await loadHomework();
+      router.refresh();
+    } catch (err) {
+      setUndo(null);
+      setError(
+        err instanceof ApiError
+          ? err.message || "Не удалось вернуть задание (окно 30 с истекло)."
+          : "Не удалось вернуть задание.",
+      );
     } finally {
       setBusy(false);
     }
@@ -309,25 +393,56 @@ export function StudentSidePanel({
               {homework.map((row) => (
                 <li
                   key={row.id}
-                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm"
+                  className="flex items-start justify-between gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm"
                 >
-                  <p className="font-medium text-zinc-900">{row.title}</p>
-                  <p className="text-zinc-500">
-                    {row.status === "cancelled" ? (
-                      <span className="font-medium text-[var(--chem-crimson)]">
-                        Отменено
-                      </span>
-                    ) : (
-                      STATUS_LABEL[row.status]
-                    )}{" "}
-                    · {formatDue(row.due_at)}
-                  </p>
+                  <div className="min-w-0">
+                    <p className="font-medium text-zinc-900">{row.title}</p>
+                    <p className="text-zinc-500">
+                      {row.status === "cancelled" ? (
+                        <span className="font-medium text-[var(--chem-crimson)]">
+                          Отменено
+                        </span>
+                      ) : (
+                        STATUS_LABEL[row.status]
+                      )}{" "}
+                      · {formatDue(row.due_at)}
+                    </p>
+                  </div>
+                  {canCancelStatus(row.status) ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      aria-label={`Отозвать задание «${row.title}»`}
+                      onClick={() => void handleCancel(row)}
+                      className="shrink-0 rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-[var(--chem-crimson)] disabled:opacity-60"
+                    >
+                      <TrashIcon />
+                    </button>
+                  ) : null}
                 </li>
               ))}
             </ul>
           )}
         </section>
 
+        {undo ? (
+          <div
+            role="status"
+            className="chem-callout chem-callout-remember flex flex-wrap items-center justify-between gap-3"
+          >
+            <p className="text-sm font-medium text-chem-teal-dark">
+              Отозвано: «{undo.title}».
+            </p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void handleRestore()}
+              className="shrink-0 rounded-md border border-chem-teal/40 bg-white px-3 py-1.5 text-sm font-medium text-chem-teal-dark hover:bg-white/80 disabled:opacity-60"
+            >
+              Вернуть
+            </button>
+          </div>
+        ) : null}
         <section className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-zinc-900">
             Назначить задание

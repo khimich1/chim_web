@@ -282,6 +282,8 @@ def test_assign_template_to_student_creates_assignment(client: TestClient) -> No
     assert body[0]["items"] == template["items"]
     assert body[0]["status"] == "assigned"
     assert body[0]["student_email"] == STUDENT_EMAIL
+    assert body[0]["assign_batch_id"] is None
+    assert body[0]["cancelled_at"] is None
 
     client.post("/api/auth/logout")
     assert _login(client, STUDENT_EMAIL, STUDENT_PASS).status_code == 200
@@ -405,6 +407,9 @@ def test_assign_template_to_group_fan_out(client: TestClient) -> None:
     assert all(row["template_id"] == template["id"] for row in body)
     assert all(row["source_group_id"] == group["id"] for row in body)
     assert len({row["source_group_id"] for row in body}) == 1
+    batch_ids = {row["assign_batch_id"] for row in body}
+    assert len(batch_ids) == 1
+    assert batch_ids.pop() is not None
 
     listed = client.get("/api/homework").json()
     assert len(listed) == 3

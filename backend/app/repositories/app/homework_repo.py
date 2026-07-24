@@ -83,3 +83,25 @@ class HomeworkRepository:
     ) -> None:
         assignment.status = status
         await self._session.flush()
+
+    async def list_by_assign_batch(
+        self,
+        *,
+        teacher_id: uuid.UUID,
+        assign_batch_id: uuid.UUID,
+    ) -> list[HomeworkAssignment]:
+        stmt = (
+            select(HomeworkAssignment)
+            .where(
+                HomeworkAssignment.teacher_id == teacher_id,
+                HomeworkAssignment.assign_batch_id == assign_batch_id,
+            )
+            .options(
+                joinedload(HomeworkAssignment.student),
+                joinedload(HomeworkAssignment.submission),
+                selectinload(HomeworkAssignment.item_progress),
+            )
+            .order_by(HomeworkAssignment.created_at.asc())
+        )
+        result = await self._session.scalars(stmt)
+        return list(result.unique().all())

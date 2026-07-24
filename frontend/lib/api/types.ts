@@ -361,6 +361,10 @@ export interface HomeworkAssignment {
   items: HomeworkItem[];
   status: HomeworkStatus;
   created_at: string;
+  template_id?: string | null;
+  source_group_id?: string | null;
+  assign_batch_id?: string | null;
+  cancelled_at?: string | null;
   submission: HomeworkSubmission | null;
   progress: HomeworkItemProgress[];
   active_test_session_id: string | null;
@@ -368,6 +372,18 @@ export interface HomeworkAssignment {
   submission_feedback?: StepFeedbackContent | null;
   has_teacher_feedback?: boolean;
   can_reopen?: boolean;
+}
+
+export type HomeworkCancelScope = "single" | "wave";
+
+export interface HomeworkCancelResponse {
+  cancelled_ids: string[];
+  skipped_submitted_count: number;
+  cancelled_at: string | null;
+}
+
+export interface HomeworkRestoreResponse {
+  restored_ids: string[];
 }
 
 export interface CreateHomeworkInput {

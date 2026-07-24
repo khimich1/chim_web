@@ -11,7 +11,12 @@ import type { Notification } from "@/lib/api/types";
 const NAV_LINKS = [
   { href: "/teacher", label: "Главная", exact: true },
   { href: "/teacher/students", label: "Ученики", exact: false },
-  { href: "/teacher/themes", label: "Темы", exact: false },
+  {
+    href: "/teacher/themes",
+    label: "Конструктор",
+    ariaLabel: "Конструктор заданий",
+    exact: false,
+  },
   { href: "/teacher/homework", label: "Задания", exact: false },
   { href: "/teacher/notifications", label: "Уведомления", exact: false },
 ] as const;
@@ -46,12 +51,17 @@ export function TeacherNav({
           className="order-3 w-full sm:order-none sm:w-auto"
         >
           <ul className="flex flex-wrap justify-center gap-1.5 sm:gap-2">
-            {NAV_LINKS.map(({ href, label, exact }) => {
+            {NAV_LINKS.map((link) => {
+              const { href, label, exact } = link;
+              const ariaLabel =
+                "ariaLabel" in link ? link.ariaLabel : undefined;
               const active = linkIsActive(pathname, href, exact);
               return (
                 <li key={href}>
                   <Link
                     href={href}
+                    aria-label={ariaLabel}
+                    title={ariaLabel}
                     aria-current={active ? "page" : undefined}
                     className={`inline-flex min-h-[44px] items-center rounded-md px-3 py-2 text-sm font-medium transition ${
                       active
