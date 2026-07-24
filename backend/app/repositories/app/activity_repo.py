@@ -142,7 +142,10 @@ class ActivityRepository:
             select(User, StudentProfile, StudentStats)
             .join(StudentProfile, StudentProfile.user_id == User.id)
             .outerjoin(StudentStats, StudentStats.student_id == User.id)
-            .where(StudentProfile.teacher_id == teacher_id)
+            .where(
+                StudentProfile.teacher_id == teacher_id,
+                User.is_active.is_(True),
+            )
             .order_by(User.created_at.desc())
         )
         rows = await self._session.execute(stmt)

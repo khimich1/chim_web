@@ -1,20 +1,23 @@
 """Students endpoints.
 
-| Method | Path                         | Role    | Request           | Response              |
-|--------|------------------------------|---------|-------------------|-----------------------|
-| GET    | /api/students                | teacher | -                 | list[StudentRead]     |
-| POST   | /api/students                | teacher | StudentCreate     | StudentRead (201)     |
-| GET    | /api/students/me/stats       | student | -                 | StudentStatsRead      |
-| GET    | /api/students/me/onboarding  | student | -                 | OnboardingRead        |
-| GET    | /api/students/me/onboarding/welcome | student | -          | OnboardingWelcomeRead |
-| PATCH  | /api/students/me/onboarding  | student | OnboardingPatch   | OnboardingRead        |
+| Method | Path                              | Role    | Request           | Response                    |
+|--------|-----------------------------------|---------|-------------------|-----------------------------|
+| GET    | /api/students                     | teacher | -                 | list[StudentRead]           |
+| POST   | /api/students                     | teacher | StudentCreate     | StudentRead (201)           |
+| DELETE | /api/students/{id}                | teacher | -                 | 204 soft-delete             |
+| POST   | /api/students/{id}/reset-password | teacher | -                 | StudentPasswordResetRead    |
+| GET    | /api/students/me/stats            | student | -                 | StudentStatsRead            |
+| GET    | /api/students/me/onboarding       | student | -                 | OnboardingRead              |
+| GET    | /api/students/me/onboarding/welcome | student | -               | OnboardingWelcomeRead       |
+| PATCH  | /api/students/me/onboarding       | student | OnboardingPatch   | OnboardingRead              |
 """
 
 from __future__ import annotations
 
+import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import StudentUser, TeacherUser, get_activity_service, get_app_settings
@@ -22,7 +25,11 @@ from app.core.config import Settings
 from app.db.session import get_db
 from app.schemas.activity import StudentStatsRead
 from app.schemas.onboarding import OnboardingPatch, OnboardingRead, OnboardingWelcomeRead
-from app.schemas.students import StudentCreate, StudentRead
+from app.schemas.students import (
+    StudentCreate,
+    StudentPasswordResetRead,
+    StudentRead,
+)
 from app.services.activity_service import ActivityService
 from app.services.onboarding_service import OnboardingService
 from app.services.student_service import StudentService
@@ -95,3 +102,25 @@ async def create_student(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> StudentRead:
     return await StudentService(db).create_student(teacher.id, payload)
+
+
+@router.delete("/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def soft_delete_student(
+    student_id: uuid.UUID,
+    teacher: TeacherUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Response:
+    await StudentService(db).soft_delete_student(teacher.id, student_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{student_id}/reset-password",
+    response_model=StudentPasswordResetRead,
+)
+async def reset_student_password(
+    student_id: uuid.UUID,
+    teacher: TeacherUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> StudentPasswordResetRead:
+    return await StudentService(db).reset_password(teacher.id, student_id)

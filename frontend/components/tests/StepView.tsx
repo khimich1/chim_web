@@ -23,6 +23,10 @@ import {
   countsTowardScore,
   isCustomStep,
 } from "@/lib/tests/grading-utils";
+import {
+  IMAGE_INTAKE_HINT,
+  imageFilesFromDataTransfer,
+} from "@/lib/image-intake";
 
 function findFirstUnchecked(steps: TestStep[]): number {
   const index = steps.findIndex((step) => step.status !== "checked");
@@ -379,7 +383,52 @@ export function StepView({ session }: { session: TestSession }) {
               className="chem-input min-h-[44px] w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 disabled:bg-zinc-50"
             />
             {requiresPhoto ? (
-              <div className="flex flex-col gap-3">
+              <div
+                className="flex flex-col gap-3"
+                data-testid="answer-image-intake"
+                onPaste={(event) => {
+                  if (isChecked || uploadingAnswerImage) {
+                    return;
+                  }
+                  const { files } = imageFilesFromDataTransfer(
+                    event.clipboardData,
+                    { limit: 1 },
+                  );
+                  if (files.length === 0) {
+                    return;
+                  }
+                  event.preventDefault();
+                  void handleAnswerImageUpload(files[0]!);
+                }}
+                onDragOver={(event) => {
+                  if (isChecked || uploadingAnswerImage) {
+                    return;
+                  }
+                  const { files } = imageFilesFromDataTransfer(
+                    event.dataTransfer,
+                    { limit: 1 },
+                  );
+                  if (files.length === 0) {
+                    return;
+                  }
+                  event.preventDefault();
+                }}
+                onDrop={(event) => {
+                  if (isChecked || uploadingAnswerImage) {
+                    return;
+                  }
+                  const { files } = imageFilesFromDataTransfer(
+                    event.dataTransfer,
+                    { limit: 1 },
+                  );
+                  if (files.length === 0) {
+                    return;
+                  }
+                  event.preventDefault();
+                  void handleAnswerImageUpload(files[0]!);
+                }}
+              >
+                <p className="text-xs text-zinc-500">{IMAGE_INTAKE_HINT}</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"

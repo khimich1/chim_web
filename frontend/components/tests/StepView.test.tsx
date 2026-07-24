@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { StepView } from "@/components/tests/StepView";
@@ -505,6 +505,89 @@ describe("StepView", () => {
     expect(compareButton).not.toBeDisabled();
     await userEvent.click(compareButton);
     expect(mockedCompare).toHaveBeenCalledWith("sess-hw", 0, "");
+  });
+
+  it("pastes first image only into answer photo zone", async () => {
+    const homeworkSession: TestSession = {
+      id: "sess-hw",
+      track: "ege",
+      source: "custom",
+      variant_ref: null,
+      homework_assignment_id: "hw-1",
+      custom_theme_id: "theme-1",
+      status: "in_progress",
+      score: null,
+      max_score: null,
+      total_steps: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      steps: [
+        {
+          position: 0,
+          test_id: null,
+          custom_task_id: "task-1",
+          type: null,
+          question: null,
+          options: null,
+          question_blocks: [{ type: "text", content: "Решение" }],
+          grading_mode: "self_check",
+          status: "unseen",
+          answer: null,
+          is_correct: null,
+          hint_used: false,
+        },
+      ],
+    };
+
+    mockedUpload.mockResolvedValue({
+      id: "img-paste",
+      url: "/api/uploads/images/img-paste",
+    });
+    mockedAttach.mockResolvedValue({
+      position: 0,
+      answer_image_id: "img-paste",
+      answer_image_url: "/api/uploads/images/img-paste",
+    });
+
+    render(<StepView session={homeworkSession} />);
+
+    expect(
+      screen.getByText(/Можно вставить изображение из буфера/),
+    ).toBeInTheDocument();
+
+    const first = new File(["a"], "first.png", { type: "image/png" });
+    const second = new File(["b"], "second.png", { type: "image/png" });
+    const items = [first, second].map((file) => ({
+      kind: "file" as const,
+      type: file.type,
+      getAsFile: () => file,
+    }));
+
+    fireEvent.paste(screen.getByTestId("answer-image-intake"), {
+      clipboardData: {
+        items: {
+          length: items.length,
+          ...items,
+          [Symbol.iterator]: function* () {
+            yield* items;
+          },
+        },
+        files: {
+          length: 2,
+          0: first,
+          1: second,
+          item: (i: number) => [first, second][i] ?? null,
+          [Symbol.iterator]: function* () {
+            yield* [first, second];
+          },
+        },
+      },
+    });
+
+    await waitFor(() => {
+      expect(mockedUpload).toHaveBeenCalledTimes(1);
+      expect(mockedUpload).toHaveBeenCalledWith(first);
+      expect(mockedAttach).toHaveBeenCalledWith("sess-hw", 0, "img-paste");
+    });
   });
 
   it("creates handoff QR and polls until photo arrives", async () => {

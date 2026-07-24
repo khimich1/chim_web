@@ -31,6 +31,7 @@ class HomeworkStatus(str, enum.Enum):
     IN_PROGRESS = "in_progress"
     SUBMITTED = "submitted"
     REVIEWED = "reviewed"
+    CANCELLED = "cancelled"
 
 
 class HomeworkItemKind(str, enum.Enum):

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { LogoutButton } from "@/components/auth/LogoutButton";
 import { ThemeDetailView } from "@/components/teacher/ThemeDetailView";
 import {
   getCurrentUser,
@@ -35,12 +34,9 @@ export default async function TeacherThemeDetailPage({
           </h1>
           <p className="mt-1 text-sm text-zinc-600">{user?.email}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/teacher/themes" className="chem-link text-sm">
-            К списку тем
-          </Link>
-          <LogoutButton />
-        </div>
+        <Link href="/teacher/themes" className="chem-link shrink-0 text-sm">
+          К списку тем
+        </Link>
       </div>
 
       <section className="mt-10">

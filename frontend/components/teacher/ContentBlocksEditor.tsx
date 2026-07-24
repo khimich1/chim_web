@@ -1,59 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 
-import { ApiError, API_URL } from "@/lib/api/client";
+import { AuthenticatedImage } from "@/components/common/AuthenticatedImage";
+import { ApiError } from "@/lib/api/client";
 import { uploadImage } from "@/lib/api/uploads";
 import type { ContentBlock } from "@/lib/api/types";
+import {
+  CONTENT_IMAGE_CLASS,
+  IMAGE_INTAKE_HINT,
+  imageFilesFromDataTransfer,
+} from "@/lib/image-intake";
 
-function BlockImagePreview({ url }: { url: string }) {
-  const path = url.startsWith("http") ? new URL(url).pathname : url;
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let objectUrl: string | null = null;
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const response = await fetch(`${API_URL}${path}`, {
-          credentials: "include",
-        });
-        if (!response.ok || cancelled) {
-          return;
-        }
-        const blob = await response.blob();
-        objectUrl = URL.createObjectURL(blob);
-        if (!cancelled) {
-          setSrc(objectUrl);
-        }
-      } catch {
-        // preview optional
-      }
-    }
-
-    void load();
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [path]);
-
-  if (!src) {
-    return <p className="text-xs text-zinc-500">Загрузка превью…</p>;
-  }
-
-  return (
-    <img
-      src={src}
-      alt="Загруженное изображение"
-      className="mt-2 block h-auto max-w-full rounded-md border border-zinc-200 object-contain"
-    />
-  );
-}
+const EDITOR_INTAKE_LIMIT = 10;
 
 export function ContentBlocksEditor({
   blocks,
@@ -64,8 +23,12 @@ export function ContentBlocksEditor({
   onChange: (blocks: ContentBlock[]) => void;
   label: string;
 }) {
-  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [activeBlockIndex, setActiveBlockIndex] = useState<number | null>(null);
+  const blocksRef = useRef(blocks);
+  blocksRef.current = blocks;
 
   function updateBlock(index: number, block: ContentBlock) {
     onChange(blocks.map((item, i) => (i === index ? block : item)));
@@ -79,25 +42,116 @@ export function ContentBlocksEditor({
     onChange([...blocks, { type: "text", content: "" }]);
   }
 
-  async function addImageBlock(file: File) {
+  function insertImageBlocks(urls: string[]) {
+    if (urls.length === 0) {
+      return;
+    }
+    const current = blocksRef.current;
+    const imageBlocks: ContentBlock[] = urls.map((url) => ({
+      type: "image",
+      url,
+    }));
+    const insertAt =
+      activeBlockIndex !== null && activeBlockIndex >= 0
+        ? activeBlockIndex + 1
+        : current.length;
+    const next = [
+      ...current.slice(0, insertAt),
+      ...imageBlocks,
+      ...current.slice(insertAt),
+    ];
+    onChange(next);
+    blocksRef.current = next;
+  }
+
+  async function uploadFiles(files: File[], truncated: boolean) {
+    if (uploading || files.length === 0) {
+      return;
+    }
     setError(null);
-    const index = blocks.length;
-    setUploadingIndex(index);
+    setNotice(
+      truncated
+        ? "За раз можно загрузить не более 10 изображений; лишние отброшены."
+        : null,
+    );
+    setUploading(true);
+    const urls: string[] = [];
     try {
-      const result = await uploadImage(file);
-      onChange([...blocks, { type: "image", url: result.url }]);
+      for (const file of files) {
+        const result = await uploadImage(file);
+        urls.push(result.url);
+      }
+      insertImageBlocks(urls);
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Не удалось загрузить изображение.",
+        err instanceof ApiError
+          ? err.message
+          : "Не удалось загрузить изображение.",
       );
+      if (urls.length > 0) {
+        insertImageBlocks(urls);
+      }
     } finally {
-      setUploadingIndex(null);
+      setUploading(false);
     }
   }
 
+  async function addImageBlock(file: File) {
+    await uploadFiles([file], false);
+  }
+
+  function handlePaste(event: React.ClipboardEvent) {
+    if (uploading) {
+      return;
+    }
+    const { files, truncated } = imageFilesFromDataTransfer(
+      event.clipboardData,
+      { limit: EDITOR_INTAKE_LIMIT },
+    );
+    if (files.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    void uploadFiles(files, truncated);
+  }
+
+  function handleDragOver(event: React.DragEvent) {
+    if (uploading) {
+      return;
+    }
+    const { files } = imageFilesFromDataTransfer(event.dataTransfer, {
+      limit: EDITOR_INTAKE_LIMIT,
+    });
+    if (files.length === 0) {
+      return;
+    }
+    event.preventDefault();
+  }
+
+  function handleDrop(event: React.DragEvent) {
+    if (uploading) {
+      return;
+    }
+    const { files, truncated } = imageFilesFromDataTransfer(event.dataTransfer, {
+      limit: EDITOR_INTAKE_LIMIT,
+    });
+    if (files.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    void uploadFiles(files, truncated);
+  }
+
   return (
-    <div className="flex flex-col gap-3">
+    <div
+      className="flex flex-col gap-3"
+      data-testid="content-blocks-intake"
+      onPaste={handlePaste}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <span className="text-sm font-medium text-zinc-700">{label}</span>
+      <p className="text-xs text-zinc-500">{IMAGE_INTAKE_HINT}</p>
 
       {blocks.length === 0 ? (
         <p className="text-sm text-zinc-500">Добавьте хотя бы один блок.</p>
@@ -128,12 +182,17 @@ export function ContentBlocksEditor({
                 onChange={(e) =>
                   updateBlock(index, { type: "text", content: e.target.value })
                 }
+                onFocus={() => setActiveBlockIndex(index)}
                 rows={3}
                 className="chem-input w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
                 placeholder="Текст задания…"
               />
             ) : block.url ? (
-              <BlockImagePreview url={block.url} />
+              <AuthenticatedImage
+                src={block.url}
+                alt="Загруженное изображение"
+                className={CONTENT_IMAGE_CLASS}
+              />
             ) : null}
           </li>
         ))}
@@ -148,12 +207,12 @@ export function ContentBlocksEditor({
           + Текст
         </button>
         <label className="cursor-pointer rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:border-zinc-400">
-          {uploadingIndex !== null ? "Загрузка…" : "+ Изображение"}
+          {uploading ? "Загрузка…" : "+ Изображение"}
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp"
             className="sr-only"
-            disabled={uploadingIndex !== null}
+            disabled={uploading}
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) {
@@ -164,6 +223,12 @@ export function ContentBlocksEditor({
           />
         </label>
       </div>
+
+      {notice ? (
+        <p role="status" className="text-sm text-zinc-600">
+          {notice}
+        </p>
+      ) : null}
 
       {error ? (
         <p role="alert" className="text-sm text-[var(--chem-crimson)]">

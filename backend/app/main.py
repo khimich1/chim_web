@@ -18,10 +18,12 @@ from app.api.routers import capture as capture_router
 from app.api.routers import custom_themes as custom_themes_router
 from app.api.routers import auth as auth_router
 from app.api.routers import homework as homework_router
+from app.api.routers import homework_templates as homework_templates_router
 from app.api.routers import student_homework as student_homework_router
 from app.api.routers import leaderboard as leaderboard_router
 from app.api.routers import notifications as notifications_router
 from app.api.routers import students as students_router
+from app.api.routers import teacher_groups as teacher_groups_router
 from app.api.routers import teacher_stats as teacher_stats_router
 from app.api.routers import teacher_themes as teacher_themes_router
 from app.api.routers import test_sessions as test_sessions_router
@@ -76,6 +78,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(students_router.router)
     application.include_router(teacher_stats_router.router)
     application.include_router(leaderboard_router.router)
+    # Templates before /{assignment_id} so "templates" is not treated as a UUID.
+    application.include_router(homework_templates_router.router)
     application.include_router(homework_router.router)
     application.include_router(student_homework_router.router)
     application.include_router(notifications_router.router)
@@ -87,6 +91,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(tutor_router.router)
     application.include_router(uploads_router.router)
     application.include_router(teacher_themes_router.router)
+    application.include_router(teacher_groups_router.router)
 
     @application.get("/health")
     def health(request: Request) -> dict[str, object]:

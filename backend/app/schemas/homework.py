@@ -147,6 +147,8 @@ class HomeworkRead(BaseModel):
     items: list[dict]
     status: HomeworkStatus
     created_at: datetime
+    template_id: uuid.UUID | None = None
+    source_group_id: uuid.UUID | None = None
     submission: HomeworkSubmissionRead | None = None
     progress: list[HomeworkItemProgressRead] = Field(default_factory=list)
     active_test_session_id: uuid.UUID | None = None

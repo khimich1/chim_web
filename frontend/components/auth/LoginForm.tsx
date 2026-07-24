@@ -31,7 +31,7 @@ export function LoginForm({ redirectTo = null }: LoginFormProps) {
       router.refresh();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        setError("Неверный email или пароль");
+        setError("Неверный логин или пароль");
       } else {
         setError(formatFetchError(err, "Не удалось войти. Попробуйте позже."));
       }
@@ -43,13 +43,13 @@ export function LoginForm({ redirectTo = null }: LoginFormProps) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
       <div className="flex flex-col gap-1">
-        <label htmlFor="email" className="text-sm font-medium text-zinc-700">
-          Email
+        <label htmlFor="login" className="text-sm font-medium text-zinc-700">
+          Логин
         </label>
         <input
-          id="email"
+          id="login"
           name="email"
-          type="email"
+          type="text"
           autoComplete="username"
           required
           value={email}

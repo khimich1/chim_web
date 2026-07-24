@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { HomeworkForm } from "@/components/homework/HomeworkForm";
-import { createHomework } from "@/lib/api/homework";
+import { createHomeworkTemplate } from "@/lib/api/templates";
 
 const push = vi.fn();
 const refresh = vi.fn();
@@ -12,20 +12,12 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh }),
 }));
 
-vi.mock("@/lib/api/homework", () => ({
-  createHomework: vi.fn(),
+vi.mock("@/lib/api/templates", () => ({
+  createHomeworkTemplate: vi.fn(),
+  updateHomeworkTemplate: vi.fn(),
 }));
 
-const mockedCreate = vi.mocked(createHomework);
-
-const students = [
-  {
-    id: "student-1",
-    email: "student@example.com",
-    track: "ege" as const,
-    created_at: "2026-01-01T00:00:00Z",
-  },
-];
+const mockedCreate = vi.mocked(createHomeworkTemplate);
 
 const topics = ["Алканы", "Соли"];
 const variantsByTrack = {
@@ -69,17 +61,13 @@ const teacherThemes = [
 beforeEach(() => {
   vi.clearAllMocks();
   mockedCreate.mockResolvedValue({
-    id: "hw-1",
-    student_id: "student-1",
-    student_email: null,
+    id: "tpl-1",
+    teacher_id: "teacher-1",
     title: "ДЗ",
     description: null,
-    due_at: null,
     items: [],
-    status: "assigned",
     created_at: "2026-01-01T00:00:00Z",
-    submission: null,
-    progress: [],
+    updated_at: "2026-01-01T00:00:00Z",
   });
 });
 
@@ -89,20 +77,30 @@ function fillTitle(title: string) {
   });
 }
 
+function renderForm() {
+  return render(
+    <HomeworkForm
+      topics={topics}
+      variantsByTrack={variantsByTrack}
+      teacherThemes={teacherThemes}
+    />,
+  );
+}
+
 describe("HomeworkForm", () => {
+  it("has no student select field", () => {
+    renderForm();
+    expect(screen.queryByLabelText("Ученик")).not.toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Контент для тестовых пунктов"),
+    ).toBeInTheDocument();
+  });
+
   it(
     "adds and removes multiple items from different variants",
     async () => {
       const user = userEvent.setup();
-
-      render(
-        <HomeworkForm
-          students={students}
-          topics={topics}
-          variantsByTrack={variantsByTrack}
-          teacherThemes={teacherThemes}
-        />,
-      );
+      renderForm();
 
       fillTitle("Смешанное ДЗ");
 
@@ -143,11 +141,10 @@ describe("HomeworkForm", () => {
         expect(screen.queryByText(/2\. Тест: 003/)).not.toBeInTheDocument();
       });
 
-      await user.click(screen.getByRole("button", { name: "Назначить" }));
+      await user.click(screen.getByRole("button", { name: "Создать шаблон" }));
 
       await waitFor(() => {
         expect(mockedCreate).toHaveBeenCalledWith({
-          student_id: "student-1",
           title: "Смешанное ДЗ",
           description: null,
           items: [
@@ -162,31 +159,17 @@ describe("HomeworkForm", () => {
   );
 
   it("blocks submit when no items were added", async () => {
-    render(
-      <HomeworkForm
-        students={students}
-        topics={topics}
-        variantsByTrack={variantsByTrack}
-        teacherThemes={teacherThemes}
-      />,
-    );
-
+    renderForm();
     await fillTitle("Пустое ДЗ");
 
-    expect(screen.getByRole("button", { name: "Назначить" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Создать шаблон" }),
+    ).toBeDisabled();
     expect(mockedCreate).not.toHaveBeenCalled();
   });
 
   it("adds test_by_type without variant picker", async () => {
-    render(
-      <HomeworkForm
-        students={students}
-        topics={topics}
-        variantsByTrack={variantsByTrack}
-        teacherThemes={teacherThemes}
-      />,
-    );
-
+    renderForm();
     await fillTitle("Все десятые");
 
     await userEvent.selectOptions(
@@ -201,10 +184,9 @@ describe("HomeworkForm", () => {
       screen.getByText(/1\. Тест: №10 по вариантам/),
     ).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Назначить" }));
+    await userEvent.click(screen.getByRole("button", { name: "Создать шаблон" }));
 
     expect(mockedCreate).toHaveBeenCalledWith({
-      student_id: "student-1",
       title: "Все десятые",
       description: null,
       items: [{ kind: "test_by_type", types: [10] }],
@@ -212,14 +194,7 @@ describe("HomeworkForm", () => {
   });
 
   it("shows EGE type range including written tasks 29–34", async () => {
-    render(
-      <HomeworkForm
-        students={students}
-        topics={topics}
-        variantsByTrack={variantsByTrack}
-        teacherThemes={teacherThemes}
-      />,
-    );
+    renderForm();
 
     await userEvent.selectOptions(
       screen.getByLabelText("Тип пункта"),
@@ -231,15 +206,7 @@ describe("HomeworkForm", () => {
   });
 
   it("adds test_by_type with EGE written task numbers", async () => {
-    render(
-      <HomeworkForm
-        students={students}
-        topics={topics}
-        variantsByTrack={variantsByTrack}
-        teacherThemes={teacherThemes}
-      />,
-    );
-
+    renderForm();
     await fillTitle("Письменная часть");
 
     await userEvent.selectOptions(
@@ -254,33 +221,22 @@ describe("HomeworkForm", () => {
 
     expect(screen.getByText(/1\. Тест: №29, 30 по вариантам/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Назначить" }));
+    await userEvent.click(screen.getByRole("button", { name: "Создать шаблон" }));
 
     expect(mockedCreate).toHaveBeenCalledWith({
-      student_id: "student-1",
       title: "Письменная часть",
       description: null,
       items: [{ kind: "test_by_type", types: [29, 30] }],
     });
   });
 
-  it("shows OGE type range for an OGE student", async () => {
-    render(
-      <HomeworkForm
-        students={[
-          {
-            id: "student-oge",
-            email: "oge@example.com",
-            track: "oge",
-            created_at: "2026-01-01T00:00:00Z",
-          },
-        ]}
-        topics={topics}
-        variantsByTrack={variantsByTrack}
-        teacherThemes={teacherThemes}
-      />,
-    );
+  it("shows OGE type range when content track is OGE", async () => {
+    renderForm();
 
+    await userEvent.selectOptions(
+      screen.getByLabelText("Контент для тестовых пунктов"),
+      "oge",
+    );
     await userEvent.selectOptions(
       screen.getByLabelText("Тип пункта"),
       "test_partial",
@@ -291,15 +247,7 @@ describe("HomeworkForm", () => {
   });
 
   it("adds custom_theme with optional task selection", async () => {
-    render(
-      <HomeworkForm
-        students={students}
-        topics={topics}
-        variantsByTrack={variantsByTrack}
-        teacherThemes={teacherThemes}
-      />,
-    );
-
+    renderForm();
     await fillTitle("Кастомная тема");
 
     await userEvent.selectOptions(
@@ -311,10 +259,9 @@ describe("HomeworkForm", () => {
 
     expect(screen.getByText(/1\. Тема: ОВР \(1 зад\.\)/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Назначить" }));
+    await userEvent.click(screen.getByRole("button", { name: "Создать шаблон" }));
 
     expect(mockedCreate).toHaveBeenCalledWith({
-      student_id: "student-1",
       title: "Кастомная тема",
       description: null,
       items: [
@@ -328,15 +275,7 @@ describe("HomeworkForm", () => {
   });
 
   it("adds test_by_type with selected variants", async () => {
-    render(
-      <HomeworkForm
-        students={students}
-        topics={topics}
-        variantsByTrack={variantsByTrack}
-        teacherThemes={teacherThemes}
-      />,
-    );
-
+    renderForm();
     await fillTitle("Выбор вариантов");
 
     await userEvent.selectOptions(
@@ -350,10 +289,9 @@ describe("HomeworkForm", () => {
 
     expect(screen.getByText(/варианты: 003, 007/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Назначить" }));
+    await userEvent.click(screen.getByRole("button", { name: "Создать шаблон" }));
 
     expect(mockedCreate).toHaveBeenCalledWith({
-      student_id: "student-1",
       title: "Выбор вариантов",
       description: null,
       items: [

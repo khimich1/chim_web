@@ -8,6 +8,7 @@ import type {
   CustomTask,
   CustomThemeListItem,
   HomeworkAssignment,
+  HomeworkTemplate,
   Notification,
   Student,
   TeacherStudentStats,
@@ -134,6 +135,18 @@ export async function getTestSession(
 
 export async function getHomeworkList(): Promise<HomeworkAssignment[]> {
   return (await fetchWithCookies<HomeworkAssignment[]>("/api/homework")) ?? [];
+}
+
+export async function getHomeworkTemplates(): Promise<HomeworkTemplate[]> {
+  return (
+    (await fetchWithCookies<HomeworkTemplate[]>("/api/homework/templates")) ?? []
+  );
+}
+
+export async function getHomeworkTemplate(
+  id: string,
+): Promise<HomeworkTemplate | null> {
+  return fetchWithCookies<HomeworkTemplate>(`/api/homework/templates/${id}`);
 }
 
 export async function getOnboardingStatus(): Promise<OnboardingStatus | null> {

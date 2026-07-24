@@ -3042,6 +3042,8 @@ npm run check:api-types
 
 ## Следующий шаг (2026-06-22)
 
+**Активно (2026-07-23):** логин ученика — план и задачи в [`tasks/student-login-identifier.md`](student-login-identifier.md) (spec: `docs/specs/student-login-identifier.md`). IMPLEMENT после «ок» по плану; **без rename** `email` → `login`.
+
 1. **Phase 18 Task 101** — пресеты скорости в `AudioPlayer` (самый быстрый срез, frontend-only).
 2. **Phase 18 Tasks 102–103** — `textbook_sections.yaml` + API + UI pills.
 3. **Phase 18 Task 104** — `VideoEmbed` после заполнения `video_url` в конфиге.

@@ -19,6 +19,7 @@ from app.models.homework import (
     HomeworkAssignment,
     HomeworkItemProgress,
     HomeworkSubmission,
+    HomeworkTemplate,
 )
 from app.models.homework_feedback import (
     HomeworkSubmissionFeedback,
@@ -26,6 +27,7 @@ from app.models.homework_feedback import (
     UploadedAudio,
 )
 from app.models.notification import Notification
+from app.models.student_group import StudentGroup, StudentGroupMember
 from app.models.student_profile import StudentProfile
 from app.models.teacher_theme import TeacherTheme
 from app.models.test_session import TestSession, TestSessionStep
@@ -46,10 +48,13 @@ __all__ = [
     "HomeworkStatus",
     "HomeworkSubmission",
     "HomeworkSubmissionFeedback",
+    "HomeworkTemplate",
     "Notification",
     "NotificationType",
     "StepStatus",
     "StudentActivityEvent",
+    "StudentGroup",
+    "StudentGroupMember",
     "StudentProfile",
     "StudentStats",
     "TeacherTheme",

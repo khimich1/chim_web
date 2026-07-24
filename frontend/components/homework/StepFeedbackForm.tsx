@@ -9,6 +9,15 @@ import { saveStepFeedback, saveSubmissionFeedback } from "@/lib/api/homework-fee
 import { uploadAudio, uploadImage } from "@/lib/api/uploads";
 import type { StepFeedbackContent, StepFeedbackInput } from "@/lib/api/types";
 import { formatFetchError } from "@/lib/api/client";
+import {
+  IMAGE_INTAKE_HINT,
+  imageFilesFromDataTransfer,
+  isAllowedImageFile,
+} from "@/lib/image-intake";
+
+const FEEDBACK_IMAGE_LIMIT = 5;
+const FEEDBACK_IMAGE_CLASS =
+  "my-2 block h-auto max-h-64 w-full max-w-full rounded-md border border-zinc-200 object-contain";
 
 type FeedbackFormProps = {
   homeworkId: string;
@@ -42,11 +51,15 @@ export function StepFeedbackForm({
   );
   const [saving, setSaving] = useState(false);
   const [uploadingVoice, setUploadingVoice] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
   const hasContent =
     teacherText.trim().length > 0 || Boolean(voiceId) || imageIds.length > 0;
+  const slotsLeft = FEEDBACK_IMAGE_LIMIT - imageIds.length;
+  const intakeDisabled =
+    slotsLeft <= 0 || saving || uploadingImages || uploadingVoice;
 
   const handleVoiceRecorded = async (file: File, durationSec: number) => {
     setUploadingVoice(true);
@@ -62,20 +75,88 @@ export function StepFeedbackForm({
     }
   };
 
+  const uploadFeedbackImages = async (
+    files: File[],
+    truncated = false,
+  ) => {
+    if (files.length === 0 || intakeDisabled) {
+      return;
+    }
+    const toUpload = files.slice(0, slotsLeft);
+    setError(null);
+    setUploadingImages(true);
+    try {
+      for (const file of toUpload) {
+        if (!isAllowedImageFile(file)) {
+          setError("Формат не поддерживается. Используйте JPEG, PNG или WebP.");
+          continue;
+        }
+        const uploaded = await uploadImage(file);
+        setImageIds((prev) => [...prev, uploaded.id]);
+        setImageUrls((prev) => [...prev, uploaded.url]);
+      }
+      if (truncated || files.length > toUpload.length) {
+        setError(
+          `Можно прикрепить не более ${FEEDBACK_IMAGE_LIMIT} фото; лишние отброшены.`,
+        );
+      }
+    } catch (err) {
+      setError(formatFetchError(err, "Не удалось загрузить фото"));
+    } finally {
+      setUploadingImages(false);
+    }
+  };
+
   const handleImageSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || imageIds.length >= 5) {
+    if (!file) {
       return;
     }
-    setError(null);
-    try {
-      const uploaded = await uploadImage(file);
-      setImageIds((prev) => [...prev, uploaded.id]);
-      setImageUrls((prev) => [...prev, uploaded.url]);
-    } catch (err) {
-      setError(formatFetchError(err, "Не удалось загрузить фото"));
+    await uploadFeedbackImages([file]);
+  };
+
+  const handlePaste = (event: React.ClipboardEvent) => {
+    if (intakeDisabled) {
+      return;
     }
+    const { files, truncated } = imageFilesFromDataTransfer(
+      event.clipboardData,
+      { limit: slotsLeft },
+    );
+    if (files.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    void uploadFeedbackImages(files, truncated);
+  };
+
+  const handleDragOver = (event: React.DragEvent) => {
+    if (intakeDisabled) {
+      return;
+    }
+    const { files } = imageFilesFromDataTransfer(event.dataTransfer, {
+      limit: slotsLeft,
+    });
+    if (files.length === 0) {
+      return;
+    }
+    event.preventDefault();
+  };
+
+  const handleDrop = (event: React.DragEvent) => {
+    if (intakeDisabled) {
+      return;
+    }
+    const { files, truncated } = imageFilesFromDataTransfer(
+      event.dataTransfer,
+      { limit: slotsLeft },
+    );
+    if (files.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    void uploadFeedbackImages(files, truncated);
   };
 
   const removeImage = (index: number) => {
@@ -162,27 +243,39 @@ export function StepFeedbackForm({
         )}
       </div>
 
-      <div className="mt-3">
+      <div
+        className="mt-3"
+        data-testid="feedback-image-intake"
+        onPaste={handlePaste}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
         <p className="text-sm font-medium text-zinc-700">Фото к разбору</p>
+        <p className="mt-1 text-xs text-zinc-500">{IMAGE_INTAKE_HINT}</p>
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp"
           className="mt-2 block text-sm"
           onChange={(event) => void handleImageSelected(event)}
-          disabled={imageIds.length >= 5 || saving}
+          disabled={intakeDisabled}
         />
+        {slotsLeft <= 0 ? (
+          <p className="mt-1 text-xs text-zinc-500" role="status">
+            Достигнут лимит {FEEDBACK_IMAGE_LIMIT} фото.
+          </p>
+        ) : null}
         {imageUrls.length > 0 ? (
-          <ul className="mt-2 flex flex-wrap gap-2">
+          <ul className="mt-2 flex flex-col gap-3">
             {imageUrls.map((url, index) => (
               <li key={url} className="relative">
                 <AuthenticatedImage
                   src={url}
                   alt={`Фото разбора ${index + 1}`}
-                  className="h-20 w-20 rounded object-cover"
+                  className={FEEDBACK_IMAGE_CLASS}
                 />
                 <button
                   type="button"
-                  className="absolute -right-1 -top-1 rounded-full bg-zinc-800 px-1.5 text-xs text-white"
+                  className="absolute right-1 top-1 rounded-full bg-zinc-800 px-1.5 text-xs text-white"
                   onClick={() => removeImage(index)}
                   aria-label="Удалить фото"
                 >
@@ -209,7 +302,7 @@ export function StepFeedbackForm({
         type="button"
         className="chem-btn-primary mt-4 text-sm"
         onClick={() => void handleSave()}
-        disabled={saving || uploadingVoice || !hasContent}
+        disabled={saving || uploadingVoice || uploadingImages || !hasContent}
       >
         {saving ? "Сохранение…" : "Сохранить разбор"}
       </button>

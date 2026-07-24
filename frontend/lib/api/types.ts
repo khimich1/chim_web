@@ -79,7 +79,12 @@ export interface ContentBlock {
   content?: string | null;
   url?: string | null;
 }
-export type HomeworkStatus = "assigned" | "in_progress" | "submitted" | "reviewed";
+export type HomeworkStatus =
+  | "assigned"
+  | "in_progress"
+  | "submitted"
+  | "reviewed"
+  | "cancelled";
 export type HomeworkItemKind =
   | "lecture"
   | "test_variant"
@@ -371,6 +376,28 @@ export interface CreateHomeworkInput {
   description?: string | null;
   due_at?: string | null;
   items: HomeworkItem[];
+}
+
+export interface HomeworkTemplate {
+  id: string;
+  teacher_id: string;
+  title: string;
+  description: string | null;
+  items: HomeworkItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateHomeworkTemplateInput {
+  title: string;
+  description?: string | null;
+  items: HomeworkItem[];
+}
+
+export interface UpdateHomeworkTemplateInput {
+  title?: string;
+  description?: string | null;
+  items?: HomeworkItem[];
 }
 
 export interface HomeworkSubmittedNotificationPayload {

@@ -1,4 +1,4 @@
-"""Homework assignment and submission ORM models (app DB)."""
+"""Homework assignment, template, and submission ORM models (app DB)."""
 
 from __future__ import annotations
 
@@ -26,8 +26,46 @@ from app.db.base import Base
 from app.models.enums import HomeworkItemKind, HomeworkStatus
 
 if TYPE_CHECKING:
+    from app.models.student_group import StudentGroup
     from app.models.test_session import TestSession
     from app.models.user import User
+
+
+class HomeworkTemplate(Base):
+    """Reusable homework blueprint owned by a teacher (no student yet)."""
+
+    __tablename__ = "homework_templates"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    teacher_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    items: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON().with_variant(SQLiteJSON, "sqlite"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    teacher: Mapped[User] = relationship("User", foreign_keys=[teacher_id])
 
 
 class HomeworkAssignment(Base):
@@ -70,6 +108,18 @@ class HomeworkAssignment(Base):
         nullable=False,
         default=HomeworkStatus.ASSIGNED,
     )
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("homework_templates.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_group_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("student_groups.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -78,6 +128,14 @@ class HomeworkAssignment(Base):
 
     student: Mapped[User] = relationship("User", foreign_keys=[student_id])
     teacher: Mapped[User] = relationship("User", foreign_keys=[teacher_id])
+    template: Mapped[HomeworkTemplate | None] = relationship(
+        "HomeworkTemplate",
+        foreign_keys=[template_id],
+    )
+    source_group: Mapped[StudentGroup | None] = relationship(
+        "StudentGroup",
+        foreign_keys=[source_group_id],
+    )
     submission: Mapped[HomeworkSubmission | None] = relationship(
         "HomeworkSubmission",
         back_populates="assignment",

@@ -1,0 +1,139 @@
+---
+name: using-agent-skills
+description: Обнаруживает и применяет agent skills. Используй при старте сессии или когда нужно определить, какой skill подходит к текущей задаче.
+---
+
+# Использование Agent Skills
+
+## Обзор
+
+Agent Skills — набор инженерных workflow, организованных по фазам разработки. Каждый skill кодирует процесс, которому следуют senior-инженеры. Этот meta-skill помогает обнаружить и применить правильный skill для текущей задачи.
+
+## Обнаружение skills
+
+Когда приходит задача, определи фазу разработки и примени соответствующий skill (`.cursor/skills/<name>/SKILL.md`):
+
+```
+Задача пришла
+    │
+    ├── Идея размыта, нужны варианты? ──→ idea-refine
+    ├── Новый проект/фича/изменение? ──→ spec-driven-development
+    ├── Есть spec, нужны задачи? ──────→ planning-and-task-breakdown
+    ├── Пишем код? ────────────────────→ incremental-implementation
+    │   ├── API / backend (FastAPI)? ──→ api-and-interface-design
+    │   ├── UI / Next.js? ─────────────→ frontend-ui-engineering
+    │   ├── Нужен код по официальным docs? → source-driven-development
+    │   └── Высокие ставки / незнакомый код? → doubt-driven-development
+    ├── Пишем/запускаем тесты? ────────→ test-driven-development
+    │   └── UI в браузере? ────────────→ browser-testing-with-devtools
+    ├── Что-то сломалось? ─────────────→ debugging-and-error-recovery
+    ├── Ревью кода? ───────────────────→ code-review-and-quality
+    │   ├── Проблемы безопасности? ────→ security-and-hardening
+    │   └── Документируем решения? ────→ documentation-and-adrs
+    ├── Коммитим/ветки? ───────────────→ git-workflow-and-versioning
+    └── Деплой? ───────────────────────→ shipping-and-launch
+```
+
+## Базовые правила поведения
+
+Применяются всегда, во всех skills. Не подлежат обсуждению.
+
+### 1. Озвучивай допущения
+
+Перед реализацией чего-либо нетривиального явно перечисли допущения:
+
+```
+ДОПУЩЕНИЯ:
+1. [допущение о требованиях]
+2. [допущение об архитектуре]
+3. [допущение о scope]
+→ Поправь меня сейчас, иначе продолжу с этими.
+```
+
+Не заполняй молча неоднозначные требования. Самый частый провал — неверные допущения без проверки.
+
+### 2. Управляй путаницей активно
+
+При противоречиях, конфликтующих требованиях или неясной спецификации:
+
+1. **СТОП.** Не угадывай.
+2. Назови конкретную путаницу.
+3. Представь trade-off или задай уточняющий вопрос.
+4. Дождись ответа перед продолжением.
+
+### 3. Возражай, когда это оправдано
+
+Ты не yes-machine. При явных проблемах подхода — укажи на них, объясни последствия (количественно, если возможно), предложи альтернативу.
+
+### 4. Настаивай на простоте
+
+Перед завершением реализации спроси:
+- Можно ли сделать меньше строк?
+- Оправдывают ли абстракции свою сложность?
+- Не сказал бы staff-инженер «почему бы просто не...»?
+
+### 5. Дисциплина scope
+
+Трогай только то, что просили. Не «убирай» комментарии, не рефактори соседний код, не удаляй «неиспользуемое» без явного одобрения.
+
+### 6. Верифицируй, не предполагай
+
+Задача не завершена, пока нет доказательств (тесты, сборка, вывод команд). «Кажется правильно» — недостаточно.
+
+## Правила skills
+
+1. **Проверь применимый skill перед началом работы.**
+2. **Skills — это workflow, не советы.** Следуй шагам по порядку.
+3. **Несколько skills могут применяться последовательно:** idea-refine → spec → plan → incremental → TDD → review.
+4. **При сомнениях:** размытая идея → `idea-refine`; требования ясны, но нет spec → `spec-driven-development`.
+
+## Типичная последовательность для фичи
+
+```
+1. idea-refine                 → Проработка размытой идеи (опционально)
+2. spec-driven-development     → Что строим
+3. planning-and-task-breakdown → Разбивка на задачи
+4. incremental-implementation  → Срез за срезом
+5. test-driven-development     → Доказательство работоспособности
+6. code-review-and-quality     → Ревью перед merge
+7. git-workflow-and-versioning → Чистая история
+8. documentation-and-adrs      → Зафиксировать «почему»
+```
+
+Не каждая задача требует все skills. Багфикс: `debugging-and-error-recovery` → `test-driven-development` → `code-review-and-quality`.
+
+## Cursor (Composer + Grok)
+
+Skills работают в **Cursor Agent mode** (Composer), не в Claude Code.
+
+| Claude Code | Cursor |
+|-------------|--------|
+| `/spec`, `/review`, `/ship` | «Следуй skill …» или `@.cursor/skills/.../SKILL.md` |
+| Subagents | **Task tool** (`explore`, `generalPurpose`, `shell`, `bugbot`, `security-review`) |
+| Personas в plugin | `.cursor/rules/agents/*.md` |
+| CLAUDE.md | `AGENTS.md` + `.cursor/rules/` |
+| Cross-model CLI | Task с другой моделью (Grok) или новый чат |
+
+**Subagent не запускает subagent** — doubt-driven и parallel review только из главной сессии.
+
+Подробнее: `.cursor/rules/references/cursor-platform.md`, `.cursor/rules/references/orchestration-patterns.md`.
+
+## Быстрая справка
+
+| Фаза | Skill | Суть |
+|------|-------|------|
+| Define | idea-refine | Варианты и stress-test до spec |
+| Define | spec-driven-development | Требования до кода |
+| Plan | planning-and-task-breakdown | Мелкие верифицируемые задачи |
+| Build | incremental-implementation | Тонкие вертикальные срезы |
+| Build | api-and-interface-design | Стабильные контракты API (FastAPI ↔ Next) |
+| Build | frontend-ui-engineering | Next.js UI, a11y, Server/Client |
+| Build | source-driven-development | Код по официальной документации |
+| Verify | browser-testing-with-devtools | Runtime verify в браузере |
+| Verify | test-driven-development | Сначала падающий тест |
+| Verify | debugging-and-error-recovery | Воспроизвести → локализовать → исправить |
+| Review | code-review-and-quality | Пятикомпонентное ревью |
+| Review | security-and-hardening | OWASP, валидация, least privilege |
+| Ship | git-workflow-and-versioning | Атомарные коммиты |
+| Ship | documentation-and-adrs | Документировать «почему» |
+| Ship | shipping-and-launch | Pre-launch checklist, мониторинг, rollback |

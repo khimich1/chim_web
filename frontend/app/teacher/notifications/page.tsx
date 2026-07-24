@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { LogoutButton } from "@/components/auth/LogoutButton";
 import { getNotifications } from "@/lib/api/server";
 import { formatHomeworkSubmittedNotification } from "@/lib/notifications/format-homework-notification";
 
@@ -16,12 +15,9 @@ export default async function TeacherNotificationsPage() {
             Уведомления
           </h1>
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/teacher" className="chem-link text-sm">
-            На главную
-          </Link>
-          <LogoutButton />
-        </div>
+        <Link href="/teacher" className="chem-link shrink-0 text-sm">
+          На главную
+        </Link>
       </div>
 
       <section className="mt-10">

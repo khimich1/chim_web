@@ -259,3 +259,86 @@ def test_teacher_b_stats_exclude_teacher_a_students(
     student_ids = {row["id"] for row in response.json()}
     assert client.student_b_id in student_ids
     assert client.student_a_id not in student_ids
+
+
+def _create_template(client: TestClient, title: str = "Template A") -> dict:
+    response = client.post(
+        "/api/homework/templates",
+        json={
+            "title": title,
+            "items": [{"kind": "lecture", "topic": "Алканы"}],
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_teacher_b_cannot_access_teacher_a_template(
+    multi_teacher_client: TestClient,
+) -> None:
+    client = multi_teacher_client
+    mt_login(client, TEACHER_A_EMAIL)
+    template = _create_template(client)
+
+    mt_logout(client)
+    mt_login(client, TEACHER_B_EMAIL)
+    assert client.get(f"/api/homework/templates/{template['id']}").status_code == 404
+    assert (
+        client.patch(
+            f"/api/homework/templates/{template['id']}",
+            json={"title": "Hijacked"},
+        ).status_code
+        == 404
+    )
+    assert client.delete(f"/api/homework/templates/{template['id']}").status_code == 404
+    assert (
+        client.post(
+            f"/api/homework/templates/{template['id']}/assign",
+            json={"student_id": client.student_b_id},
+        ).status_code
+        == 404
+    )
+
+    listed = client.get("/api/homework/templates")
+    assert listed.status_code == 200
+    assert all(row["id"] != template["id"] for row in listed.json())
+
+
+def test_teacher_b_cannot_access_teacher_a_group(
+    multi_teacher_client: TestClient,
+) -> None:
+    client = multi_teacher_client
+    mt_login(client, TEACHER_A_EMAIL)
+    group = client.post("/api/teacher/groups", json={"name": "A-group"})
+    assert group.status_code == 201, group.text
+    group_id = group.json()["id"]
+    assert (
+        client.put(
+            f"/api/teacher/groups/{group_id}/members",
+            json={"student_ids": [client.student_a_id]},
+        ).status_code
+        == 200
+    )
+
+    mt_logout(client)
+    mt_login(client, TEACHER_B_EMAIL)
+    assert client.get(f"/api/teacher/groups/{group_id}").status_code == 404
+    assert (
+        client.patch(
+            f"/api/teacher/groups/{group_id}",
+            json={"name": "Stolen"},
+        ).status_code
+        == 404
+    )
+    assert (
+        client.put(
+            f"/api/teacher/groups/{group_id}/members",
+            json={"student_ids": [client.student_b_id]},
+        ).status_code
+        == 404
+    )
+    assert client.delete(f"/api/teacher/groups/{group_id}").status_code == 404
+
+    listed = client.get("/api/teacher/groups")
+    assert listed.status_code == 200
+    assert all(row["id"] != group_id for row in listed.json())

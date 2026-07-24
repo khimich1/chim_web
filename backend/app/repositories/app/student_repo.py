@@ -17,11 +17,14 @@ class StudentRepository:
         self._session = session
 
     async def list_by_teacher(self, teacher_id: uuid.UUID) -> list[User]:
-        """Return student users owned by the given teacher, newest first."""
+        """Return active student users owned by the given teacher, newest first."""
         stmt = (
             select(User)
             .join(StudentProfile, StudentProfile.user_id == User.id)
-            .where(StudentProfile.teacher_id == teacher_id)
+            .where(
+                StudentProfile.teacher_id == teacher_id,
+                User.is_active.is_(True),
+            )
             .options(joinedload(User.student_profile))
             .order_by(User.created_at.desc())
         )
@@ -58,14 +61,37 @@ class StudentRepository:
         self,
         student_id: uuid.UUID,
         teacher_id: uuid.UUID,
+        *,
+        active_only: bool = False,
     ) -> User | None:
         """Return a student user if owned by the given teacher."""
+        conditions = [
+            User.id == student_id,
+            StudentProfile.teacher_id == teacher_id,
+        ]
+        if active_only:
+            conditions.append(User.is_active.is_(True))
+        stmt = (
+            select(User)
+            .join(StudentProfile, StudentProfile.user_id == User.id)
+            .where(*conditions)
+            .options(joinedload(User.student_profile))
+        )
+        return await self._session.scalar(stmt)
+
+    async def get_by_email_for_teacher(
+        self,
+        email: str,
+        teacher_id: uuid.UUID,
+    ) -> User | None:
+        """Return student owned by teacher with this login (any active state)."""
         stmt = (
             select(User)
             .join(StudentProfile, StudentProfile.user_id == User.id)
             .where(
-                User.id == student_id,
+                User.email == email,
                 StudentProfile.teacher_id == teacher_id,
+                User.role == UserRole.STUDENT,
             )
             .options(joinedload(User.student_profile))
         )

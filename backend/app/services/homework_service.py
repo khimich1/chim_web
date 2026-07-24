@@ -290,6 +290,11 @@ class HomeworkService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not your homework assignment",
             )
+        if assignment.status == HomeworkStatus.CANCELLED:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Homework not found",
+            )
         active_id = await self._active_session_id(user.id, assignment.id)
         return to_homework_read(
             assignment,

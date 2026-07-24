@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { LogoutButton } from "@/components/auth/LogoutButton";
 import { getCurrentUser, getStudents, listStudentTutorSessions } from "@/lib/api/server";
 
 export default async function TeacherTutorPage() {
@@ -23,12 +22,9 @@ export default async function TeacherTutorPage() {
           </h1>
           <p className="mt-1 text-sm text-zinc-600">{user?.email}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/teacher" className="chem-link text-sm">
-            На главную
-          </Link>
-          <LogoutButton />
-        </div>
+        <Link href="/teacher" className="chem-link shrink-0 text-sm">
+          На главную
+        </Link>
       </div>
 
       <div className="mt-10 space-y-8">

@@ -23,13 +23,18 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-async function fillAndSubmit(email: string, password: string) {
-  await userEvent.type(screen.getByLabelText("Email"), email);
+async function fillAndSubmit(loginValue: string, password: string) {
+  await userEvent.type(screen.getByLabelText("Логин"), loginValue);
   await userEvent.type(screen.getByLabelText("Пароль"), password);
   await userEvent.click(screen.getByRole("button", { name: "Войти" }));
 }
 
 describe("LoginForm", () => {
+  it("uses login label and text input (not email type)", () => {
+    render(<LoginForm />);
+    expect(screen.getByLabelText("Логин")).toHaveAttribute("type", "text");
+  });
+
   it("logs in a teacher and redirects to /teacher", async () => {
     mockedLogin.mockResolvedValue({
       id: "1",
@@ -60,13 +65,13 @@ describe("LoginForm", () => {
   });
 
   it("shows an error and does not redirect on 401", async () => {
-    mockedLogin.mockRejectedValue(new ApiError(401, "Invalid email or password"));
+    mockedLogin.mockRejectedValue(new ApiError(401, "Invalid login or password"));
 
     render(<LoginForm />);
     await fillAndSubmit("teacher@example.com", "wrong");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Неверный email или пароль",
+      "Неверный логин или пароль",
     );
     expect(replace).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Войти" })).toBeEnabled();

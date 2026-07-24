@@ -49,7 +49,10 @@ class HomeworkRepository:
     async def list_by_student(self, student_id: uuid.UUID) -> list[HomeworkAssignment]:
         stmt = (
             select(HomeworkAssignment)
-            .where(HomeworkAssignment.student_id == student_id)
+            .where(
+                HomeworkAssignment.student_id == student_id,
+                HomeworkAssignment.status != HomeworkStatus.CANCELLED,
+            )
             .options(
                 joinedload(HomeworkAssignment.submission),
                 selectinload(HomeworkAssignment.item_progress),

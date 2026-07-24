@@ -56,6 +56,8 @@ def to_homework_read(
         items=assignment.items,
         status=assignment.status,
         created_at=assignment.created_at,
+        template_id=assignment.template_id,
+        source_group_id=assignment.source_group_id,
         submission=submission,
         progress=progress,
         active_test_session_id=active_test_session_id,
