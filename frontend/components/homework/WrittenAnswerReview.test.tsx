@@ -28,7 +28,7 @@ const step: HomeworkSubmissionStep = {
   question_blocks: [{ type: "text", content: "Решите" }],
   reference_answer: [{ type: "text", content: "x = 2" }],
   answer: "черновик",
-  answer_image_url: "/api/uploads/images/abc",
+  answer_image_urls: ["/api/uploads/images/abc"],
   status: "checked",
 };
 
@@ -49,11 +49,32 @@ describe("WrittenAnswerReview", () => {
     expect(screen.getByText("Общий комментарий к сдаче")).toBeInTheDocument();
   });
 
+  it("renders all pages for multi-photo steps", () => {
+    render(
+      <WrittenAnswerReview
+        homeworkId="hw-1"
+        steps={[
+          {
+            ...step,
+            answer_image_urls: [
+              "/api/uploads/images/a",
+              "/api/uploads/images/b",
+            ],
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Страница 1")).toBeInTheDocument();
+    expect(screen.getByText("Страница 2")).toBeInTheDocument();
+    expect(screen.getAllByTestId("image-viewer")).toHaveLength(2);
+  });
+
   it("renders nothing without photo steps", () => {
     const { container } = render(
       <WrittenAnswerReview
         homeworkId="hw-1"
-        steps={[{ ...step, answer_image_url: null }]}
+        steps={[{ ...step, answer_image_urls: [] }]}
       />,
     );
 

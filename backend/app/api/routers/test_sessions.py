@@ -7,6 +7,7 @@
 | GET    | /api/tests/sessions/{id}                      | student | SessionRead       |
 | POST   | /api/tests/sessions/{id}/steps/{n}/check      | student | StepCheckResponse |
 | POST   | /api/tests/sessions/{id}/steps/{n}/answer-image | student | StepAttachAnswerImageResponse |
+| DELETE | /api/tests/sessions/{id}/steps/{n}/answer-image/{image_id} | student | StepAttachAnswerImageResponse |
 | POST   | /api/tests/sessions/{id}/steps/{n}/compare  | student | StepCompareResponse |
 | POST   | /api/tests/sessions/{id}/steps/{n}/handoff  | student | HandoffCreateResponse |
 | POST   | /api/tests/sessions/{id}/complete             | student | SessionSummary    |
@@ -123,6 +124,25 @@ async def attach_answer_image(
         session_id,
         position,
         payload.answer_image_id,
+    )
+
+
+@router.delete(
+    "/{session_id}/steps/{position}/answer-image/{image_id}",
+    response_model=StepAttachAnswerImageResponse,
+)
+async def remove_answer_image(
+    session_id: uuid.UUID,
+    position: int,
+    image_id: uuid.UUID,
+    student: StudentUser,
+    service: Annotated[TestSessionService, Depends(get_test_session_service)],
+) -> StepAttachAnswerImageResponse:
+    return await service.remove_answer_image(
+        student,
+        session_id,
+        position,
+        image_id,
     )
 
 

@@ -284,7 +284,7 @@ def test_full_ege_written_path_variant_compare_homework_submit_feedback(
         if step.get("grading_mode") == "self_check"
     ]
     assert len(written_steps) == 6
-    assert all(step["answer_image_url"] for step in written_steps)
+    assert all(step["answer_image_urls"] for step in written_steps)
 
     feedback_pos = hw_steps[30]["position"]
     feedback = client.put(

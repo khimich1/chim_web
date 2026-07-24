@@ -38,10 +38,69 @@ def session_duration_minutes(created_at: datetime, completed_at: datetime) -> in
     return int(seconds // 60)
 
 
+MAX_ANSWER_IMAGES = 3
+
+
+def coerce_answer_image_ids(raw: list | None) -> list[uuid.UUID]:
+    if not raw:
+        return []
+    result: list[uuid.UUID] = []
+    for item in raw:
+        if isinstance(item, uuid.UUID):
+            result.append(item)
+        else:
+            result.append(uuid.UUID(str(item)))
+    return result
+
+
+def answer_image_urls(ids: list[uuid.UUID]) -> list[str]:
+    return [f"/api/uploads/images/{image_id}" for image_id in ids]
+
+
 def answer_image_url(image_id: uuid.UUID | None) -> str | None:
+    """Deprecated singular helper — prefer answer_image_urls."""
     if image_id is None:
         return None
     return f"/api/uploads/images/{image_id}"
+
+
+def store_answer_image_ids(step: TestSessionStep, ids: list[uuid.UUID]) -> None:
+    step.answer_image_ids = [str(image_id) for image_id in ids]
+
+
+def append_answer_image_id(
+    step: TestSessionStep,
+    image_id: uuid.UUID,
+) -> list[uuid.UUID]:
+    ids = coerce_answer_image_ids(step.answer_image_ids)
+    if image_id in ids:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Image already attached to this step",
+        )
+    if len(ids) >= MAX_ANSWER_IMAGES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Maximum of {MAX_ANSWER_IMAGES} answer images allowed",
+        )
+    ids.append(image_id)
+    store_answer_image_ids(step, ids)
+    return ids
+
+
+def remove_answer_image_id(
+    step: TestSessionStep,
+    image_id: uuid.UUID,
+) -> list[uuid.UUID]:
+    ids = coerce_answer_image_ids(step.answer_image_ids)
+    if image_id not in ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Answer image not found on this step",
+        )
+    ids = [item for item in ids if item != image_id]
+    store_answer_image_ids(step, ids)
+    return ids
 
 
 class SessionAdapterBase:

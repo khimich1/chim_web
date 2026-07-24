@@ -35,6 +35,12 @@ from app.schemas.handoff import (
 )
 from app.services.content_grading import get_content_grading_mode
 from app.services.image_substitution import substitute_image_placeholders
+from app.services.test_session.common import (
+    MAX_ANSWER_IMAGES,
+    answer_image_urls,
+    append_answer_image_id,
+    coerce_answer_image_ids,
+)
 from app.services.upload_service import UploadService
 
 _HANDOFF_TTL = timedelta(minutes=15)
@@ -93,6 +99,11 @@ class UploadHandoffService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Cannot create handoff after compare",
             )
+        if len(coerce_answer_image_ids(ctx.step.answer_image_ids)) >= MAX_ANSWER_IMAGES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Maximum of {MAX_ANSWER_IMAGES} answer images allowed",
+            )
 
         await self._handoff_repo.invalidate_unused_for_step(
             session_id,
@@ -129,7 +140,8 @@ class UploadHandoffService:
             task_title=ctx.question_preview,
             question_preview=ctx.question_preview,
             expires_at=record.expires_at,
-            already_has_photo=ctx.step.answer_image_id is not None,
+            already_has_photo=len(coerce_answer_image_ids(ctx.step.answer_image_ids))
+            >= MAX_ANSWER_IMAGES,
         )
 
     async def capture_upload(
@@ -144,7 +156,12 @@ class UploadHandoffService:
         if ctx.step.status == StepStatus.CHECKED:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot replace photo after compare",
+                detail="Cannot change photos after compare",
+            )
+        if len(coerce_answer_image_ids(ctx.step.answer_image_ids)) >= MAX_ANSWER_IMAGES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Maximum of {MAX_ANSWER_IMAGES} answer images allowed",
             )
 
         student = await self._user_repo.get_by_id(record.student_id)
@@ -155,14 +172,14 @@ class UploadHandoffService:
             )
 
         image_response = await self._upload_service.save_image(student, upload)
-        ctx.step.answer_image_id = image_response.id
+        ids = append_answer_image_id(ctx.step, image_response.id)
         await self._handoff_repo.mark_used(record, datetime.now(timezone.utc))
         await self._session.commit()
 
         return CaptureUploadResponse(
             position=ctx.step.position,
-            answer_image_id=image_response.id,
-            answer_image_url=image_response.url,
+            answer_image_ids=ids,
+            answer_image_urls=answer_image_urls(ids),
         )
 
     async def _require_active_token(self, token: uuid.UUID) -> UploadHandoffToken:

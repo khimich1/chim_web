@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { StepView } from "@/components/tests/StepView";
 import { uploadImage } from "@/lib/api/uploads";
-import { attachAnswerImage, checkStep, compareStep, completeSession, getSession } from "@/lib/api/tests";
+import { attachAnswerImage, checkStep, compareStep, completeSession, getSession, removeAnswerImage } from "@/lib/api/tests";
 import { createHandoff } from "@/lib/api/handoff";
 import type { TestSession } from "@/lib/api/types";
 
@@ -24,6 +24,7 @@ vi.mock("@/lib/api/tests", () => ({
   compareStep: vi.fn(),
   completeSession: vi.fn(),
   attachAnswerImage: vi.fn(),
+  removeAnswerImage: vi.fn(),
   getSession: vi.fn(),
 }));
 
@@ -37,6 +38,13 @@ vi.mock("react-qr-code", () => ({
 
 vi.mock("@/lib/api/uploads", () => ({
   uploadImage: vi.fn(),
+}));
+
+vi.mock("@/components/common/AuthenticatedImage", () => ({
+  AuthenticatedImage: ({ src, alt }: { src: string; alt: string }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={alt} />
+  ),
 }));
 
 vi.mock("@/components/tests/QuestionContent", () => ({
@@ -53,6 +61,7 @@ const mockedCheck = vi.mocked(checkStep);
 const mockedCompare = vi.mocked(compareStep);
 const mockedComplete = vi.mocked(completeSession);
 const mockedAttach = vi.mocked(attachAnswerImage);
+const mockedRemove = vi.mocked(removeAnswerImage);
 const mockedUpload = vi.mocked(uploadImage);
 const mockedGetSession = vi.mocked(getSession);
 const mockedCreateHandoff = vi.mocked(createHandoff);
@@ -102,6 +111,19 @@ describe("StepView", () => {
 
     expect(screen.getByText("Шаг 2 из 2")).toBeInTheDocument();
     expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+  });
+
+  it("keeps compare and step navigation inside the task card", () => {
+    render(<StepView session={session} />);
+
+    const card = screen.getByText("Вопрос 2").closest("article");
+    expect(card).not.toBeNull();
+    expect(card).toContainElement(
+      screen.getByRole("button", { name: "Проверить" }),
+    );
+    expect(card).toContainElement(
+      screen.getByRole("navigation", { name: "Навигация по заданиям" }),
+    );
   });
 
   it("opens the first unchecked step on entry", () => {
@@ -324,7 +346,10 @@ describe("StepView", () => {
     expect(screen.getByText("Written Q29")).toBeInTheDocument();
     expect(screen.getByText("Тип 29")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Прикрепить с этого устройства/i }),
+      screen.getByLabelText(/Прикрепить с этого устройства/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Сфотографировать с телефона" }),
     ).not.toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText("Ваш ответ"), "мой разбор");
@@ -401,7 +426,7 @@ describe("StepView", () => {
     expect(screen.getByText("Шаг 1 из 34")).toBeInTheDocument();
   });
 
-  it("hides photo upload in practice self_check mode", () => {
+  it("allows optional photo upload in practice self_check mode", () => {
     const customSession: TestSession = {
       id: "sess-custom",
       track: "ege",
@@ -435,7 +460,10 @@ describe("StepView", () => {
     render(<StepView session={customSession} />);
 
     expect(
-      screen.queryByRole("button", { name: /Прикрепить фото решения/i }),
+      screen.getByLabelText(/Прикрепить с этого устройства/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Сфотографировать с телефона" }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Сравнить ответ" }),
@@ -479,8 +507,8 @@ describe("StepView", () => {
     });
     mockedAttach.mockResolvedValue({
       position: 0,
-      answer_image_id: "img-1",
-      answer_image_url: "/api/uploads/images/img-1",
+      answer_image_ids: ["img-1"],
+      answer_image_urls: ["/api/uploads/images/img-1"],
     });
     mockedCompare.mockResolvedValue({
       position: 0,
@@ -505,6 +533,175 @@ describe("StepView", () => {
     expect(compareButton).not.toBeDisabled();
     await userEvent.click(compareButton);
     expect(mockedCompare).toHaveBeenCalledWith("sess-hw", 0, "");
+  });
+
+  it("pastes images into answer photo zone up to remaining slots", async () => {
+    const homeworkSession: TestSession = {
+      id: "sess-hw",
+      track: "ege",
+      source: "custom",
+      variant_ref: null,
+      homework_assignment_id: "hw-1",
+      custom_theme_id: "theme-1",
+      status: "in_progress",
+      score: null,
+      max_score: null,
+      total_steps: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      steps: [
+        {
+          position: 0,
+          test_id: null,
+          custom_task_id: "task-1",
+          type: null,
+          question: null,
+          options: null,
+          question_blocks: [{ type: "text", content: "Решение" }],
+          grading_mode: "self_check",
+          status: "unseen",
+          answer: null,
+          is_correct: null,
+          hint_used: false,
+        },
+      ],
+    };
+
+    mockedUpload
+      .mockResolvedValueOnce({
+        id: "img-paste-1",
+        url: "/api/uploads/images/img-paste-1",
+      })
+      .mockResolvedValueOnce({
+        id: "img-paste-2",
+        url: "/api/uploads/images/img-paste-2",
+      })
+      .mockResolvedValueOnce({
+        id: "img-paste-3",
+        url: "/api/uploads/images/img-paste-3",
+      });
+    mockedAttach
+      .mockResolvedValueOnce({
+        position: 0,
+        answer_image_ids: ["img-paste-1"],
+        answer_image_urls: ["/api/uploads/images/img-paste-1"],
+      })
+      .mockResolvedValueOnce({
+        position: 0,
+        answer_image_ids: ["img-paste-1", "img-paste-2"],
+        answer_image_urls: [
+          "/api/uploads/images/img-paste-1",
+          "/api/uploads/images/img-paste-2",
+        ],
+      })
+      .mockResolvedValueOnce({
+        position: 0,
+        answer_image_ids: ["img-paste-1", "img-paste-2", "img-paste-3"],
+        answer_image_urls: [
+          "/api/uploads/images/img-paste-1",
+          "/api/uploads/images/img-paste-2",
+          "/api/uploads/images/img-paste-3",
+        ],
+      });
+
+    render(<StepView session={homeworkSession} />);
+
+    expect(
+      screen.getByText(/Можно вставить изображение из буфера/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Фото: 0 из 3")).toBeInTheDocument();
+
+    const first = new File(["a"], "first.png", { type: "image/png" });
+    const second = new File(["b"], "second.png", { type: "image/png" });
+    const third = new File(["c"], "third.png", { type: "image/png" });
+    const fourth = new File(["d"], "fourth.png", { type: "image/png" });
+    const files = [first, second, third, fourth];
+    const items = files.map((file) => ({
+      kind: "file" as const,
+      type: file.type,
+      getAsFile: () => file,
+    }));
+
+    fireEvent.paste(screen.getByTestId("answer-image-intake"), {
+      clipboardData: {
+        items: {
+          length: items.length,
+          ...items,
+          [Symbol.iterator]: function* () {
+            yield* items;
+          },
+        },
+        files: {
+          length: files.length,
+          0: first,
+          1: second,
+          2: third,
+          3: fourth,
+          item: (i: number) => files[i] ?? null,
+          [Symbol.iterator]: function* () {
+            yield* files;
+          },
+        },
+      },
+    });
+
+    await waitFor(() => {
+      expect(mockedUpload).toHaveBeenCalledTimes(3);
+      expect(mockedAttach).toHaveBeenCalledTimes(3);
+    });
+    expect(screen.getByText(/не больше 3 фото/i)).toBeInTheDocument();
+  });
+
+  it("removes an attached photo before compare", async () => {
+    const homeworkSession: TestSession = {
+      id: "sess-hw",
+      track: "ege",
+      source: "custom",
+      variant_ref: null,
+      homework_assignment_id: "hw-1",
+      custom_theme_id: "theme-1",
+      status: "in_progress",
+      score: null,
+      max_score: null,
+      total_steps: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      steps: [
+        {
+          position: 0,
+          test_id: null,
+          custom_task_id: "task-1",
+          type: null,
+          question: null,
+          options: null,
+          question_blocks: [{ type: "text", content: "Решение" }],
+          grading_mode: "self_check",
+          status: "unseen",
+          answer: null,
+          answer_image_ids: ["img-1", "img-2"],
+          answer_image_urls: [
+            "/api/uploads/images/img-1",
+            "/api/uploads/images/img-2",
+          ],
+          is_correct: null,
+          hint_used: false,
+        },
+      ],
+    };
+
+    mockedRemove.mockResolvedValue({
+      position: 0,
+      answer_image_ids: ["img-2"],
+      answer_image_urls: ["/api/uploads/images/img-2"],
+    });
+
+    render(<StepView session={homeworkSession} />);
+
+    expect(screen.getByText("Фото: 2 из 3")).toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole("button", { name: "Удалить" })[0]!);
+
+    await waitFor(() => {
+      expect(mockedRemove).toHaveBeenCalledWith("sess-hw", 0, "img-1");
+    });
+    expect(screen.getByText("Фото: 1 из 3")).toBeInTheDocument();
   });
 
   it("creates handoff QR and polls until photo arrives", async () => {
@@ -548,8 +745,8 @@ describe("StepView", () => {
       steps: [
         {
           ...homeworkSession.steps[0],
-          answer_image_id: "img-phone",
-          answer_image_url: "/api/uploads/images/img-phone",
+          answer_image_ids: ["img-phone"],
+          answer_image_urls: ["/api/uploads/images/img-phone"],
         },
       ],
     };

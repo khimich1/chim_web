@@ -17,7 +17,9 @@ export function WrittenAnswerReview({
   submissionFeedback?: StepFeedbackContent | null;
 }) {
   const reviewSteps = steps.filter(
-    (step) => step.answer_image_url && step.grading_mode === "self_check",
+    (step) =>
+      step.grading_mode === "self_check" &&
+      (step.answer_image_urls?.length ?? 0) > 0,
   );
 
   if (reviewSteps.length === 0) {
@@ -58,10 +60,21 @@ export function WrittenAnswerReview({
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
                   Ответ ученика
                 </p>
-                <ImageViewer
-                  src={step.answer_image_url!}
-                  alt={`Фото ответа к заданию ${step.position + 1}`}
-                />
+                <ul className="flex flex-col gap-3">
+                  {step.answer_image_urls.map((url, index) => (
+                    <li key={url}>
+                      {step.answer_image_urls.length > 1 ? (
+                        <p className="mb-1 text-xs text-zinc-500">
+                          Страница {index + 1}
+                        </p>
+                      ) : null}
+                      <ImageViewer
+                        src={url}
+                        alt={`Фото ответа к заданию ${step.position + 1}, страница ${index + 1}`}
+                      />
+                    </li>
+                  ))}
+                </ul>
               </div>
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">

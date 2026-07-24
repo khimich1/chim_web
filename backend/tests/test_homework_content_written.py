@@ -297,7 +297,7 @@ def test_teacher_detail_includes_reference_and_photo(client: TestClient) -> None
     assert len(written_steps) == 1
     step = written_steps[0]
     assert step["title"] == "Задание 29"
-    assert step["answer_image_url"] == f"/api/uploads/images/{image_id}"
+    assert step["answer_image_urls"] == [f"/api/uploads/images/{image_id}"]
     assert step["answer"] == "мой разбор"
     assert step["question_blocks"][0]["content"] == "Written Q29"
     assert step["reference_answer"][0]["content"] == "Разбор "

@@ -22,6 +22,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy.dialects.sqlite import JSON as SQLiteJSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -32,7 +33,6 @@ from app.models.enums import ExamTrack, StepStatus, TestSessionSource, TestSessi
 
 if TYPE_CHECKING:
     from app.models.teacher_theme import TeacherTheme
-    from app.models.uploaded_image import UploadedImage
     from app.models.user import User
 
 
@@ -148,11 +148,11 @@ class TestSessionStep(Base):
         index=True,
     )
     answer: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    answer_image_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("uploaded_images.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
+    answer_image_ids: Mapped[list] = mapped_column(
+        JSON().with_variant(SQLiteJSON, "sqlite"),
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
     )
     is_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     hint_used: Mapped[bool] = mapped_column(
@@ -174,4 +174,3 @@ class TestSessionStep(Base):
         "TestSession",
         back_populates="steps",
     )
-    answer_image: Mapped[UploadedImage | None] = relationship("UploadedImage")

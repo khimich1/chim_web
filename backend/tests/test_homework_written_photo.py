@@ -301,7 +301,9 @@ def test_teacher_homework_detail_includes_photo_urls(client: TestClient) -> None
     assert detail.status_code == 200, detail.text
     body = detail.json()
     assert len(body["submission_steps"]) == 1
-    assert body["submission_steps"][0]["answer_image_url"] == f"/api/uploads/images/{image_id}"
+    assert body["submission_steps"][0]["answer_image_urls"] == [
+        f"/api/uploads/images/{image_id}"
+    ]
     assert body["submission_steps"][0]["answer"] == "written"
     assert body["submission_steps"][0]["title"] == "Self check"
     assert body["submission_steps"][0]["question_blocks"] == [
@@ -328,10 +330,111 @@ def test_practice_self_check_compare_without_photo_ok(client: TestClient) -> Non
     )
     assert compare.status_code == 200, compare.text
 
+
+def test_practice_self_check_can_attach_optional_photo(client: TestClient) -> None:
+    _login(client, STUDENT_EMAIL, STUDENT_PASS)
+    session = client.post(
+        "/api/tests/sessions",
+        json={"custom_theme_id": str(client.theme_id)},
+    ).json()
+
     image_id = _upload_image(client)
     attach = client.post(
         f"/api/tests/sessions/{session['id']}/steps/0/answer-image",
         json={"answer_image_id": image_id},
     )
-    assert attach.status_code == 422
-    assert "homework" in attach.json()["detail"].lower()
+    assert attach.status_code == 200, attach.text
+    assert attach.json()["answer_image_ids"] == [image_id]
+
+
+def test_attach_appends_up_to_three_then_422(client: TestClient) -> None:
+    assignment_id = _create_homework(client)
+    _login(client, STUDENT_EMAIL, STUDENT_PASS)
+    session = client.post(
+        "/api/tests/sessions",
+        json={"homework_assignment_id": assignment_id},
+    ).json()
+    session_id = session["id"]
+
+    ids = [_upload_image(client) for _ in range(4)]
+    for index, image_id in enumerate(ids[:3]):
+        attach = client.post(
+            f"/api/tests/sessions/{session_id}/steps/0/answer-image",
+            json={"answer_image_id": image_id},
+        )
+        assert attach.status_code == 200, attach.text
+        assert attach.json()["answer_image_ids"] == ids[: index + 1]
+        assert len(attach.json()["answer_image_urls"]) == index + 1
+
+    fourth = client.post(
+        f"/api/tests/sessions/{session_id}/steps/0/answer-image",
+        json={"answer_image_id": ids[3]},
+    )
+    assert fourth.status_code == 422
+    assert "maximum" in fourth.json()["detail"].lower()
+
+    duplicate = client.post(
+        f"/api/tests/sessions/{session_id}/steps/0/answer-image",
+        json={"answer_image_id": ids[0]},
+    )
+    assert duplicate.status_code == 422
+
+
+def test_delete_answer_image_before_compare(client: TestClient) -> None:
+    assignment_id = _create_homework(client)
+    _login(client, STUDENT_EMAIL, STUDENT_PASS)
+    session = client.post(
+        "/api/tests/sessions",
+        json={"homework_assignment_id": assignment_id},
+    ).json()
+    session_id = session["id"]
+
+    first = _upload_image(client)
+    second = _upload_image(client)
+    client.post(
+        f"/api/tests/sessions/{session_id}/steps/0/answer-image",
+        json={"answer_image_id": first},
+    )
+    client.post(
+        f"/api/tests/sessions/{session_id}/steps/0/answer-image",
+        json={"answer_image_id": second},
+    )
+
+    deleted = client.delete(
+        f"/api/tests/sessions/{session_id}/steps/0/answer-image/{first}"
+    )
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["answer_image_ids"] == [second]
+
+    client.post(
+        f"/api/tests/sessions/{session_id}/steps/0/compare",
+        json={"answer": "done"},
+    )
+    after_checked = client.delete(
+        f"/api/tests/sessions/{session_id}/steps/0/answer-image/{second}"
+    )
+    assert after_checked.status_code == 409
+
+
+def test_session_read_returns_answer_image_arrays(client: TestClient) -> None:
+    assignment_id = _create_homework(client)
+    _login(client, STUDENT_EMAIL, STUDENT_PASS)
+    session = client.post(
+        "/api/tests/sessions",
+        json={"homework_assignment_id": assignment_id},
+    ).json()
+    assert session["steps"][0]["answer_image_ids"] == []
+    assert session["steps"][0]["answer_image_urls"] == []
+    assert "answer_image_id" not in session["steps"][0]
+    assert "answer_image_url" not in session["steps"][0]
+
+    image_id = _upload_image(client)
+    client.post(
+        f"/api/tests/sessions/{session['id']}/steps/0/answer-image",
+        json={"answer_image_id": image_id},
+    )
+    refreshed = client.get(f"/api/tests/sessions/{session['id']}").json()
+    assert refreshed["steps"][0]["answer_image_ids"] == [image_id]
+    assert refreshed["steps"][0]["answer_image_urls"] == [
+        f"/api/uploads/images/{image_id}"
+    ]

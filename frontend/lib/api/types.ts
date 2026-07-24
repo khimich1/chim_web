@@ -108,8 +108,8 @@ export interface TestStep {
   grading_mode?: GradingMode | null;
   status: StepStatus;
   answer: string | null;
-  answer_image_id?: string | null;
-  answer_image_url?: string | null;
+  answer_image_ids?: string[];
+  answer_image_urls?: string[];
   is_correct: boolean | null;
   hint_used: boolean;
 }
@@ -328,7 +328,7 @@ export interface HomeworkSubmissionStep {
   question_blocks?: ContentBlock[];
   reference_answer?: ContentBlock[] | null;
   answer: string | null;
-  answer_image_url: string | null;
+  answer_image_urls: string[];
   status: StepStatus;
   feedback?: StepFeedbackContent | null;
 }

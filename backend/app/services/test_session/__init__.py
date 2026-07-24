@@ -2,6 +2,10 @@
 
 from app.services.test_session.common import (
     answer_image_url,
+    answer_image_urls,
+    append_answer_image_id,
+    coerce_answer_image_ids,
+    remove_answer_image_id,
     session_duration_minutes,
 )
 from app.services.test_session.custom_adapter import CustomSessionAdapter
@@ -18,5 +22,9 @@ __all__ = [
     "HomeworkSessionAdapter",
     "TestSessionService",
     "answer_image_url",
+    "answer_image_urls",
+    "append_answer_image_id",
+    "coerce_answer_image_ids",
+    "remove_answer_image_id",
     "session_duration_minutes",
 ]

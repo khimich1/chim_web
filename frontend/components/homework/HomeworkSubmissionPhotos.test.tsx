@@ -17,7 +17,10 @@ const steps: HomeworkSubmissionStep[] = [
     custom_task_id: "task-1",
     grading_mode: "self_check",
     answer: "черновик",
-    answer_image_url: "/api/uploads/images/abc-123",
+    answer_image_urls: [
+      "/api/uploads/images/abc-123",
+      "/api/uploads/images/abc-456",
+    ],
     status: "checked",
   },
 ];
@@ -27,10 +30,12 @@ describe("HomeworkSubmissionPhotos", () => {
     render(<HomeworkSubmissionPhotos steps={steps} />);
 
     expect(screen.getByText(/Фото письменных ответов/)).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /Фото ответа к заданию 2/ })).toHaveAttribute(
-      "src",
-      "/api/uploads/images/abc-123",
-    );
+    expect(
+      screen.getByRole("img", { name: /Фото ответа к заданию 2, страница 1/ }),
+    ).toHaveAttribute("src", "/api/uploads/images/abc-123");
+    expect(
+      screen.getByRole("img", { name: /Фото ответа к заданию 2, страница 2/ }),
+    ).toHaveAttribute("src", "/api/uploads/images/abc-456");
     expect(screen.getByText(/черновик/)).toBeInTheDocument();
   });
 
@@ -43,7 +48,7 @@ describe("HomeworkSubmissionPhotos", () => {
             custom_task_id: "task-2",
             grading_mode: "self_check",
             answer: null,
-            answer_image_url: null,
+            answer_image_urls: [],
             status: "checked",
           },
         ]}

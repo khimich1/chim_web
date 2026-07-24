@@ -27,5 +27,5 @@ class CaptureMetaResponse(BaseModel):
 
 class CaptureUploadResponse(BaseModel):
     position: int
-    answer_image_id: uuid.UUID
-    answer_image_url: str
+    answer_image_ids: list[uuid.UUID]
+    answer_image_urls: list[str]

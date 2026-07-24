@@ -122,13 +122,32 @@ export function attachAnswerImage(
   sessionId: string,
   position: number,
   answerImageId: string,
-): Promise<{ position: number; answer_image_id: string; answer_image_url: string }> {
+): Promise<{
+  position: number;
+  answer_image_ids: string[];
+  answer_image_urls: string[];
+}> {
   return apiFetch(
     `/api/tests/sessions/${sessionId}/steps/${position}/answer-image`,
     {
       method: "POST",
       body: JSON.stringify({ answer_image_id: answerImageId }),
     },
+  );
+}
+
+export function removeAnswerImage(
+  sessionId: string,
+  position: number,
+  imageId: string,
+): Promise<{
+  position: number;
+  answer_image_ids: string[];
+  answer_image_urls: string[];
+}> {
+  return apiFetch(
+    `/api/tests/sessions/${sessionId}/steps/${position}/answer-image/${imageId}`,
+    { method: "DELETE" },
   );
 }
 

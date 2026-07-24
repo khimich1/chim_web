@@ -17,8 +17,8 @@ export interface CaptureMetaResponse {
 
 export interface CaptureUploadResponse {
   position: number;
-  answer_image_id: string;
-  answer_image_url: string;
+  answer_image_ids: string[];
+  answer_image_urls: string[];
 }
 
 export function createHandoff(

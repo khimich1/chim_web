@@ -264,12 +264,13 @@ def test_capture_upload_attaches_photo_and_marks_token_used(client: TestClient) 
     assert upload.status_code == 200, upload.text
     body = upload.json()
     assert body["position"] == 0
-    assert body["answer_image_url"].startswith("/api/uploads/images/")
+    assert len(body["answer_image_ids"]) == 1
+    assert body["answer_image_urls"][0].startswith("/api/uploads/images/")
 
     step_session = client.get(f"/api/tests/sessions/{session['id']}")
     assert step_session.status_code == 200
     step = step_session.json()["steps"][0]
-    assert step["answer_image_id"] == body["answer_image_id"]
+    assert step["answer_image_ids"] == body["answer_image_ids"]
 
     reuse = client.post(
         f"/api/capture/{token}",
@@ -337,3 +338,34 @@ def test_practice_session_handoff_returns_422(client: TestClient) -> None:
         f"/api/tests/sessions/{session['id']}/steps/0/handoff",
     )
     assert response.status_code == 422
+
+
+def test_handoff_capture_appends_second_photo(client: TestClient) -> None:
+    session = _homework_session(client)
+    session_id = session["id"]
+
+    first_image = client.post(
+        "/api/uploads/images",
+        files={"file": ("work.png", PNG_BYTES, "image/png")},
+    ).json()
+    client.post(
+        f"/api/tests/sessions/{session_id}/steps/0/answer-image",
+        json={"answer_image_id": first_image["id"]},
+    )
+
+    handoff = client.post(f"/api/tests/sessions/{session_id}/steps/0/handoff").json()
+    meta = client.get(f"/api/capture/{handoff['token']}")
+    assert meta.status_code == 200
+    assert meta.json()["already_has_photo"] is False
+
+    upload = client.post(
+        f"/api/capture/{handoff['token']}",
+        files={"file": ("page2.png", PNG_BYTES, "image/png")},
+    )
+    assert upload.status_code == 200, upload.text
+    body = upload.json()
+    assert len(body["answer_image_ids"]) == 2
+    assert body["answer_image_ids"][0] == first_image["id"]
+
+    step = client.get(f"/api/tests/sessions/{session_id}").json()["steps"][0]
+    assert step["answer_image_ids"] == body["answer_image_ids"]

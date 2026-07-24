@@ -68,8 +68,8 @@ describe("CapturePage", () => {
   it("submits photo after preview", async () => {
     mockedUpload.mockResolvedValue({
       position: 0,
-      answer_image_id: "img-1",
-      answer_image_url: "/api/uploads/images/img-1",
+      answer_image_ids: ["img-1"],
+      answer_image_urls: ["/api/uploads/images/img-1"],
     });
 
     render(<CapturePage token="token-1" />);
