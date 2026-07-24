@@ -10,7 +10,7 @@ import {
   streamTutorMessage,
 } from "@/lib/api/tutor";
 import { ApiError } from "@/lib/api/client";
-import { TutorChatProvider } from "@/lib/tutor/TutorChatContext";
+import { TutorChatProvider, useTutorChat } from "@/lib/tutor/TutorChatContext";
 
 let pathname = "/student/textbook/Алканы";
 
@@ -62,6 +62,31 @@ beforeEach(() => {
 function renderOverlay() {
   return render(
     <TutorChatProvider>
+      <TutorChatOverlay />
+    </TutorChatProvider>,
+  );
+}
+
+function OpenWithOverrideButton({
+  pageContext,
+}: {
+  pageContext: { homework_id: string };
+}) {
+  const { openTutor } = useTutorChat();
+  return (
+    <button
+      type="button"
+      onClick={() => openTutor({ pageContext })}
+    >
+      Open with override
+    </button>
+  );
+}
+
+function renderOverlayWithOverrideControl() {
+  return render(
+    <TutorChatProvider>
+      <OpenWithOverrideButton pageContext={{ homework_id: "hw-override" }} />
       <TutorChatOverlay />
     </TutorChatProvider>,
   );
@@ -169,6 +194,52 @@ describe("TutorChatOverlay", () => {
         test_session_id: "abc-123",
       }),
     );
+  });
+
+  it("clears pageContextOverride on navigation without nested render updates", async () => {
+    primeHappyPath();
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const { rerender } = renderOverlayWithOverrideControl();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Open with override" }),
+    );
+    await waitFor(() =>
+      expect(mockedCreate).toHaveBeenCalledWith({
+        topic: "Алканы",
+        homework_id: "hw-override",
+      }),
+    );
+
+    // Navigate while chat stays open — override must drop without a render-phase
+    // update of TutorChatProvider.
+    pathname = "/student/tests/sessions/abc-123";
+    rerender(
+      <TutorChatProvider>
+        <OpenWithOverrideButton pageContext={{ homework_id: "hw-override" }} />
+        <TutorChatOverlay />
+      </TutorChatProvider>,
+    );
+
+    await waitFor(() =>
+      expect(mockedCreate).toHaveBeenLastCalledWith({
+        test_session_id: "abc-123",
+      }),
+    );
+
+    expect(
+      consoleError.mock.calls.some((args) =>
+        args.some(
+          (arg) =>
+            typeof arg === "string" &&
+            arg.includes("Cannot update a component"),
+        ),
+      ),
+    ).toBe(false);
+
+    consoleError.mockRestore();
   });
 
   it("renders suggested prompts for the current page context", async () => {
