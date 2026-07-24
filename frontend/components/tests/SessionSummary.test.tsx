@@ -68,12 +68,10 @@ describe("SessionSummary", () => {
     expect(screen.queryByText("(с подсказкой)")).not.toBeInTheDocument();
   });
 
-  it("includes decorative blobs with aria-hidden", () => {
+  it("does not mount its own decorative blobs (global layout provides them)", () => {
     const { container } = render(<SessionSummary session={session} />);
 
-    const blobs = container.querySelector('[aria-hidden="true"]');
-    expect(blobs).toBeTruthy();
-    expect(blobs?.querySelectorAll("svg").length).toBeGreaterThanOrEqual(3);
+    expect(container.querySelectorAll("svg").length).toBe(0);
   });
 
   it("links back to test list", () => {

@@ -28,7 +28,7 @@ export default async function TeacherThemeDetailPage({
     <main className="mx-auto max-w-3xl px-6 py-12">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="chem-kicker">Конструктор тем</p>
+          <p className="chem-kicker">Конструктор заданий</p>
           <h1 className="mt-1 text-2xl font-semibold text-zinc-900">
             {theme.title}
           </h1>

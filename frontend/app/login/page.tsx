@@ -1,6 +1,5 @@
 import { LoginForm } from "@/components/auth/LoginForm";
 import { BrandLogo } from "@/components/ui/BrandLogo";
-import { DecorativeBlobs } from "@/components/ui/DecorativeBlobs";
 
 interface LoginPageProps {
   searchParams: Promise<{ redirect?: string }>;
@@ -12,8 +11,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   return (
     <main className="relative isolate flex min-h-screen items-center justify-center px-4 py-16 sm:px-6">
-      <DecorativeBlobs scoped />
-
       <div className="relative z-10 w-full max-w-sm">
         <div className="chem-card overflow-hidden rounded-xl">
           <header className="bg-chem-teal px-6 py-5 text-center">

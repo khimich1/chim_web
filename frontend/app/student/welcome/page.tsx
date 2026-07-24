@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 
 import { WelcomeActions } from "@/components/student/WelcomeActions";
 import { TrackExplainer } from "@/components/student/TrackExplainer";
-import { DecorativeBlobs } from "@/components/ui/DecorativeBlobs";
 import { getCurrentUser, getOnboardingWelcome } from "@/lib/api/server";
 
 export default async function StudentWelcomePage() {
@@ -23,8 +22,6 @@ export default async function StudentWelcomePage() {
 
   return (
     <main className="relative isolate mx-auto flex min-h-[70vh] max-w-lg items-center px-4 py-12 sm:px-6">
-      <DecorativeBlobs scoped />
-
       <div className="chem-card relative z-10 w-full rounded-xl p-6 sm:p-8">
         <p className="chem-kicker">Добро пожаловать</p>
         <h1 className="mt-2 text-2xl font-semibold text-zinc-900">

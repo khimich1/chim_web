@@ -12,7 +12,7 @@ export default async function TeacherThemesPage() {
         <div>
           <p className="chem-kicker">Кабинет преподавателя</p>
           <h1 className="mt-1 text-2xl font-semibold text-zinc-900">
-            Конструктор тем
+            Конструктор заданий
           </h1>
           <p className="mt-1 text-sm text-zinc-600">{user?.email}</p>
         </div>

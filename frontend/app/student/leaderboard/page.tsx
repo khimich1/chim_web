@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { LeaderboardTable } from "@/components/student/LeaderboardTable";
-import { DecorativeBlobs } from "@/components/ui/DecorativeBlobs";
 import { getCurrentUser } from "@/lib/api/server";
 
 export default async function StudentLeaderboardPage() {
@@ -10,8 +9,6 @@ export default async function StudentLeaderboardPage() {
 
   return (
     <main className="relative isolate mx-auto max-w-3xl min-w-0 px-4 py-8 sm:px-6 sm:py-12">
-      <DecorativeBlobs scoped />
-
       <div className="relative z-10">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>

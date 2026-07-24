@@ -5,7 +5,6 @@ import { OnboardingChecklist } from "@/components/student/OnboardingChecklist";
 import { ProgressWidget } from "@/components/student/ProgressWidget";
 import { ResumeSessionCards } from "@/components/student/ResumeSessionCards";
 import { TrackBadge } from "@/components/ui/TrackBadge";
-import { DecorativeBlobs } from "@/components/ui/DecorativeBlobs";
 import { getCurrentUser, getHomeworkList, getOnboardingStatus, getTestVariants } from "@/lib/api/server";
 
 const QUICK_LINKS = [
@@ -49,8 +48,6 @@ export default async function StudentDashboard() {
 
   return (
     <main className="relative isolate mx-auto max-w-3xl min-w-0 px-4 py-8 sm:px-6 sm:py-12">
-      <DecorativeBlobs scoped />
-
       <div className="relative z-10">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
