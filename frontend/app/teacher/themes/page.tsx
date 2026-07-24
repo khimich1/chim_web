@@ -1,22 +1,10 @@
 import Link from "next/link";
 
-import { LogoutButton } from "@/components/auth/LogoutButton";
-import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { ThemesList } from "@/components/teacher/ThemesList";
-import {
-  getCurrentUser,
-  getNotificationUnreadCount,
-  getNotifications,
-  getTeacherThemes,
-} from "@/lib/api/server";
+import { getCurrentUser, getTeacherThemes } from "@/lib/api/server";
 
 export default async function TeacherThemesPage() {
-  const [user, themes, notifications, unread] = await Promise.all([
-    getCurrentUser(),
-    getTeacherThemes(),
-    getNotifications(),
-    getNotificationUnreadCount(),
-  ]);
+  const [user, themes] = await Promise.all([getCurrentUser(), getTeacherThemes()]);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
@@ -24,20 +12,13 @@ export default async function TeacherThemesPage() {
         <div>
           <p className="chem-kicker">Кабинет преподавателя</p>
           <h1 className="mt-1 text-2xl font-semibold text-zinc-900">
-            Конструктор тем
+            Конструктор заданий
           </h1>
           <p className="mt-1 text-sm text-zinc-600">{user?.email}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <NotificationBell
-            initialNotifications={notifications}
-            initialUnread={unread}
-          />
-          <Link href="/teacher" className="chem-link text-sm">
-            На главную
-          </Link>
-          <LogoutButton />
-        </div>
+        <Link href="/teacher" className="chem-link shrink-0 text-sm">
+          На главную
+        </Link>
       </div>
 
       <section className="mt-10">

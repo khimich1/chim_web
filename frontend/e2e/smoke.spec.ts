@@ -10,7 +10,7 @@ test.describe("Smoke E2E (Task 99)", () => {
     test.skip(!homeworkId, "Set E2E_HOMEWORK_ID (python -m app.cli.seed_e2e)");
 
     await page.goto("/login");
-    await page.getByLabel("Email").fill(studentEmail);
+    await page.getByLabel("Логин").fill(studentEmail);
     await page.getByLabel("Пароль").fill(studentPassword);
     await page.getByRole("button", { name: "Войти" }).click();
 

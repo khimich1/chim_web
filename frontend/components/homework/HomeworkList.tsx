@@ -11,6 +11,7 @@ const STATUS_LABELS: Record<HomeworkAssignment["status"], string> = {
   in_progress: "В работе",
   submitted: "Сдано",
   reviewed: "Проверено",
+  cancelled: "Отозвано",
 };
 
 const STATUS_BADGE: Record<HomeworkAssignment["status"], string> = {
@@ -21,6 +22,7 @@ const STATUS_BADGE: Record<HomeworkAssignment["status"], string> = {
     "bg-[color-mix(in_srgb,var(--chem-green)_15%,white)] text-[var(--text-positive)]",
   reviewed:
     "bg-[color-mix(in_srgb,var(--chem-navy)_12%,white)] text-chem-navy",
+  cancelled: "bg-zinc-200 text-zinc-600",
 };
 
 export function HomeworkList({

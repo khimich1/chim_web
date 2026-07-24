@@ -6,7 +6,6 @@ import {
   stepVerdict,
   verdictClass,
 } from "@/components/tests/session-utils";
-import { DecorativeBlobs } from "@/components/ui/DecorativeBlobs";
 import type { TestSession } from "@/lib/api/types";
 import { isCustomSelfCheck } from "@/lib/tests/grading-utils";
 
@@ -19,8 +18,6 @@ export function SessionSummary({ session }: { session: TestSession }) {
 
   return (
     <div className="relative isolate min-w-0 overflow-hidden rounded-xl">
-      <DecorativeBlobs scoped />
-
       <div className="relative z-10 flex flex-col gap-6">
         <article className="chem-card overflow-hidden rounded-xl">
           <header className="bg-chem-teal px-4 py-5 text-center text-white sm:px-5">

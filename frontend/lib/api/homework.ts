@@ -2,7 +2,10 @@ import { apiFetch } from "@/lib/api/client";
 import type {
   CreateHomeworkInput,
   HomeworkAssignment,
+  HomeworkCancelResponse,
+  HomeworkCancelScope,
   HomeworkItem,
+  HomeworkRestoreResponse,
 } from "@/lib/api/types";
 
 export function listHomework(): Promise<HomeworkAssignment[]> {
@@ -47,6 +50,26 @@ export function completeHomeworkItem(
     `/api/homework/${homeworkId}/items/${itemIndex}/complete`,
     { method: "POST", body: JSON.stringify({}) },
   );
+}
+
+export function cancelHomework(
+  id: string,
+  scope: HomeworkCancelScope = "single",
+): Promise<HomeworkCancelResponse> {
+  return apiFetch<HomeworkCancelResponse>(`/api/homework/${id}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({ scope }),
+  });
+}
+
+export function restoreHomework(
+  id: string,
+  scope: HomeworkCancelScope = "single",
+): Promise<HomeworkRestoreResponse> {
+  return apiFetch<HomeworkRestoreResponse>(`/api/homework/${id}/restore`, {
+    method: "POST",
+    body: JSON.stringify({ scope }),
+  });
 }
 
 export type { HomeworkItem };

@@ -1,9 +1,7 @@
 import Link from "next/link";
 
-import { LogoutButton } from "@/components/auth/LogoutButton";
 import { HomeworkForm } from "@/components/homework/HomeworkForm";
 import {
-  getStudents,
   getTeacherThemes,
   getTeacherThemeTasks,
   getTestVariants,
@@ -11,14 +9,12 @@ import {
 } from "@/lib/api/server";
 
 export default async function TeacherHomeworkNewPage() {
-  const [students, topics, egeVariants, ogeVariants, themes] =
-    await Promise.all([
-      getStudents(),
-      getTextbookTopics(),
-      getTestVariants("ege"),
-      getTestVariants("oge"),
-      getTeacherThemes(),
-    ]);
+  const [topics, egeVariants, ogeVariants, themes] = await Promise.all([
+    getTextbookTopics(),
+    getTestVariants("ege"),
+    getTestVariants("oge"),
+    getTeacherThemes(),
+  ]);
 
   const teacherThemes = await Promise.all(
     themes.map(async (theme) => ({
@@ -34,20 +30,16 @@ export default async function TeacherHomeworkNewPage() {
         <div>
           <p className="chem-kicker">Кабинет преподавателя</p>
           <h1 className="mt-1 text-2xl font-semibold text-zinc-900">
-            Новое домашнее задание
+            Новый шаблон задания
           </h1>
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/teacher/homework" className="chem-link text-sm">
-            К списку
-          </Link>
-          <LogoutButton />
-        </div>
+        <Link href="/teacher/homework" className="chem-link shrink-0 text-sm">
+          К списку
+        </Link>
       </div>
 
       <section className="mt-10">
         <HomeworkForm
-          students={students}
           topics={topics.map((topic) => topic.topic)}
           variantsByTrack={{
             ege: egeVariants.map((variant) => variant.filename),

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from enum import Enum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -147,6 +148,10 @@ class HomeworkRead(BaseModel):
     items: list[dict]
     status: HomeworkStatus
     created_at: datetime
+    template_id: uuid.UUID | None = None
+    source_group_id: uuid.UUID | None = None
+    assign_batch_id: uuid.UUID | None = None
+    cancelled_at: datetime | None = None
     submission: HomeworkSubmissionRead | None = None
     progress: list[HomeworkItemProgressRead] = Field(default_factory=list)
     active_test_session_id: uuid.UUID | None = None
@@ -154,6 +159,29 @@ class HomeworkRead(BaseModel):
     submission_feedback: StepFeedbackEmbeddedRead | None = None
     has_teacher_feedback: bool = False
     can_reopen: bool = False
+
+
+class HomeworkCancelScope(str, Enum):
+    SINGLE = "single"
+    WAVE = "wave"
+
+
+class HomeworkCancelRequest(BaseModel):
+    scope: HomeworkCancelScope = HomeworkCancelScope.SINGLE
+
+
+class HomeworkCancelResponse(BaseModel):
+    cancelled_ids: list[uuid.UUID]
+    skipped_submitted_count: int
+    cancelled_at: datetime | None = None
+
+
+class HomeworkRestoreRequest(BaseModel):
+    scope: HomeworkCancelScope = HomeworkCancelScope.SINGLE
+
+
+class HomeworkRestoreResponse(BaseModel):
+    restored_ids: list[uuid.UUID]
 
 
 class HomeworkSubmitRequest(BaseModel):

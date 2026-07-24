@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { LogoutButton } from "@/components/auth/LogoutButton";
 import { WrittenAnswerReview } from "@/components/homework/WrittenAnswerReview";
 import { formatHomeworkItemLabel } from "@/components/homework/homework-utils";
 import { getHomework } from "@/lib/api/server";
@@ -34,12 +33,9 @@ export default async function TeacherHomeworkDetailPage({
             {homework.student_email}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/teacher/homework" className="chem-link text-sm">
-            К списку
-          </Link>
-          <LogoutButton />
-        </div>
+        <Link href="/teacher/homework" className="chem-link shrink-0 text-sm">
+          К списку
+        </Link>
       </div>
 
       <section className="chem-card mt-10 rounded-lg p-6">
@@ -49,7 +45,9 @@ export default async function TeacherHomeworkDetailPage({
         <dl className="mt-4 grid gap-3 text-sm">
           <div>
             <dt className="font-medium text-zinc-700">Статус</dt>
-            <dd className="text-zinc-900">{homework.status}</dd>
+            <dd className="text-zinc-900">
+              {homework.status === "cancelled" ? "cancelled (отозвано)" : homework.status}
+            </dd>
           </div>
           {homework.submission ? (
             <div>

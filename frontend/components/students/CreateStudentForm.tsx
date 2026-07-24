@@ -30,9 +30,11 @@ export function CreateStudentForm() {
         if (err.status === 403) {
           setError("Недостаточно прав для создания ученика.");
         } else if (err.status === 409) {
-          setError("Этот email уже зарегистрирован.");
+          setError("Этот логин уже занят.");
         } else if (err.status === 422) {
-          setError("Проверьте email, пароль (мин. 6 символов) и трек.");
+          setError(
+            "Проверьте логин (латиница, 3–64), пароль (мин. 4) и трек.",
+          );
         } else {
           setError(err.message || "Не удалось создать ученика.");
         }
@@ -53,19 +55,20 @@ export function CreateStudentForm() {
       <h2 className="text-lg font-semibold text-zinc-900">Новый ученик</h2>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="student-email" className="text-sm font-medium text-zinc-700">
-          Email
+        <label htmlFor="student-login" className="text-sm font-medium text-zinc-700">
+          Логин
         </label>
         <input
-          id="student-email"
+          id="student-login"
           name="email"
-          type="email"
-          autoComplete="off"
+          type="text"
+          autoComplete="username"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="chem-input rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
         />
+        <p className="text-xs text-zinc-500">Только латиница, например ivanov</p>
       </div>
 
       <div className="flex flex-col gap-1">
@@ -81,7 +84,7 @@ export function CreateStudentForm() {
           type="password"
           autoComplete="new-password"
           required
-          minLength={6}
+          minLength={4}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="chem-input rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"

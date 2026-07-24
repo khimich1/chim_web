@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
-from app.core.security import hash_password, verify_password
+from app.core.security import MIN_PASSWORD_LENGTH, hash_password, verify_password
 from app.models import User, UserRole
 
 
@@ -29,6 +29,10 @@ async def seed_teacher(
     *,
     reset_password: bool = False,
 ) -> User:
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise ValueError(
+            f"Password must be at least {MIN_PASSWORD_LENGTH} characters"
+        )
     settings = get_settings()
     engine = create_async_engine(settings.database_url, echo=False)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -69,7 +73,11 @@ def main(argv: list[str] | None = None) -> int:
         description="Seed a teacher account (repeat with different --email for multi-teacher)",
     )
     parser.add_argument("--email", required=True, help="Teacher email")
-    parser.add_argument("--password", required=True, help="Initial password")
+    parser.add_argument(
+        "--password",
+        required=True,
+        help=f"Initial password (min {MIN_PASSWORD_LENGTH} characters)",
+    )
     parser.add_argument(
         "--reset-password",
         action="store_true",

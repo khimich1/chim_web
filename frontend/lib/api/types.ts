@@ -79,7 +79,12 @@ export interface ContentBlock {
   content?: string | null;
   url?: string | null;
 }
-export type HomeworkStatus = "assigned" | "in_progress" | "submitted" | "reviewed";
+export type HomeworkStatus =
+  | "assigned"
+  | "in_progress"
+  | "submitted"
+  | "reviewed"
+  | "cancelled";
 export type HomeworkItemKind =
   | "lecture"
   | "test_variant"
@@ -356,6 +361,10 @@ export interface HomeworkAssignment {
   items: HomeworkItem[];
   status: HomeworkStatus;
   created_at: string;
+  template_id?: string | null;
+  source_group_id?: string | null;
+  assign_batch_id?: string | null;
+  cancelled_at?: string | null;
   submission: HomeworkSubmission | null;
   progress: HomeworkItemProgress[];
   active_test_session_id: string | null;
@@ -365,12 +374,46 @@ export interface HomeworkAssignment {
   can_reopen?: boolean;
 }
 
+export type HomeworkCancelScope = "single" | "wave";
+
+export interface HomeworkCancelResponse {
+  cancelled_ids: string[];
+  skipped_submitted_count: number;
+  cancelled_at: string | null;
+}
+
+export interface HomeworkRestoreResponse {
+  restored_ids: string[];
+}
+
 export interface CreateHomeworkInput {
   student_id: string;
   title: string;
   description?: string | null;
   due_at?: string | null;
   items: HomeworkItem[];
+}
+
+export interface HomeworkTemplate {
+  id: string;
+  teacher_id: string;
+  title: string;
+  description: string | null;
+  items: HomeworkItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateHomeworkTemplateInput {
+  title: string;
+  description?: string | null;
+  items: HomeworkItem[];
+}
+
+export interface UpdateHomeworkTemplateInput {
+  title?: string;
+  description?: string | null;
+  items?: HomeworkItem[];
 }
 
 export interface HomeworkSubmittedNotificationPayload {

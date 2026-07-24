@@ -14,6 +14,10 @@ from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# Minimum length when *setting* a password (create student, seed_teacher).
+# Login accepts shorter existing hashes (LoginRequest.min_length=1).
+MIN_PASSWORD_LENGTH = 4
+
 
 class TokenError(Exception):
     """Raised when an access token is missing, malformed, or expired."""

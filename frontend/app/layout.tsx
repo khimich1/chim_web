@@ -17,7 +17,9 @@ export default function RootLayout({
     <html lang="ru" className="h-full antialiased">
       <body className="chem-surface relative min-h-full flex flex-col">
         <DecorativeBlobs />
-        {children}
+        <div className="relative z-10 flex min-h-full flex-1 flex-col">
+          {children}
+        </div>
       </body>
     </html>
   );

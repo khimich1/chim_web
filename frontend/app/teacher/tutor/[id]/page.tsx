@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { LogoutButton } from "@/components/auth/LogoutButton";
 import { getCurrentUser, getTutorSessionDetail } from "@/lib/api/server";
 
 export default async function TeacherTutorSessionPage({
@@ -31,12 +30,9 @@ export default async function TeacherTutorSessionPage({
             {new Date(session.created_at).toLocaleString("ru-RU")}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/teacher/tutor" className="chem-link text-sm">
-            К списку
-          </Link>
-          <LogoutButton />
-        </div>
+        <Link href="/teacher/tutor" className="chem-link shrink-0 text-sm">
+          К списку
+        </Link>
       </div>
 
       <div className="mt-10 space-y-4">

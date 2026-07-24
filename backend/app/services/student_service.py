@@ -2,17 +2,34 @@
 
 from __future__ import annotations
 
+import secrets
+import string
 import uuid
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import hash_password
-from app.models import User
+from app.core.security import MIN_PASSWORD_LENGTH, hash_password
+from app.models import User, UserRole
 from app.repositories.app.student_repo import StudentRepository
 from app.repositories.app.user_repo import UserRepository
-from app.schemas.students import StudentCreate, StudentRead
+from app.schemas.students import (
+    StudentCreate,
+    StudentPasswordResetRead,
+    StudentRead,
+)
 from app.services.onboarding_service import is_student_activated, resolve_students_activation
+
+_TEMP_PASSWORD_ALPHABET = string.ascii_letters + string.digits
+_TEMP_PASSWORD_LENGTH = 10
+
+
+def generate_temporary_password() -> str:
+    """Random temp password for reset-password (shown once to the teacher)."""
+    return "".join(
+        secrets.choice(_TEMP_PASSWORD_ALPHABET)
+        for _ in range(max(_TEMP_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH))
+    )
 
 
 class StudentService:
@@ -44,9 +61,20 @@ class StudentService:
     ) -> StudentRead:
         existing = await self._users.get_by_email(data.email)
         if existing is not None:
+            if (
+                existing.role == UserRole.STUDENT
+                and not existing.is_active
+            ):
+                owned = await self._students.get_by_email_for_teacher(
+                    data.email,
+                    teacher_id,
+                )
+                if owned is not None and owned.id == existing.id:
+                    return await self._revive_student(owned, data)
+
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Email already registered",
+                detail="Login already registered",
             )
 
         user = await self._students.create(
@@ -57,6 +85,63 @@ class StudentService:
         )
         await self._session.commit()
         return _to_student_read(user, is_activated=False)
+
+    async def soft_delete_student(
+        self,
+        teacher_id: uuid.UUID,
+        student_id: uuid.UUID,
+    ) -> None:
+        student = await self._students.get_student_for_teacher(
+            student_id,
+            teacher_id,
+            active_only=True,
+        )
+        if student is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Student not found",
+            )
+        student.is_active = False
+        await self._session.commit()
+
+    async def reset_password(
+        self,
+        teacher_id: uuid.UUID,
+        student_id: uuid.UUID,
+    ) -> StudentPasswordResetRead:
+        student = await self._students.get_student_for_teacher(
+            student_id,
+            teacher_id,
+            active_only=True,
+        )
+        if student is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Student not found",
+            )
+        temporary_password = generate_temporary_password()
+        student.password_hash = hash_password(temporary_password)
+        await self._session.commit()
+        return StudentPasswordResetRead(temporary_password=temporary_password)
+
+    async def _revive_student(
+        self,
+        student: User,
+        data: StudentCreate,
+    ) -> StudentRead:
+        student.is_active = True
+        student.password_hash = hash_password(data.password)
+        profile = student.student_profile
+        if profile is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Student profile not found",
+            )
+        profile.track = data.track
+        await self._session.flush()
+        await self._session.refresh(student, attribute_names=["student_profile", "created_at"])
+        await self._session.commit()
+        return _to_student_read(student, is_activated=False)
 
 
 def _to_student_read(user: User, *, is_activated: bool | None = None) -> StudentRead:

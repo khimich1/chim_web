@@ -117,11 +117,20 @@ def test_login_does_not_leak_token_in_body(client: TestClient) -> None:
 def test_login_with_wrong_password_returns_401(client: TestClient) -> None:
     response = _login(client, TEACHER_EMAIL, "wrong-pass")
     assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid login or password"
     assert "set-cookie" not in response.headers
 
 
+def test_login_is_case_insensitive(client: TestClient) -> None:
+    response = _login(client, TEACHER_EMAIL.upper(), TEACHER_PASS)
+    assert response.status_code == 200
+    assert response.json()["email"] == TEACHER_EMAIL
+
+
 def test_login_unknown_email_returns_401(client: TestClient) -> None:
-    assert _login(client, "nobody@example.com", "x").status_code == 401
+    response = _login(client, "nobody@example.com", "x")
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid login or password"
 
 
 def test_login_inactive_user_returns_401(tmp_path: Path) -> None:

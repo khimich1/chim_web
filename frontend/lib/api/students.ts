@@ -7,6 +7,10 @@ export interface CreateStudentInput {
   track: Track;
 }
 
+export interface StudentPasswordReset {
+  temporary_password: string;
+}
+
 export function listStudents(): Promise<Student[]> {
   return apiFetch<Student[]>("/api/students");
 }
@@ -15,5 +19,17 @@ export function createStudent(input: CreateStudentInput): Promise<Student> {
   return apiFetch<Student>("/api/students", {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+export function deleteStudent(id: string): Promise<void> {
+  return apiFetch<void>(`/api/students/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function resetStudentPassword(id: string): Promise<StudentPasswordReset> {
+  return apiFetch<StudentPasswordReset>(`/api/students/${id}/reset-password`, {
+    method: "POST",
   });
 }

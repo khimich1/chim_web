@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import { MessageBubble } from "@/components/tutor/MessageBubble";
 import {
@@ -40,18 +40,6 @@ export function TutorChatOverlay() {
   const pathname = usePathname();
   const tutorChat = useTutorChatOptional();
   const routePageContext = useMemo(() => buildPageContext(pathname), [pathname]);
-  const pageContext = useMemo(
-    () => ({
-      ...routePageContext,
-      ...(tutorChat?.pageContextOverride ?? {}),
-    }),
-    [routePageContext, tutorChat?.pageContextOverride],
-  );
-  const suggestedPrompts = useMemo(
-    () => getSuggestedPrompts(pageContext),
-    [pageContext],
-  );
-  const onTestSession = isActiveTestSession(pathname);
 
   const [localOpen, setLocalOpen] = useState(false);
   const open = tutorChat?.open ?? localOpen;
@@ -74,12 +62,42 @@ export function TutorChatOverlay() {
   const [healthWarning, setHealthWarning] = useState<string | null>(null);
 
   const [trackedPathname, setTrackedPathname] = useState(pathname);
+  // Local flag so we stop merging provider override immediately on navigation,
+  // without updating TutorChatProvider during render.
+  const [suppressOverride, setSuppressOverride] = useState(false);
   if (pathname !== trackedPathname) {
     setTrackedPathname(pathname);
     setSessionId(null);
     setMessages([]);
-    tutorChat?.clearPageContextOverride();
+    setSuppressOverride(true);
   }
+
+  // Clear provider override after route change. Must not run during render —
+  // clearPageContextOverride updates TutorChatProvider and triggers
+  // "Cannot update a component while rendering a different component".
+  useLayoutEffect(() => {
+    if (!suppressOverride) {
+      return;
+    }
+    if (tutorChat?.pageContextOverride) {
+      tutorChat.clearPageContextOverride();
+      return;
+    }
+    setSuppressOverride(false);
+  }, [suppressOverride, tutorChat]);
+
+  const pageContext = useMemo(
+    () => ({
+      ...routePageContext,
+      ...(suppressOverride ? null : tutorChat?.pageContextOverride),
+    }),
+    [routePageContext, suppressOverride, tutorChat?.pageContextOverride],
+  );
+  const suggestedPrompts = useMemo(
+    () => getSuggestedPrompts(pageContext),
+    [pageContext],
+  );
+  const onTestSession = isActiveTestSession(pathname);
 
   const ensureSession = useCallback(async () => {
     if (sessionId) return sessionId;

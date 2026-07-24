@@ -70,8 +70,14 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Canvas under body — avoids a different color peeking past the wash */
+html {
+  background-color: var(--chem-bg);
+}
+
 body {
-  background: var(--background);
+  /* Longhand only — shorthand would reset image/repeat/size and fight .chem-surface */
+  background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
@@ -82,13 +88,116 @@ body {
   outline-offset: 2px;
 }
 
-/* Surfaces */
+/* Surfaces — continuous wash (no tile seam on tall pages) */
 .chem-surface {
-  background: linear-gradient(
+  background-color: var(--chem-bg);
+  background-image: linear-gradient(
     165deg,
     color-mix(in srgb, var(--chem-band) 28%, var(--chem-bg)) 0%,
-    var(--chem-bg) 55%
+    var(--chem-bg) 52%,
+    var(--chem-bg) 100%
   );
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+/*
+ * Calm lava-lamp drift for DecorativeBlobs (spec ambient-background-calm-drift).
+ * AB-7: prior ±1–4% was silent; first bump ~4–12% still felt weak on vertical travel.
+ * Post-QA bump: Y ±12–24% with explicit up+down per cycle; X stays ~3–8% for corridors.
+ * Multi-stop translate + uneven scaleX/Y + slight rotate = wax morph without path morph.
+ */
+@keyframes chem-blob-drift-a {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1, 1) rotate(0deg);
+  }
+  25% {
+    transform: translate(5%, -18%) scale(1.08, 0.94) rotate(3deg);
+  }
+  50% {
+    transform: translate(4%, 22%) scale(0.94, 1.1) rotate(-2deg);
+  }
+  75% {
+    transform: translate(7%, -14%) scale(1.06, 0.96) rotate(2deg);
+  }
+}
+
+@keyframes chem-blob-drift-b {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1, 1) rotate(0deg);
+  }
+  25% {
+    transform: translate(4%, 20%) scale(0.93, 1.09) rotate(-3deg);
+  }
+  50% {
+    transform: translate(-3%, -24%) scale(1.1, 0.92) rotate(2deg);
+  }
+  75% {
+    transform: translate(5%, 15%) scale(0.96, 1.06) rotate(-1deg);
+  }
+}
+
+@keyframes chem-blob-drift-c {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1, 1) rotate(0deg);
+  }
+  25% {
+    transform: translate(-6%, -16%) scale(1.05, 0.93) rotate(-2deg);
+  }
+  50% {
+    transform: translate(-4%, 24%) scale(0.92, 1.11) rotate(3deg);
+  }
+  75% {
+    transform: translate(-8%, -20%) scale(1.09, 0.95) rotate(-1deg);
+  }
+}
+
+@keyframes chem-blob-drift-d {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1, 1) rotate(0deg);
+  }
+  25% {
+    transform: translate(-4%, 18%) scale(0.95, 1.08) rotate(2deg);
+  }
+  50% {
+    transform: translate(-6%, -22%) scale(1.11, 0.93) rotate(-3deg);
+  }
+  75% {
+    transform: translate(3%, 16%) scale(0.97, 1.05) rotate(1deg);
+  }
+}
+
+.chem-blob-drift {
+  transform-origin: center;
+}
+
+.chem-blob-drift--a {
+  animation: chem-blob-drift-a 22s ease-in-out infinite;
+}
+
+.chem-blob-drift--b {
+  animation: chem-blob-drift-b 28s ease-in-out infinite;
+  animation-delay: -9s;
+}
+
+.chem-blob-drift--c {
+  animation: chem-blob-drift-c 19s ease-in-out infinite;
+  animation-delay: -5s;
+}
+
+.chem-blob-drift--d {
+  animation: chem-blob-drift-d 25s ease-in-out infinite;
+  animation-delay: -14s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chem-blob-drift {
+    animation: none !important;
+  }
 }
 
 .chem-card {

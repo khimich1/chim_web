@@ -191,4 +191,214 @@ def test_duplicate_email_returns_409(client: TestClient) -> None:
         },
     )
     assert response.status_code == 409
-    assert response.json()["detail"] == "Email already registered"
+    assert response.json()["detail"] == "Login already registered"
+
+
+def test_create_student_accepts_login_without_at(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+
+    response = client.post(
+        "/api/students",
+        json={"email": "ivanov", "password": "temp-pass", "track": "ege"},
+    )
+    assert response.status_code == 201
+    assert response.json()["email"] == "ivanov"
+
+
+def test_create_student_normalizes_login_to_lowercase(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+
+    response = client.post(
+        "/api/students",
+        json={"email": "  Ivanov  ", "password": "temp-pass", "track": "oge"},
+    )
+    assert response.status_code == 201
+    assert response.json()["email"] == "ivanov"
+
+
+def test_create_student_accepts_email_like_login(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+
+    response = client.post(
+        "/api/students",
+        json={
+            "email": "masha@school.ru",
+            "password": "temp-pass",
+            "track": "ege",
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["email"] == "masha@school.ru"
+
+
+def test_create_student_rejects_cyrillic_login(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+
+    response = client.post(
+        "/api/students",
+        json={"email": "маша", "password": "temp-pass", "track": "ege"},
+    )
+    assert response.status_code == 422
+
+
+def test_create_student_rejects_login_with_spaces(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+
+    response = client.post(
+        "/api/students",
+        json={"email": "a b", "password": "temp-pass", "track": "ege"},
+    )
+    assert response.status_code == 422
+
+
+def test_create_student_rejects_login_shorter_than_3(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+
+    response = client.post(
+        "/api/students",
+        json={"email": "ab", "password": "temp-pass", "track": "ege"},
+    )
+    assert response.status_code == 422
+
+
+def test_duplicate_login_case_insensitive_returns_409(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+
+    assert (
+        client.post(
+            "/api/students",
+            json={"email": "Petrov", "password": "temp-pass", "track": "ege"},
+        ).status_code
+        == 201
+    )
+
+    response = client.post(
+        "/api/students",
+        json={"email": "petrov", "password": "other-pass", "track": "oge"},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Login already registered"
+
+
+def test_create_student_accepts_4_char_password(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+
+    response = client.post(
+        "/api/students",
+        json={
+            "email": "short-pass@example.com",
+            "password": "abcd",
+            "track": "ege",
+        },
+    )
+    assert response.status_code == 201
+
+    client.post("/api/auth/logout")
+    assert _login(client, "short-pass@example.com", "abcd").status_code == 200
+
+
+def test_create_student_rejects_password_shorter_than_4(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+
+    response = client.post(
+        "/api/students",
+        json={
+            "email": "too-short@example.com",
+            "password": "abc",
+            "track": "ege",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_soft_delete_hides_student_and_blocks_login(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+    created = client.post(
+        "/api/students",
+        json={
+            "email": "todelete",
+            "password": "temp-pass",
+            "track": "ege",
+        },
+    ).json()
+    student_id = created["id"]
+
+    deleted = client.delete(f"/api/students/{student_id}")
+    assert deleted.status_code == 204
+
+    emails = [item["email"] for item in client.get("/api/students").json()]
+    assert "todelete" not in emails
+
+    client.post("/api/auth/logout")
+    assert _login(client, "todelete", "temp-pass").status_code == 401
+
+
+def test_reset_password_returns_temporary_password(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+    student_id = client.post(
+        "/api/students",
+        json={
+            "email": "resetme",
+            "password": "old-pass",
+            "track": "oge",
+        },
+    ).json()["id"]
+
+    reset = client.post(f"/api/students/{student_id}/reset-password")
+    assert reset.status_code == 200
+    body = reset.json()
+    assert "temporary_password" in body
+    temp = body["temporary_password"]
+    assert len(temp) >= 4
+
+    client.post("/api/auth/logout")
+    assert _login(client, "resetme", "old-pass").status_code == 401
+    assert _login(client, "resetme", temp).status_code == 200
+
+
+def test_revive_inactive_student_keeps_same_id(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+    created = client.post(
+        "/api/students",
+        json={
+            "email": "revive-me",
+            "password": "first-pass",
+            "track": "ege",
+        },
+    ).json()
+    original_id = created["id"]
+    assert client.delete(f"/api/students/{original_id}").status_code == 204
+
+    revived = client.post(
+        "/api/students",
+        json={
+            "email": "Revive-Me",
+            "password": "second-pass",
+            "track": "oge",
+        },
+    )
+    assert revived.status_code == 201
+    body = revived.json()
+    assert body["id"] == original_id
+    assert body["email"] == "revive-me"
+    assert body["track"] == "oge"
+
+    listed = client.get("/api/students").json()
+    assert any(item["id"] == original_id for item in listed)
+
+    client.post("/api/auth/logout")
+    assert _login(client, "revive-me", "first-pass").status_code == 401
+    assert _login(client, "revive-me", "second-pass").status_code == 200
+
+
+def test_soft_delete_unknown_student_returns_404(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+    assert client.delete(f"/api/students/{uuid.uuid4()}").status_code == 404
+
+
+def test_reset_password_unknown_student_returns_404(client: TestClient) -> None:
+    assert _login(client, TEACHER_EMAIL, TEACHER_PASS).status_code == 200
+    assert (
+        client.post(f"/api/students/{uuid.uuid4()}/reset-password").status_code
+        == 404
+    )

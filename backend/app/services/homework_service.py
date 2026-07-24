@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,8 +24,13 @@ from app.repositories.app.teacher_theme_repo import TeacherThemeRepository
 from app.repositories.app.test_session_repo import TestSessionRepository
 from app.repositories.content.tests import ExamContentRepo
 from app.schemas.homework import (
+    HomeworkCancelRequest,
+    HomeworkCancelResponse,
+    HomeworkCancelScope,
     HomeworkCreate,
     HomeworkRead,
+    HomeworkRestoreRequest,
+    HomeworkRestoreResponse,
     HomeworkSubmissionStepRead,
     StepFeedbackEmbeddedRead,
 )
@@ -36,6 +42,10 @@ from app.services.image_substitution import (
     substitute_image_placeholders,
 )
 from app.services.test_session.common import answer_image_urls, coerce_answer_image_ids
+
+RESTORE_TTL = timedelta(seconds=30)
+_CANCELLABLE = frozenset({HomeworkStatus.ASSIGNED, HomeworkStatus.IN_PROGRESS})
+_SKIPPED_ON_CANCEL = frozenset({HomeworkStatus.SUBMITTED, HomeworkStatus.REVIEWED})
 
 
 class HomeworkService:
@@ -294,9 +304,124 @@ class HomeworkService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not your homework assignment",
             )
+        if assignment.status == HomeworkStatus.CANCELLED:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Homework not found",
+            )
         active_id = await self._active_session_id(user.id, assignment.id)
         return to_homework_read(
             assignment,
             active_test_session_id=active_id,
             has_teacher_feedback=await self._has_teacher_feedback_flag(assignment.id),
         )
+
+    async def _require_teacher_assignment(
+        self,
+        teacher: User,
+        assignment_id: uuid.UUID,
+    ) -> HomeworkAssignment:
+        assignment = await self._homework.get_by_id(assignment_id)
+        if assignment is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Homework not found",
+            )
+        if assignment.teacher_id != teacher.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not your homework assignment",
+            )
+        return assignment
+
+    def _within_restore_ttl(self, assignment: HomeworkAssignment) -> bool:
+        if assignment.cancelled_at is None:
+            return False
+        cancelled_at = assignment.cancelled_at
+        if cancelled_at.tzinfo is None:
+            cancelled_at = cancelled_at.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) - cancelled_at <= RESTORE_TTL
+
+    async def cancel_assignment(
+        self,
+        teacher: User,
+        assignment_id: uuid.UUID,
+        data: HomeworkCancelRequest | None = None,
+    ) -> HomeworkCancelResponse:
+        data = data or HomeworkCancelRequest()
+        anchor = await self._require_teacher_assignment(teacher, assignment_id)
+
+        if data.scope == HomeworkCancelScope.WAVE:
+            if anchor.assign_batch_id is None or anchor.source_group_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Wave cancel requires assign_batch_id and source_group_id",
+                )
+            siblings = await self._homework.list_by_assign_batch(
+                teacher_id=teacher.id,
+                assign_batch_id=anchor.assign_batch_id,
+            )
+        else:
+            siblings = [anchor]
+
+        now = datetime.now(timezone.utc)
+        cancelled_ids: list[uuid.UUID] = []
+        skipped_submitted_count = 0
+        cancelled_at: datetime | None = None
+
+        for row in siblings:
+            if row.status in _CANCELLABLE:
+                row.status = HomeworkStatus.CANCELLED
+                row.cancelled_at = now
+                cancelled_ids.append(row.id)
+                cancelled_at = now
+            elif row.status in _SKIPPED_ON_CANCEL:
+                skipped_submitted_count += 1
+
+        await self._session.commit()
+        return HomeworkCancelResponse(
+            cancelled_ids=cancelled_ids,
+            skipped_submitted_count=skipped_submitted_count,
+            cancelled_at=cancelled_at,
+        )
+
+    async def restore_assignment(
+        self,
+        teacher: User,
+        assignment_id: uuid.UUID,
+        data: HomeworkRestoreRequest | None = None,
+    ) -> HomeworkRestoreResponse:
+        data = data or HomeworkRestoreRequest()
+        anchor = await self._require_teacher_assignment(teacher, assignment_id)
+
+        if data.scope == HomeworkCancelScope.WAVE:
+            if anchor.assign_batch_id is None or anchor.source_group_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Wave restore requires assign_batch_id and source_group_id",
+                )
+            candidates = await self._homework.list_by_assign_batch(
+                teacher_id=teacher.id,
+                assign_batch_id=anchor.assign_batch_id,
+            )
+        else:
+            candidates = [anchor]
+
+        restored_ids: list[uuid.UUID] = []
+        for row in candidates:
+            if row.status != HomeworkStatus.CANCELLED:
+                continue
+            if not self._within_restore_ttl(row):
+                continue
+            row.status = HomeworkStatus.ASSIGNED
+            row.cancelled_at = None
+            restored_ids.append(row.id)
+
+        if not restored_ids:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Restore window expired or assignment is not cancelled",
+            )
+
+        await self._session.commit()
+        return HomeworkRestoreResponse(restored_ids=restored_ids)
