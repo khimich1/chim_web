@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { GroupsPanel } from "@/components/students/GroupsPanel";
 import {
   createTeacherGroup,
+  deleteTeacherGroup,
   getTeacherGroup,
   listTeacherGroups,
   renameTeacherGroup,
@@ -32,6 +33,7 @@ const mockedCreate = vi.mocked(createTeacherGroup);
 const mockedRename = vi.mocked(renameTeacherGroup);
 const mockedReplace = vi.mocked(replaceTeacherGroupMembers);
 const mockedAssign = vi.mocked(assignHomeworkTemplate);
+const mockedDelete = vi.mocked(deleteTeacherGroup);
 
 const students: Student[] = [
   {
@@ -90,14 +92,13 @@ beforeEach(() => {
   mockedGet.mockResolvedValue(emptyGroup);
 });
 
+async function openGroupSheet(user: ReturnType<typeof userEvent.setup>, name = /Группа 1/) {
+  await user.click(await screen.findByRole("button", { name }));
+  return screen.findByRole("dialog", { name: /Группа/ });
+}
+
 describe("GroupsPanel", () => {
-  it("creates a group with default name Группа N", async () => {
-    const user = userEvent.setup();
-    mockedCreate.mockResolvedValue(emptyGroup);
-    mockedList
-      .mockResolvedValueOnce([])
-      .mockResolvedValue([{ ...emptyGroup, members: undefined } as never]);
-    // After create, refresh loads the new group
+  it("stays list-only until a group is opened", async () => {
     mockedList.mockResolvedValue([
       {
         id: "g1",
@@ -111,17 +112,41 @@ describe("GroupsPanel", () => {
 
     render(<GroupsPanel students={students} templates={templates} />);
 
+    expect(await screen.findByRole("button", { name: /Группа 1/ })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /Группа/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("В группе")).not.toBeInTheDocument();
+  });
+
+  it("creates a group and opens its sheet", async () => {
+    const user = userEvent.setup();
+    mockedCreate.mockResolvedValue(emptyGroup);
+    mockedList
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([
+        {
+          id: "g1",
+          teacher_id: "teacher",
+          name: "Группа 1",
+          member_count: 0,
+          created_at: "2026-06-01T10:00:00Z",
+        },
+      ]);
+    mockedGet.mockResolvedValue(emptyGroup);
+
+    render(<GroupsPanel students={students} templates={templates} />);
+
     await screen.findByText(/Групп пока нет/);
     await user.click(screen.getByRole("button", { name: "Создать группу" }));
 
     expect(mockedCreate).toHaveBeenCalledWith({});
-    expect(await screen.findByText("Группа 1")).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Группа 1" })).toBeInTheDocument();
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Создана группа «Группа 1»",
     );
   });
 
-  it("does not offer students already in another group", async () => {
+  it("does not offer students already in another group in free list", async () => {
     const user = userEvent.setup();
     const groupA = {
       id: "g1",
@@ -162,16 +187,15 @@ describe("GroupsPanel", () => {
 
     render(<GroupsPanel students={students} templates={templates} />);
 
-    await screen.findByRole("button", { name: /Группа 1/ });
-    const panel = await screen.findByRole("region", { name: /Группа Группа 1/ });
-    expect(within(panel).getByText(/anna/)).toBeInTheDocument();
-    expect(within(panel).getByText(/clara/)).toBeInTheDocument();
-    expect(within(panel).queryByLabelText(/boris/)).not.toBeInTheDocument();
-    expect(within(panel).getByText(/boris → Группа 2/)).toBeInTheDocument();
+    const dialog = await openGroupSheet(user, /Группа 1/);
+    const free = within(dialog).getByLabelText("Свободные");
+    expect(within(free).getByText(/anna/)).toBeInTheDocument();
+    expect(within(free).getByText(/clara/)).toBeInTheDocument();
+    expect(within(free).queryByText(/boris/)).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/boris → Группа 2/)).toBeInTheDocument();
 
-    // smoke: rename still works
-    await user.clear(within(panel).getByLabelText("Название"));
-    await user.type(within(panel).getByLabelText("Название"), "Утренние");
+    await user.clear(within(dialog).getByLabelText("Название"));
+    await user.type(within(dialog).getByLabelText("Название"), "Утренние");
     mockedRename.mockResolvedValue({ ...groupA, name: "Утренние" });
     mockedList.mockResolvedValue([
       {
@@ -189,13 +213,13 @@ describe("GroupsPanel", () => {
         created_at: "2026-06-01T10:00:00Z",
       },
     ]);
-    await user.click(within(panel).getByRole("button", { name: "Сохранить имя" }));
+    await user.click(within(dialog).getByRole("button", { name: "Сохранить имя" }));
     await waitFor(() =>
       expect(mockedRename).toHaveBeenCalledWith("g1", "Утренние"),
     );
   });
 
-  it("saves members and assigns template to non-empty group", async () => {
+  it("saves dual-list members and assigns template to non-empty group", async () => {
     const user = userEvent.setup();
     const empty = { ...emptyGroup };
     const withMembers = {
@@ -220,9 +244,17 @@ describe("GroupsPanel", () => {
 
     render(<GroupsPanel students={students} templates={templates} />);
 
-    const panel = await screen.findByRole("region", { name: /Группа Группа 1/ });
-    await user.click(within(panel).getByLabelText(/anna/));
-    await user.click(within(panel).getByLabelText(/clara/));
+    const dialog = await openGroupSheet(user);
+    const free = within(dialog).getByLabelText("Свободные");
+
+    await user.click(within(free).getByRole("button", { name: /anna/ }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Добавить в группу" }),
+    );
+    await user.click(within(free).getByRole("button", { name: /clara/ }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Добавить в группу" }),
+    );
 
     mockedReplace.mockResolvedValue(withMembers);
     mockedList.mockResolvedValue([
@@ -237,34 +269,68 @@ describe("GroupsPanel", () => {
     mockedGet.mockResolvedValue(withMembers);
 
     await user.click(
-      within(panel).getByRole("button", { name: "Сохранить состав" }),
+      within(dialog).getByRole("button", { name: "Сохранить состав" }),
     );
     expect(mockedReplace).toHaveBeenCalledWith("g1", ["s1", "s3"]);
 
     await waitFor(() =>
-      expect(screen.getByLabelText("Шаблон")).toBeEnabled(),
+      expect(within(dialog).getByLabelText("Шаблон")).toBeEnabled(),
     );
 
-    await user.selectOptions(screen.getByLabelText("Шаблон"), "t1");
+    await user.selectOptions(within(dialog).getByLabelText("Шаблон"), "t1");
     mockedAssign.mockResolvedValue([
       { id: "h1" } as never,
       { id: "h2" } as never,
     ]);
-    await user.click(screen.getByRole("button", { name: "Назначить группе" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Назначить группе" }),
+    );
 
     expect(mockedAssign).toHaveBeenCalledWith("t1", { group_id: "g1" });
-    const status = await screen.findByRole("status");
+    const status = await within(dialog).findByRole("status");
     expect(status).toHaveTextContent(
       "Назначено: «Алканы» — назначено ученикам: 2",
     );
-    expect(screen.getByLabelText("Шаблон")).toHaveValue("");
+    expect(within(dialog).getByLabelText("Шаблон")).toHaveValue("");
     expect(
-      screen.getByRole("button", { name: "Назначить группе" }),
+      within(dialog).getByRole("button", { name: "Назначить группе" }),
     ).toBeDisabled();
 
     await user.click(
-      screen.getByRole("button", { name: "Скрыть уведомление" }),
+      within(dialog).getByRole("button", { name: "Скрыть уведомление" }),
     );
-    expect(screen.queryByText(/Назначено: «Алканы»/)).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByText(/Назначено: «Алканы»/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("deletes a group and closes the sheet", async () => {
+    const user = userEvent.setup();
+    mockedList.mockResolvedValue([
+      {
+        id: "g1",
+        teacher_id: "teacher",
+        name: "Группа 1",
+        member_count: 0,
+        created_at: "2026-06-01T10:00:00Z",
+      },
+    ]);
+    mockedGet.mockResolvedValue(emptyGroup);
+    mockedDelete.mockResolvedValue(undefined);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<GroupsPanel students={students} templates={templates} />);
+    const dialog = await openGroupSheet(user);
+
+    mockedList.mockResolvedValue([]);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Удалить группу" }),
+    );
+
+    expect(mockedDelete).toHaveBeenCalledWith("g1");
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(await screen.findByText(/Групп пока нет/)).toBeInTheDocument();
   });
 });

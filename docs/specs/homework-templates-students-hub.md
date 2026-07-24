@@ -7,6 +7,8 @@
 **Родитель:** [`SPEC.md`](../../SPEC.md) §1.9 (homework), §4 (онбординг / доступ ученика)  
 **Связано:** [`teacher-cabinet-ux.md`](teacher-cabinet-ux.md) (группы/revoke — переиспользуем модель; **не** drawer, **не** soft-template); [`teacher-header-chrome.md`](teacher-header-chrome.md) (вне scope); [`student-login-identifier.md`](student-login-identifier.md) (логин в UI)
 
+> **UI amendment (2026-07-24):** accordion / checkbox-expand состава **superseded** by approved spec [`students-hub-side-panels.md`](students-hub-side-panels.md) ✅ (2026-07-24) — right sheets + dual-list. Шаблоны, groups API, soft-delete, reset-password, revoke — без изменений.
+
 ---
 
 ## Assumptions (проверьте до PLAN)

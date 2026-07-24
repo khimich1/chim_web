@@ -313,6 +313,8 @@ Individual HW (`source_group_id IS NULL`) — не трогать.
 
 ### 8.3 Student card (drawer)
 
+> **Детализация UI хаба (2026-07-24):** draft [`students-hub-side-panels.md`](students-hub-side-panels.md) — right sheet вместо accordion; история ДЗ через FE-filter `GET /api/homework`; AI = заглушка; `/card` отложен. Assign — через шаблоны (см. homework-templates hub), не `/teacher/homework/new?studentId=`.
+
 MVP содержимое:
 
 - Сводка прогресса (существующие stats).
