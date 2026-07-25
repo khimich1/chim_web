@@ -37,11 +37,13 @@ from app.schemas.homework_feedback import (
     StepFeedbackUpsert,
     SubmissionFeedbackUpsert,
 )
+from app.schemas.handoff import FeedbackHandoffCreate, HandoffCreateResponse
 from app.services.homework_feedback_service import HomeworkFeedbackService
 from app.services.activity_service import ActivityService
 from app.services.homework_service import HomeworkService
 from app.services.homework_submit_service import HomeworkSubmitService
 from app.services.onboarding_service import OnboardingService
+from app.services.upload_handoff_service import UploadHandoffService
 
 router = APIRouter(prefix="/api/homework", tags=["homework"])
 
@@ -179,6 +181,26 @@ async def upsert_step_feedback(
         assignment_id,
         position,
         payload,
+    )
+
+
+@router.post(
+    "/{assignment_id}/feedback-handoff",
+    response_model=HandoffCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_feedback_handoff(
+    assignment_id: uuid.UUID,
+    teacher: TeacherUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
+    payload: FeedbackHandoffCreate | None = None,
+) -> HandoffCreateResponse:
+    body = payload or FeedbackHandoffCreate()
+    return await UploadHandoffService(db, settings).create_feedback_handoff(
+        teacher,
+        assignment_id,
+        body.position,
     )
 
 

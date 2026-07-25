@@ -1,9 +1,9 @@
 """Mobile capture endpoints for QR handoff (SPEC §1.9.9).
 
-| Method | Path                 | Auth              | Response              |
-|--------|----------------------|-------------------|-----------------------|
-| GET    | /api/capture/{token} | token in URL      | CaptureMetaResponse   |
-| POST   | /api/capture/{token} | token in URL      | CaptureUploadResponse |
+| Method | Path                 | Auth                         | Response              |
+|--------|----------------------|------------------------------|-----------------------|
+| GET    | /api/capture/{token} | token; feedback needs teacher| CaptureMetaResponse   |
+| POST   | /api/capture/{token} | token; feedback needs teacher| CaptureUploadResponse |
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_app_settings
+from app.api.deps import OptionalCurrentUser, get_app_settings
 from app.core.config import Settings
 from app.db.session import get_db
 from app.schemas.handoff import CaptureMetaResponse, CaptureUploadResponse
@@ -34,14 +34,16 @@ def get_upload_handoff_service(
 async def get_capture_meta(
     token: uuid.UUID,
     service: Annotated[UploadHandoffService, Depends(get_upload_handoff_service)],
+    actor: OptionalCurrentUser,
 ) -> CaptureMetaResponse:
-    return await service.get_capture_meta(token)
+    return await service.get_capture_meta(token, actor=actor)
 
 
 @router.post("/{token}", response_model=CaptureUploadResponse)
 async def capture_upload(
     token: uuid.UUID,
     service: Annotated[UploadHandoffService, Depends(get_upload_handoff_service)],
+    actor: OptionalCurrentUser,
     file: UploadFile = File(...),
 ) -> CaptureUploadResponse:
-    return await service.capture_upload(token, file)
+    return await service.capture_upload(token, file, actor=actor)
