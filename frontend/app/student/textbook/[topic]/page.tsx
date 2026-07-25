@@ -62,6 +62,8 @@ export default async function TextbookTopicPage({
           summaries={summaries}
           initialChunkIdx={safeChunkIdx}
           videoUrl={videoUrl}
+          neuroquizEnabled={process.env.NEXT_PUBLIC_NEUROQUIZ_ENABLED === "true"}
+          catalogHref={backHref}
         />
       </section>
     </main>

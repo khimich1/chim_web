@@ -69,6 +69,32 @@ export interface TextbookChunk extends ChunkSummary {
   lecture: string;
 }
 
+export interface NeuroQuizOption {
+  id: string;
+  text: string;
+}
+
+export interface NeuroQuizQuestionPublic {
+  id: string;
+  prompt: string;
+  options: NeuroQuizOption[];
+}
+
+export interface NeuroQuizSession {
+  topic: string;
+  chunk_idx: number;
+  scoring_enabled: boolean;
+  questions: NeuroQuizQuestionPublic[];
+}
+
+export interface NeuroQuizSubmitResult {
+  correct: boolean;
+  correct_option_id: string;
+  explanation: string | null;
+  points_awarded: number;
+  quiz_completed: boolean;
+}
+
 export type TestSessionStatus = "in_progress" | "completed";
 export type TestSessionSource = "exam" | "custom";
 export type StepStatus = "unseen" | "answered" | "checked";
