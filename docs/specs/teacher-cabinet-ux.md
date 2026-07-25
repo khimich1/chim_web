@@ -335,7 +335,7 @@ MVP содержимое:
 
 **Paste / DnD:** детали intake (Ctrl+V, drag-and-drop, MIME, лимиты, hint, превью) — [`clipboard-image-intake.md`](clipboard-image-intake.md). Кратко: в `ContentBlocksEditor` paste/drop с `image/*` → `uploadImage` → image block; text paste не ломается.
 
-**Lightbox:** клик по превью в конструкторе и в UI проверки ДЗ → modal/overlay, zoom in/out (или wheel/buttons). Один shared component. **Не** resize ширины блока в редакторе. Lightbox (US-TC-8) — отдельная задача, вне `clipboard-image-intake`.
+**Lightbox:** клик по превью в конструкторе и в UI проверки ДЗ → modal/overlay, zoom in/out (или wheel/buttons). Один shared component. **Не** resize ширины блока в редакторе. US-TC-8 → [`image-lightbox-click-to-enlarge.md`](image-lightbox-click-to-enlarge.md) / [`tasks/image-lightbox-click-to-enlarge.md`](../../tasks/image-lightbox-click-to-enlarge.md).
 
 ---
 

@@ -5,7 +5,7 @@
 **Статус:** IMPLEMENT ✅ — срезы CI-1…CI-5 выполнены; ручная проверка в Chrome желательна  
 **Источник:** [`docs/ideas/clipboard-image-intake.md`](../ideas/clipboard-image-intake.md)  
 **Родитель:** [`SPEC.md`](../../SPEC.md) §1.9 (конструктор / content blocks), uploads  
-**Связано:** [`teacher-cabinet-ux.md`](teacher-cabinet-ux.md) US-TC-3 (paste) — **этот документ = детальная спецификация media intake**; lightbox (US-TC-8) **вне scope** здесь
+**Связано:** [`teacher-cabinet-ux.md`](teacher-cabinet-ux.md) US-TC-3 (paste) — **этот документ = детальная спецификация media intake**; lightbox (US-TC-8) → [`image-lightbox-click-to-enlarge.md`](image-lightbox-click-to-enlarge.md) (**supersedes** прежнее «вне scope» здесь)
 **План:** [`tasks/clipboard-image-intake.md`](../../tasks/clipboard-image-intake.md)
 
 ---
@@ -20,7 +20,7 @@
 4. **MIME:** только `image/jpeg`, `image/png`, `image/webp` — как у текущего file picker. Иное → сообщение об ошибке, без upload.
 5. **Отображение «как в тестах»:** классы эталона  
    `my-3 block h-auto max-w-full rounded-md border border-zinc-200 object-contain`  
-   (см. `CustomQuestionContent` / `QuestionContent`). Без lightbox / `ImageViewer` в этом релизе. В `ContentBlocksEditor` превью через `AuthenticatedImage` (убрать дублирующий `BlockImagePreview` fetch, если возможно без регрессий).
+   (см. `CustomQuestionContent` / `QuestionContent`). Lightbox / enlarge — отдельно: [`image-lightbox-click-to-enlarge.md`](image-lightbox-click-to-enlarge.md). В `ContentBlocksEditor` превью через `AuthenticatedImage` (убрать дублирующий `BlockImagePreview` fetch, если возможно без регрессий).
 6. **StepFeedbackForm:** сейчас превью `h-20 w-20 object-cover` — слишком мелко. В рамках этой фичи превью фидбек-фото → читаемый размер (не крошечный crop; `object-contain`, ширина до контейнера или разумный `max-h` ≥ ~16rem). Лимит 5 фото без изменений.
 7. **Порядок поставки (срезы):**  
    (1) shared intake + `ContentBlocksEditor` + display в редакторе + **видимый hint**  
@@ -36,7 +36,7 @@
    | `StepView` | **superseded:** лимит **3** фото на шаг (`answer_image_ids[]`), append до заполнения — см. [`student-multi-photo-answer-paste.md`](student-multi-photo-answer-paste.md). Ранее здесь был limit=1 (replace). |
 10. **UI hint обязателен** на каждой зоне intake в MVP: короткий текст вроде «Можно вставить из буфера (Ctrl+V) или перетащить файл».
 11. **CapturePage** = страница `/capture?token=…` для ученика: чеклист + камера/файл → handoff фото ДЗ. **Не** конструктор заданий. В этот релиз **не** подключаем.
-12. **Этот spec supersedes** краткое описание paste в `teacher-cabinet-ux.md` §8 (media). После approve — в teacher-cabinet добавить ссылку «детали → clipboard-image-intake.md»; lightbox остаётся отдельной задачей cabinet UX.
+12. **Этот spec supersedes** краткое описание paste в `teacher-cabinet-ux.md` §8 (media). После approve — в teacher-cabinet добавить ссылку «детали → clipboard-image-intake.md». Lightbox → [`image-lightbox-click-to-enlarge.md`](image-lightbox-click-to-enlarge.md).
 
 → Поправьте нумерованные пункты, иначе после approve идём в PLAN с ними.
 
@@ -189,7 +189,7 @@ Coverage: новые helpers + happy-path paste в редакторе обяза
 ### Ask first
 - Подключать paste/DnD к `CapturePage` (сейчас вне MVP).
 - Менять лимиты (10 за drop / 5 в feedback).
-- Lightbox / zoom (это teacher-cabinet US-TC-8).
+- Lightbox / zoom → [`image-lightbox-click-to-enlarge.md`](image-lightbox-click-to-enlarge.md) (supersedes прежнее Ask-first exclusion).
 - Новые npm-зависимости.
 
 ### Never
@@ -245,7 +245,7 @@ Coverage: новые helpers + happy-path paste в редакторе обяза
 ## 10. Out of scope
 
 - Rich-text / inline images in text blocks
-- Lightbox, rotate, pan (`ImageViewer`)
+- Lightbox, rotate, pan — реализованы в [`image-lightbox-click-to-enlarge.md`](image-lightbox-click-to-enlarge.md) (не в этом clipboard-релизе)
 - `CapturePage` paste/DnD (later, отдельная задача)
 - Mobile clipboard paste guarantees
 - Изменение лимитов размера/MIME на backend
