@@ -28,6 +28,7 @@ from app.api.routers import teacher_stats as teacher_stats_router
 from app.api.routers import teacher_themes as teacher_themes_router
 from app.api.routers import test_sessions as test_sessions_router
 from app.api.routers import tests as tests_router
+from app.api.routers import neuroquiz as neuroquiz_router
 from app.api.routers import textbook as textbook_router
 from app.api.routers import tutor as tutor_router
 from app.api.routers import uploads as uploads_router
@@ -84,6 +85,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(student_homework_router.router)
     application.include_router(notifications_router.router)
     application.include_router(textbook_router.router)
+    application.include_router(neuroquiz_router.router)
     application.include_router(tests_router.router)
     application.include_router(test_sessions_router.router)
     application.include_router(capture_router.router)

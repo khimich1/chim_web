@@ -82,6 +82,7 @@ def test_activity_event_types() -> None:
         "onboarding_welcome_skipped",
         "onboarding_checklist_step",
         "onboarding_first_action",
+        "neuroquiz_correct",
     }
 
 
