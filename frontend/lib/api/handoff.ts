@@ -1,5 +1,7 @@
 import { API_URL, ApiError, API_FETCH_TIMEOUT_MS, apiFetch } from "@/lib/api/client";
 
+export type HandoffPurpose = "answer" | "feedback";
+
 export interface HandoffCreateResponse {
   token: string;
   capture_url: string;
@@ -7,18 +9,25 @@ export interface HandoffCreateResponse {
 }
 
 export interface CaptureMetaResponse {
-  session_id: string;
-  position: number;
+  purpose?: HandoffPurpose;
+  session_id?: string | null;
+  homework_id?: string | null;
+  position?: number | null;
   task_title: string | null;
   question_preview: string | null;
   expires_at: string;
   already_has_photo: boolean;
+  staged_image_id?: string | null;
+  staged_image_url?: string | null;
 }
 
 export interface CaptureUploadResponse {
-  position: number;
-  answer_image_ids: string[];
-  answer_image_urls: string[];
+  purpose?: HandoffPurpose;
+  position?: number | null;
+  answer_image_ids?: string[];
+  answer_image_urls?: string[];
+  staged_image_id?: string | null;
+  staged_image_url?: string | null;
 }
 
 export function createHandoff(
@@ -28,6 +37,21 @@ export function createHandoff(
   return apiFetch<HandoffCreateResponse>(
     `/api/tests/sessions/${sessionId}/steps/${position}/handoff`,
     { method: "POST" },
+  );
+}
+
+export function createFeedbackHandoff(
+  assignmentId: string,
+  position?: number | null,
+): Promise<HandoffCreateResponse> {
+  return apiFetch<HandoffCreateResponse>(
+    `/api/homework/${assignmentId}/feedback-handoff`,
+    {
+      method: "POST",
+      body: JSON.stringify(
+        position === undefined ? {} : { position },
+      ),
+    },
   );
 }
 
