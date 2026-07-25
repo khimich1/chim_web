@@ -5,8 +5,8 @@ from __future__ import annotations
 from functools import reduce
 from typing import TYPE_CHECKING
 
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, AIMessageChunk
-from langchain_openai import ChatOpenAI
 
 if TYPE_CHECKING:
     from app.services.tutor.context import TutorRunContext
@@ -26,7 +26,7 @@ def chunk_text(message: AIMessage | AIMessageChunk) -> str:
     return ""
 
 
-def invoke_llm(llm: ChatOpenAI, messages: list, ctx: TutorRunContext) -> AIMessage:
+def invoke_llm(llm: BaseChatModel, messages: list, ctx: TutorRunContext) -> AIMessage:
     """Invoke or stream the LLM; optional stream_sink emits token chunks (Task 47 U1)."""
     if ctx.stream_sink is None:
         response = llm.invoke(messages)

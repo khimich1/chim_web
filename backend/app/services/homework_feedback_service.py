@@ -235,45 +235,44 @@ class HomeworkFeedbackService:
                 detail="Submitted homework not found",
             )
 
-        step_rows = await self._feedback.list_step_feedbacks_for_assignment(assignment_id)
-        session_id = assignment.submission.test_session_id
-        if session_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Homework submission has no test session",
-            )
-
-        test_session = await self._sessions.get_with_steps(session_id)
-        if test_session is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Test session not found",
-            )
-
+        # Lecture / no-test items: submission.test_session_id is null by design.
+        # Per-step feedback needs a session; submission-level feedback does not.
         steps_out: list[StepFeedbackRead] = []
-        for step, feedback in step_rows:
-            if not await self._step_is_self_check(step, test_session.track):
-                continue
-            if feedback is None or feedback.published_at is None:
-                continue
-            if not _has_content(
-                teacher_text=feedback.teacher_text,
-                teacher_voice_id=feedback.teacher_voice_id,
-                teacher_image_ids=[
-                    uuid.UUID(image_id) for image_id in feedback.teacher_image_ids
-                ],
-            ):
-                continue
-            steps_out.append(
-                StepFeedbackRead(
-                    position=step.position,
-                    title=await self._step_title(step, test_session.track),
-                    teacher_text=feedback.teacher_text,
-                    teacher_voice_url=_voice_url(feedback.teacher_voice_id),
-                    teacher_image_urls=_image_urls(feedback.teacher_image_ids),
-                    published_at=feedback.published_at,
+        session_id = assignment.submission.test_session_id
+        if session_id is not None:
+            test_session = await self._sessions.get_with_steps(session_id)
+            if test_session is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Test session not found",
                 )
+
+            step_rows = await self._feedback.list_step_feedbacks_for_assignment(
+                assignment_id
             )
+            for step, feedback in step_rows:
+                if not await self._step_is_self_check(step, test_session.track):
+                    continue
+                if feedback is None or feedback.published_at is None:
+                    continue
+                if not _has_content(
+                    teacher_text=feedback.teacher_text,
+                    teacher_voice_id=feedback.teacher_voice_id,
+                    teacher_image_ids=[
+                        uuid.UUID(image_id) for image_id in feedback.teacher_image_ids
+                    ],
+                ):
+                    continue
+                steps_out.append(
+                    StepFeedbackRead(
+                        position=step.position,
+                        title=await self._step_title(step, test_session.track),
+                        teacher_text=feedback.teacher_text,
+                        teacher_voice_url=_voice_url(feedback.teacher_voice_id),
+                        teacher_image_urls=_image_urls(feedback.teacher_image_ids),
+                        published_at=feedback.published_at,
+                    )
+                )
 
         submission_feedback = None
         sub_row = await self._feedback.get_submission_feedback(assignment.submission.id)

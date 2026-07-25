@@ -46,6 +46,8 @@ export interface TutorMessageResponse {
 
 export interface TutorHealthResponse {
   rag_index_exists: boolean;
+  llm_configured: boolean;
+  /** @deprecated Alias of llm_configured — kept for compatibility. */
   openai_configured: boolean;
 }
 

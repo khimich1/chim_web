@@ -74,4 +74,6 @@ class TutorMessageResponse(BaseModel):
 
 class TutorHealthResponse(BaseModel):
     rag_index_exists: bool
+    llm_configured: bool
+    # Deprecated alias of llm_configured (kept for frontend / OpenAPI compatibility).
     openai_configured: bool

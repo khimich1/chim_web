@@ -40,6 +40,11 @@ from app.schemas.tutor import (
 from app.services.rag.pg_document_store import rag_documents_ready
 from app.services.tutor.context import TutorRunContext
 from app.services.tutor.graph import build_graph
+from app.services.tutor.llm import (
+    LLM_KEY_MISSING_DETAIL,
+    LlmProviderNotConfigured,
+    build_chat_llm,
+)
 from app.services.tutor.profile_service import TutorProfileService
 from app.services.tutor.solve_gating import resolve_incorrect_step_gate
 from app.services.tutor.student_tools import StudentTutorToolsService
@@ -60,6 +65,28 @@ class TutorService:
         self._repo = TutorRepository(db)
         self._llm = llm
         self._settings = settings or get_settings()
+
+    def _ensure_chat_llm_ready(self) -> None:
+        """Fail fast with 503 before persisting user turns when chat LLM cannot run."""
+        if self._llm is not None:
+            return
+        if not self._settings.llm_configured:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=LLM_KEY_MISSING_DETAIL,
+            )
+        try:
+            build_chat_llm(self._settings)
+        except LlmProviderNotConfigured as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+            ) from exc
 
     async def create_session(
         self,
@@ -122,14 +149,7 @@ class TutorService:
 
         # I3/I7: verify the LLM is available BEFORE persisting anything, so a
         # misconfigured server never leaves an orphan user message in the DB.
-        if self._llm is None and not self._settings.openai_api_key.strip():
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=(
-                    "OPENAI_API_KEY не задан. Добавьте ключ в backend/.env "
-                    "и перезапустите сервер."
-                ),
-            )
+        self._ensure_chat_llm_ready()
 
         # B1: replay prior transcript from PostgreSQL (source of truth) into the
         # agent. Load it before adding the new turn.
@@ -239,14 +259,7 @@ class TutorService:
         session = await self._load_session(session_id)
         self._ensure_session_access(user, session)
 
-        if self._llm is None and not self._settings.openai_api_key.strip():
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=(
-                    "OPENAI_API_KEY не задан. Добавьте ключ в backend/.env "
-                    "и перезапустите сервер."
-                ),
-            )
+        self._ensure_chat_llm_ready()
 
         history = await self._repo.list_messages(session.id)
         user_message = await self._repo.add_message(
@@ -412,9 +425,11 @@ class TutorService:
     @staticmethod
     def get_health(settings: Settings | None = None) -> TutorHealthResponse:
         app_settings = settings or get_settings()
+        configured = app_settings.llm_configured
         return TutorHealthResponse(
             rag_index_exists=rag_documents_ready(app_settings),
-            openai_configured=bool(app_settings.openai_api_key.strip()),
+            llm_configured=configured,
+            openai_configured=configured,
         )
 
     async def _load_session(self, session_id: uuid.UUID) -> TutorSession:
