@@ -1026,6 +1026,10 @@ Track B (`tasks/plan.md` Tasks 94–99): CI (mypy, openapi-typescript), RAG pg-o
 
 **Вне scope MVP:** хостинг MP4 в BLOB/S3; автогенерация видео из TTS; offline download.
 
+#### 1.12.4 Нейроквиз после чанка (опционально)
+
+Мини-MCQ оверлей по кнопке «Далее» в учебнике ученика. Spec: [`docs/specs/textbook-neuroquiz-after-chunk.md`](docs/specs/textbook-neuroquiz-after-chunk.md). Флаги: `NEUROQUIZ_ENABLED` + `NEXT_PUBLIC_NEUROQUIZ_ENABLED` (оба default off). Баллы: `NEUROQUIZ_CORRECT` (+1), без связи с `TestSession`.
+
 #### Связь с Phase 18
 
 | Task | Срез |
