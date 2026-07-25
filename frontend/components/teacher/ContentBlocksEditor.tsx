@@ -3,6 +3,10 @@
 import { useRef, useState } from "react";
 
 import { AuthenticatedImage } from "@/components/common/AuthenticatedImage";
+import {
+  ImageLightbox,
+  type LightboxItem,
+} from "@/components/common/ImageLightbox";
 import { ApiError } from "@/lib/api/client";
 import { uploadImage } from "@/lib/api/uploads";
 import type { ContentBlock } from "@/lib/api/types";
@@ -13,6 +17,16 @@ import {
 } from "@/lib/image-intake";
 
 const EDITOR_INTAKE_LIMIT = 10;
+
+function collectEditorImageItems(blocks: ContentBlock[]): LightboxItem[] {
+  const items: LightboxItem[] = [];
+  for (const block of blocks) {
+    if (block.type === "image" && block.url) {
+      items.push({ src: block.url, alt: "Загруженное изображение" });
+    }
+  }
+  return items;
+}
 
 export function ContentBlocksEditor({
   blocks,
@@ -27,8 +41,22 @@ export function ContentBlocksEditor({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [activeBlockIndex, setActiveBlockIndex] = useState<number | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxItems, setLightboxItems] = useState<LightboxItem[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
+
+  const imageItems = collectEditorImageItems(blocks);
+
+  function openLightbox(items: LightboxItem[], index: number) {
+    if (items.length === 0) {
+      return;
+    }
+    setLightboxItems(items);
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  }
 
   function updateBlock(index: number, block: ContentBlock) {
     onChange(blocks.map((item, i) => (i === index ? block : item)));
@@ -188,11 +216,27 @@ export function ContentBlocksEditor({
                 placeholder="Текст задания…"
               />
             ) : block.url ? (
-              <AuthenticatedImage
-                src={block.url}
-                alt="Загруженное изображение"
-                className={CONTENT_IMAGE_CLASS}
-              />
+              <button
+                type="button"
+                onClick={() => {
+                  const imageIndex = blocks
+                    .slice(0, index)
+                    .filter((b) => b.type === "image" && b.url).length;
+                  openLightbox(imageItems, imageIndex);
+                }}
+                className="block w-full cursor-zoom-in text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
+                aria-label={`Открыть изображение ${
+                  blocks
+                    .slice(0, index)
+                    .filter((b) => b.type === "image" && b.url).length + 1
+                }`}
+              >
+                <AuthenticatedImage
+                  src={block.url}
+                  alt="Загруженное изображение"
+                  className={CONTENT_IMAGE_CLASS}
+                />
+              </button>
             ) : null}
           </li>
         ))}
@@ -235,6 +279,14 @@ export function ContentBlocksEditor({
           {error}
         </p>
       ) : null}
+
+      <ImageLightbox
+        open={lightboxOpen}
+        items={lightboxItems}
+        index={lightboxIndex}
+        onClose={() => setLightboxOpen(false)}
+        onIndexChange={setLightboxIndex}
+      />
     </div>
   );
 }
