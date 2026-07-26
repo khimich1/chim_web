@@ -1,17 +1,69 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AuthenticatedAudio } from "@/components/homework/AuthenticatedAudio";
 import { AuthenticatedImage } from "@/components/common/AuthenticatedImage";
+import {
+  ImageLightbox,
+  type LightboxItem,
+} from "@/components/common/ImageLightbox";
 import { getStudentHomeworkFeedback } from "@/lib/api/homework-feedback";
 import { formatFetchError } from "@/lib/api/client";
 import type { StudentHomeworkFeedback } from "@/lib/api/types";
+
+function FeedbackImageThumbs({
+  urls,
+  altPrefix,
+  onOpen,
+}: {
+  urls: string[];
+  altPrefix: string;
+  onOpen: (items: LightboxItem[], index: number) => void;
+}) {
+  const items: LightboxItem[] = urls.map((url, index) => ({
+    src: url,
+    alt: `${altPrefix} ${index + 1}`,
+  }));
+
+  return (
+    <ul className="mt-2 flex flex-wrap gap-2">
+      {items.map((item, index) => (
+        <li key={item.src}>
+          <button
+            type="button"
+            onClick={() => onOpen(items, index)}
+            className="cursor-zoom-in rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
+            aria-label={`Открыть ${item.alt}`}
+          >
+            <AuthenticatedImage
+              src={item.src}
+              alt={item.alt}
+              className="h-24 w-24 rounded object-cover"
+            />
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export function HomeworkFeedbackPanel({ homeworkId }: { homeworkId: string }) {
   const [feedback, setFeedback] = useState<StudentHomeworkFeedback | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxItems, setLightboxItems] = useState<LightboxItem[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const openLightbox = useCallback((items: LightboxItem[], index: number) => {
+    if (items.length === 0) {
+      return;
+    }
+    setLightboxItems(items);
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,17 +144,11 @@ export function HomeworkFeedbackPanel({ homeworkId }: { homeworkId: string }) {
                 </div>
               ) : null}
               {step.teacher_image_urls.length > 0 ? (
-                <ul className="mt-2 flex flex-wrap gap-2">
-                  {step.teacher_image_urls.map((url, index) => (
-                    <li key={url}>
-                      <AuthenticatedImage
-                        src={url}
-                        alt={`Фото разбора ${index + 1}`}
-                        className="h-24 w-24 rounded object-cover"
-                      />
-                    </li>
-                  ))}
-                </ul>
+                <FeedbackImageThumbs
+                  urls={step.teacher_image_urls}
+                  altPrefix="Фото разбора"
+                  onOpen={openLightbox}
+                />
               ) : null}
             </li>
           ))}
@@ -126,20 +172,22 @@ export function HomeworkFeedbackPanel({ homeworkId }: { homeworkId: string }) {
             </div>
           ) : null}
           {feedback.submission.teacher_image_urls.length > 0 ? (
-            <ul className="mt-2 flex flex-wrap gap-2">
-              {feedback.submission.teacher_image_urls.map((url, index) => (
-                <li key={url}>
-                  <AuthenticatedImage
-                    src={url}
-                    alt={`Фото общего комментария ${index + 1}`}
-                    className="h-24 w-24 rounded object-cover"
-                  />
-                </li>
-              ))}
-            </ul>
+            <FeedbackImageThumbs
+              urls={feedback.submission.teacher_image_urls}
+              altPrefix="Фото общего комментария"
+              onOpen={openLightbox}
+            />
           ) : null}
         </div>
       ) : null}
+
+      <ImageLightbox
+        open={lightboxOpen}
+        items={lightboxItems}
+        index={lightboxIndex}
+        onClose={() => setLightboxOpen(false)}
+        onIndexChange={setLightboxIndex}
+      />
     </section>
   );
 }

@@ -27,9 +27,29 @@ class UploadHandoffTokenRepository:
         expires_at: datetime,
     ) -> UploadHandoffToken:
         record = UploadHandoffToken(
+            purpose="answer",
             session_id=session_id,
             position=position,
             student_id=student_id,
+            expires_at=expires_at,
+        )
+        self._session.add(record)
+        await self._session.flush()
+        return record
+
+    async def create_feedback(
+        self,
+        *,
+        homework_id: uuid.UUID,
+        teacher_id: uuid.UUID,
+        position: int | None,
+        expires_at: datetime,
+    ) -> UploadHandoffToken:
+        record = UploadHandoffToken(
+            purpose="feedback",
+            homework_id=homework_id,
+            teacher_id=teacher_id,
+            position=position,
             expires_at=expires_at,
         )
         self._session.add(record)
@@ -46,8 +66,28 @@ class UploadHandoffTokenRepository:
         stmt = (
             update(UploadHandoffToken)
             .where(
+                UploadHandoffToken.purpose == "answer",
                 UploadHandoffToken.session_id == session_id,
                 UploadHandoffToken.position == position,
+                UploadHandoffToken.used_at.is_(None),
+            )
+            .values(expires_at=invalidated_at)
+        )
+        await self._session.execute(stmt)
+
+    async def invalidate_unused_for_feedback(
+        self,
+        homework_id: uuid.UUID,
+        position: int | None,
+        *,
+        invalidated_at: datetime,
+    ) -> None:
+        stmt = (
+            update(UploadHandoffToken)
+            .where(
+                UploadHandoffToken.purpose == "feedback",
+                UploadHandoffToken.homework_id == homework_id,
+                UploadHandoffToken.position.is_not_distinct_from(position),
                 UploadHandoffToken.used_at.is_(None),
             )
             .values(expires_at=invalidated_at)
@@ -58,6 +98,10 @@ class UploadHandoffTokenRepository:
         self,
         record: UploadHandoffToken,
         used_at: datetime,
+        *,
+        staged_image_id: uuid.UUID | None = None,
     ) -> None:
         record.used_at = used_at
+        if staged_image_id is not None:
+            record.staged_image_id = staged_image_id
         await self._session.flush()

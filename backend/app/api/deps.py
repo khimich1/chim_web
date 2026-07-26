@@ -36,48 +36,48 @@ async def get_current_user(
     db: Annotated[AsyncSession, Depends(get_db)],
     settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> User:
-    token = request.cookies.get(settings.cookie_name)
-    if not token:
+    user = await get_optional_current_user(request, db, settings)
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
         )
+    return user
+
+
+async def get_optional_current_user(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
+) -> User | None:
+    token = request.cookies.get(settings.cookie_name)
+    if not token:
+        return None
     try:
         payload = decode_access_token(
             token,
             secret=settings.jwt_secret,
             algorithm=settings.jwt_algorithm,
         )
-    except TokenError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-        ) from exc
+    except TokenError:
+        return None
 
     subject = payload.get("sub")
     if not subject:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-        )
+        return None
     try:
         user_id = uuid.UUID(subject)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token subject",
-        ) from exc
+    except ValueError:
+        return None
 
     user = await UserRepository(db).get_by_id(user_id)
     if user is None or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or inactive",
-        )
+        return None
     return user
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+OptionalCurrentUser = Annotated[User | None, Depends(get_optional_current_user)]
 
 
 def require_teacher(user: CurrentUser) -> User:

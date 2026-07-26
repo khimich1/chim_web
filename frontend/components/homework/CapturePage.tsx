@@ -24,6 +24,7 @@ export function CapturePage({ token }: CapturePageProps) {
   const [meta, setMeta] = useState<CaptureMetaResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsTeacherAuth, setNeedsTeacherAuth] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [checklist, setChecklist] = useState([false, false, false]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -31,10 +32,13 @@ export function CapturePage({ token }: CapturePageProps) {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  const isFeedback = meta?.purpose === "feedback" || needsTeacherAuth;
   const checklistComplete = useMemo(
     () => isCaptureChecklistComplete(checklist),
     [checklist],
   );
+  const loginHref = `/login?redirect=/student/capture/${token}`;
+  const intakeBlocked = submitting || (isFeedback && !authenticated);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +46,7 @@ export function CapturePage({ token }: CapturePageProps) {
     async function load() {
       setLoading(true);
       setError(null);
+      setNeedsTeacherAuth(false);
       try {
         const [metaResult, meResult] = await Promise.allSettled([
           getCaptureMeta(token),
@@ -54,11 +59,17 @@ export function CapturePage({ token }: CapturePageProps) {
           setMeta(metaResult.value);
         } else {
           const err = metaResult.reason;
-          setError(
-            err instanceof ApiError
-              ? err.message
-              : "Ссылка для съёмки недействительна.",
-          );
+          if (err instanceof ApiError && err.status === 401) {
+            // Feedback capture requires teacher cookie; treat as login gate, not bad token.
+            setNeedsTeacherAuth(true);
+            setMeta(null);
+          } else {
+            setError(
+              err instanceof ApiError
+                ? err.message
+                : "Ссылка для съёмки недействительна.",
+            );
+          }
         }
         if (meResult.status === "fulfilled") {
           setAuthenticated(true);
@@ -104,7 +115,7 @@ export function CapturePage({ token }: CapturePageProps) {
   }
 
   async function handleSubmit() {
-    if (!selectedFile) {
+    if (!selectedFile || intakeBlocked) {
       return;
     }
     setSubmitting(true);
@@ -131,14 +142,14 @@ export function CapturePage({ token }: CapturePageProps) {
     );
   }
 
-  if (error && !meta) {
+  if (error && !meta && !needsTeacherAuth) {
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-4 px-4 text-center">
         <BrandLogo size={32} />
         <p role="alert" className="text-sm text-[var(--chem-crimson)]">
           {error}
         </p>
-        <Link href="/login" className="text-sm text-chem-teal underline">
+        <Link href={loginHref} className="text-sm text-chem-teal underline">
           Войти
         </Link>
       </main>
@@ -151,7 +162,9 @@ export function CapturePage({ token }: CapturePageProps) {
         <BrandLogo size={32} />
         <h1 className="text-lg font-semibold text-zinc-900">Фото отправлено</h1>
         <p className="text-sm text-zinc-600">
-          Вернитесь к компьютеру и нажмите «Сравнить ответ».
+          {isFeedback
+            ? "Вернитесь к компьютеру — фото появится в форме разбора. Нажмите «Сохранить», чтобы ученик его увидел."
+            : "Вернитесь к компьютеру и нажмите «Сравнить ответ»."}
         </p>
       </main>
     );
@@ -163,10 +176,10 @@ export function CapturePage({ token }: CapturePageProps) {
         <BrandLogo size={28} />
         <div>
           <p className="text-xs uppercase tracking-wide text-zinc-500">
-            Съёмка решения
+            {isFeedback ? "Съёмка разбора" : "Съёмка решения"}
           </p>
           <h1 className="text-lg font-semibold text-zinc-900">
-            {meta?.task_title ?? "Задание"}
+            {meta?.task_title ?? (isFeedback ? "Разбор" : "Задание")}
           </h1>
         </div>
       </header>
@@ -177,11 +190,21 @@ export function CapturePage({ token }: CapturePageProps) {
         </p>
       ) : null}
 
-      {!authenticated ? (
+      {isFeedback && !authenticated ? (
+        <p className="mb-4 text-xs text-amber-800" role="status">
+          Для съёмки разбора войдите как преподаватель.
+          {" "}
+          <Link href={loginHref} className="text-chem-teal underline">
+            Войти
+          </Link>
+        </p>
+      ) : null}
+
+      {!isFeedback && !authenticated ? (
         <p className="mb-4 text-xs text-zinc-500">
           Вход не обязателен — ссылка действует ограниченное время.
           {" "}
-          <Link href={`/login?redirect=/student/capture/${token}`} className="text-chem-teal underline">
+          <Link href={loginHref} className="text-chem-teal underline">
             Войти
           </Link>
         </p>
@@ -194,7 +217,7 @@ export function CapturePage({ token }: CapturePageProps) {
         <CaptureChecklist
           checked={checklist}
           onToggle={handleToggleChecklist}
-          disabled={submitting}
+          disabled={intakeBlocked}
         />
       </section>
 
@@ -202,7 +225,9 @@ export function CapturePage({ token }: CapturePageProps) {
         <h2 className="mb-3 text-sm font-medium text-zinc-800">Фото</h2>
         <label
           className={`flex min-h-[44px] cursor-pointer items-center justify-center rounded-md border border-dashed border-zinc-300 px-4 py-3 text-sm ${
-            checklistComplete ? "text-chem-teal" : "cursor-not-allowed text-zinc-400"
+            checklistComplete && !intakeBlocked
+              ? "text-chem-teal"
+              : "cursor-not-allowed text-zinc-400"
           }`}
         >
           {selectedFile ? "Выбрать другое фото" : "Сфотографировать или выбрать файл"}
@@ -211,7 +236,7 @@ export function CapturePage({ token }: CapturePageProps) {
             accept="image/jpeg,image/png,image/webp"
             capture="environment"
             className="sr-only"
-            disabled={!checklistComplete || submitting}
+            disabled={!checklistComplete || intakeBlocked}
             onChange={handleFileChange}
           />
         </label>
@@ -219,7 +244,7 @@ export function CapturePage({ token }: CapturePageProps) {
         {previewUrl ? (
           <img
             src={previewUrl}
-            alt="Превью фото решения"
+            alt={isFeedback ? "Превью фото разбора" : "Превью фото решения"}
             className="mt-4 max-h-80 w-full rounded-lg border border-zinc-200 object-contain"
           />
         ) : null}
@@ -234,7 +259,7 @@ export function CapturePage({ token }: CapturePageProps) {
       <button
         type="button"
         onClick={() => void handleSubmit()}
-        disabled={!selectedFile || !checklistComplete || submitting}
+        disabled={!selectedFile || !checklistComplete || intakeBlocked}
         className="chem-btn-primary mt-6 min-h-[44px] w-full px-4 py-2.5 text-sm disabled:opacity-60"
       >
         {submitting ? "Отправка…" : "Отправить фото"}

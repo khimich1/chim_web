@@ -661,3 +661,44 @@ body {
   height: 100%;
   width: 100%;
 }
+
+/* Neuroquiz correct-answer salute (CSS particles, ~1.6s) */
+.neuroquiz-salute__particle {
+  --nq-angle: 0deg;
+  --nq-delay: 0ms;
+  --nq-hue: 160;
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 7px;
+  height: 7px;
+  margin: -3px;
+  border-radius: 2px;
+  background: hsl(var(--nq-hue) 70% 48%);
+  opacity: 0;
+  animation: neuroquiz-salute-burst 1.4s ease-out forwards;
+  animation-delay: var(--nq-delay);
+}
+
+@keyframes neuroquiz-salute-burst {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--nq-angle)) translateY(0) scale(0.4);
+  }
+  15% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--nq-angle)) translateY(-92px) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neuroquiz-salute,
+  .neuroquiz-salute__particle {
+    animation: none !important;
+    display: none !important;
+  }
+}
+

@@ -20,7 +20,7 @@ How might we дать учителю (и в смежных экранах с з�
 
 ## Key Assumptions to Validate
 - [ ] Ctrl/Cmd+V со скриншотом в Chrome создаёт image-блок и не засоряет textarea текстом/filename
-- [ ] Ширина контента «как в тестах» достаточна, чтобы картинка была «хорошо видна», без lightbox
+- [ ] Ширина контента «как в тестах» достаточна для превью; enlarge — [`image-lightbox-click-to-enlarge.md`](../specs/image-lightbox-click-to-enlarge.md)
 - [ ] Те же жесты ожидаемы в фидбеке ДЗ и ответе в тесте (не только в конструкторе заданий)
 - [ ] Desktop-first достаточно; на мобиле остаётся file picker / камера
 
@@ -36,7 +36,7 @@ How might we дать учителю (и в смежных экранах с з�
 
 ## Not Doing (and Why)
 - Inline / rich-text картинки внутри текстового блока — ломает текущую модель блоков и API
-- Lightbox / `ImageViewer` в превью заданий — только если после выравнивания размера всё ещё «мелко»
+- Lightbox / `ImageViewer` в превью — → [`image-lightbox-click-to-enlarge.md`](../specs/image-lightbox-click-to-enlarge.md) (supersedes «только если мелко»)
 - Новый backend endpoint для paste — уже есть `/api/uploads/images`
 - Mobile-first clipboard paste — desktop-first; мобильный UX через picker/камеру
 

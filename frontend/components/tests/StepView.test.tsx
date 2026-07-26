@@ -52,9 +52,50 @@ vi.mock("@/components/tests/QuestionContent", () => ({
 }));
 
 vi.mock("@/components/tests/CustomQuestionContent", () => ({
-  CustomQuestionContent: ({ blocks }: { blocks: { content?: string }[] }) => (
-    <p>{blocks[0]?.content ?? "custom"}</p>
-  ),
+  CustomQuestionContent: ({
+    blocks,
+    onImageClick,
+  }: {
+    blocks: { type?: string; content?: string; url?: string }[];
+    onImageClick?: (
+      items: { src: string; alt: string }[],
+      index: number,
+    ) => void;
+  }) => {
+    const images = blocks.filter((b) => b.type === "image" && b.url);
+    const text = blocks
+      .filter((b) => b.type === "text" && b.content)
+      .map((b) => b.content)
+      .join("");
+    return (
+      <div>
+        {text ? <p>{text}</p> : null}
+        {images.length > 0 && onImageClick
+          ? images.map((block, index) => (
+              <button
+                key={block.url}
+                type="button"
+                aria-label={`Открыть иллюстрацию ${index + 1}`}
+                onClick={() =>
+                  onImageClick(
+                    images.map((img) => ({
+                      src: img.url!,
+                      alt: "Иллюстрация к заданию",
+                    })),
+                    index,
+                  )
+                }
+              >
+                condition img {index + 1}
+              </button>
+            ))
+          : null}
+        {!text && images.length === 0 ? (
+          <p>{blocks[0]?.content ?? "custom"}</p>
+        ) : null}
+      </div>
+    );
+  },
 }));
 
 const mockedCheck = vi.mocked(checkStep);
@@ -774,5 +815,65 @@ describe("StepView", () => {
       },
       { timeout: 5000 },
     );
+  });
+
+  it("opens lightbox from answer thumb and condition image", async () => {
+    const user = userEvent.setup();
+    const photoSession: TestSession = {
+      id: "sess-lb",
+      track: "ege",
+      source: "custom",
+      variant_ref: null,
+      homework_assignment_id: "hw-1",
+      custom_theme_id: "theme-1",
+      status: "in_progress",
+      score: null,
+      max_score: null,
+      total_steps: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      steps: [
+        {
+          position: 0,
+          test_id: null,
+          custom_task_id: "task-1",
+          type: null,
+          question: null,
+          options: null,
+          question_blocks: [
+            { type: "image", url: "/api/uploads/images/q1" },
+            { type: "image", url: "/api/uploads/images/q2" },
+          ],
+          grading_mode: "self_check",
+          status: "unseen",
+          answer: null,
+          answer_image_ids: ["img-1", "img-2"],
+          answer_image_urls: [
+            "/api/uploads/images/a1",
+            "/api/uploads/images/a2",
+          ],
+          is_correct: null,
+          correct_answer: null,
+          explanation: null,
+          reference_answer: null,
+        },
+      ],
+    };
+
+    render(<StepView session={photoSession} />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Открыть фото ответа 2" }),
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("2 из 2")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Закрыть" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Открыть иллюстрацию 1" }),
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("1 из 2")).toBeInTheDocument();
   });
 });

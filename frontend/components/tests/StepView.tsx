@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import QRCode from "react-qr-code";
 
 import { AuthenticatedImage } from "@/components/common/AuthenticatedImage";
+import {
+  ImageLightbox,
+  type LightboxItem,
+} from "@/components/common/ImageLightbox";
 import { CustomQuestionContent } from "@/components/tests/CustomQuestionContent";
 import { QuestionContent } from "@/components/tests/QuestionContent";
 import { StepProgressDots } from "@/components/tests/StepProgressDots";
@@ -92,6 +96,18 @@ export function StepView({ session }: { session: TestSession }) {
   const [checking, setChecking] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxItems, setLightboxItems] = useState<LightboxItem[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const openLightbox = useCallback((items: LightboxItem[], index: number) => {
+    if (items.length === 0) {
+      return;
+    }
+    setLightboxItems(items);
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  }, []);
 
   const step = steps[current];
   const isLast = current === steps.length - 1;
@@ -101,6 +117,12 @@ export function StepView({ session }: { session: TestSession }) {
   const isChecked = step?.status === "checked";
   const remainingSlots = MAX_ANSWER_IMAGES - answerImageIds.length;
   const canAddPhotos = isSelfCheck && !isChecked && remainingSlots > 0;
+  const answerLightboxItems: LightboxItem[] = answerImageUrls.map(
+    (itemUrl, itemIndex) => ({
+      src: itemUrl,
+      alt: `Фото ответа ${itemIndex + 1}`,
+    }),
+  );
 
   const checkedCount = useMemo(
     () => steps.filter((s) => s.status === "checked").length,
@@ -467,7 +489,10 @@ export function StepView({ session }: { session: TestSession }) {
 
         <div className="min-w-0 px-4 py-6 sm:px-5">
           {isCustomStep(step) && step.question_blocks ? (
-            <CustomQuestionContent blocks={step.question_blocks} />
+            <CustomQuestionContent
+              blocks={step.question_blocks}
+              onImageClick={openLightbox}
+            />
           ) : step.question ? (
             <QuestionContent text={step.question} />
           ) : null}
@@ -506,15 +531,26 @@ export function StepView({ session }: { session: TestSession }) {
                       const imageId = answerImageIds[index];
                       return (
                         <li key={url} className="relative w-28">
-                          <AuthenticatedImage
-                            src={url}
-                            alt={`Фото ответа ${index + 1}`}
-                            className={`${CONTENT_IMAGE_CLASS} my-0 h-24 w-28 object-cover`}
-                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openLightbox(answerLightboxItems, index)
+                            }
+                            className="block w-full cursor-zoom-in text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
+                            aria-label={`Открыть фото ответа ${index + 1}`}
+                          >
+                            <AuthenticatedImage
+                              src={url}
+                              alt={`Фото ответа ${index + 1}`}
+                              className={`${CONTENT_IMAGE_CLASS} my-0 h-24 w-28 object-cover`}
+                            />
+                          </button>
                           {!isChecked && imageId ? (
                             <button
                               type="button"
-                              onClick={() => void handleRemoveAnswerImage(imageId)}
+                              onClick={() =>
+                                void handleRemoveAnswerImage(imageId)
+                              }
                               className="mt-1 text-xs text-[var(--chem-crimson)] hover:underline"
                             >
                               Удалить
@@ -643,7 +679,10 @@ export function StepView({ session }: { session: TestSession }) {
               <p className="mb-2 text-sm font-medium text-zinc-700">
                 Эталонный ответ
               </p>
-              <CustomQuestionContent blocks={referenceAnswer} />
+              <CustomQuestionContent
+                blocks={referenceAnswer}
+                onImageClick={openLightbox}
+              />
             </div>
           ) : null}
 
@@ -710,6 +749,14 @@ export function StepView({ session }: { session: TestSession }) {
           </div>
         </nav>
       </article>
+
+      <ImageLightbox
+        open={lightboxOpen}
+        items={lightboxItems}
+        index={lightboxIndex}
+        onClose={() => setLightboxOpen(false)}
+        onIndexChange={setLightboxIndex}
+      />
     </div>
   );
 }

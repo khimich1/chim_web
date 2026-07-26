@@ -12,19 +12,25 @@ import { AuthenticatedImage } from "@/components/common/AuthenticatedImage";
 
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 4;
+/** Pointer move beyond this (px) counts as drag-pan, not click-to-expand. */
+const CLICK_DRAG_THRESHOLD_PX = 5;
 
 export function ImageViewer({
   src,
   alt,
+  onExpand,
 }: {
   src: string;
   alt: string;
+  onExpand?: () => void;
 }) {
   const [scale, setScale] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragging = useRef(false);
+  const didDrag = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
+  const originPos = useRef({ x: 0, y: 0 });
 
   const reset = useCallback(() => {
     setScale(1);
@@ -44,25 +50,44 @@ export function ImageViewer({
 
   const onPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
     dragging.current = true;
+    didDrag.current = false;
+    originPos.current = { x: event.clientX, y: event.clientY };
     lastPos.current = { x: event.clientX, y: event.clientY };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
   }, []);
 
   const onPointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     if (!dragging.current) {
       return;
     }
-    setOffset((current) => ({
-      x: current.x + event.clientX - lastPos.current.x,
-      y: current.y + event.clientY - lastPos.current.y,
-    }));
+    const dx = event.clientX - originPos.current.x;
+    const dy = event.clientY - originPos.current.y;
+    if (
+      !didDrag.current &&
+      Math.hypot(dx, dy) > CLICK_DRAG_THRESHOLD_PX
+    ) {
+      didDrag.current = true;
+    }
+    if (didDrag.current) {
+      setOffset((current) => ({
+        x: current.x + event.clientX - lastPos.current.x,
+        y: current.y + event.clientY - lastPos.current.y,
+      }));
+    }
     lastPos.current = { x: event.clientX, y: event.clientY };
   }, []);
 
-  const onPointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    dragging.current = false;
-    event.currentTarget.releasePointerCapture(event.pointerId);
-  }, []);
+  const onPointerUp = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      const wasClick = dragging.current && !didDrag.current;
+      dragging.current = false;
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+      if (wasClick && onExpand) {
+        onExpand();
+      }
+    },
+    [onExpand],
+  );
 
   return (
     <div className="flex flex-col gap-2">
@@ -81,6 +106,17 @@ export function ImageViewer({
         >
           Сброс
         </button>
+        {onExpand ? (
+          <button
+            type="button"
+            onClick={onExpand}
+            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 hover:border-zinc-400"
+            aria-label="Открыть на весь экран"
+            title="Открыть на весь экран"
+          >
+            ⛶
+          </button>
+        ) : null}
       </div>
       <div
         className="relative h-64 cursor-grab overflow-hidden rounded-md border border-zinc-200 bg-zinc-50 active:cursor-grabbing md:h-80"

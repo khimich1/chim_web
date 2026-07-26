@@ -5,6 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import { ContentBlocksEditor } from "@/components/teacher/ContentBlocksEditor";
@@ -230,5 +231,27 @@ describe("ContentBlocksEditor image intake", () => {
     const img = screen.getByTestId("auth-image");
     expect(img).toHaveClass("max-w-full");
     expect(img).toHaveClass("object-contain");
+  });
+
+  it("opens lightbox dialog when image preview is clicked", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ContentBlocksEditor
+        blocks={[
+          { type: "image", url: "/api/uploads/images/a" },
+          { type: "image", url: "/api/uploads/images/b" },
+        ]}
+        onChange={vi.fn()}
+        label="Вопрос"
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Открыть изображение 2" }),
+    );
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("2 из 2")).toBeInTheDocument();
   });
 });

@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { HomeworkSubmissionPhotos } from "@/components/homework/HomeworkSubmissionPhotos";
@@ -56,5 +57,19 @@ describe("HomeworkSubmissionPhotos", () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("opens lightbox when a submission photo is clicked", async () => {
+    const user = userEvent.setup();
+    render(<HomeworkSubmissionPhotos steps={steps} />);
+
+    await user.click(
+      screen.getByRole("button", {
+        name: /Открыть Фото ответа к заданию 2, страница 2/,
+      }),
+    );
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("2 из 2")).toBeInTheDocument();
   });
 });

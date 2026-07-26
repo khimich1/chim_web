@@ -8,12 +8,20 @@ from app.models.enums import (
     GradingMode,
     HomeworkItemKind,
     HomeworkStatus,
+    NeuroQuizQuestionSource,
+    NeuroQuizQuestionStatus,
+    NeuroQuizVoteValue,
     NotificationType,
     StepStatus,
     TestSessionSource,
     TestSessionStatus,
     TutorMessageRole,
     UserRole,
+)
+from app.models.neuroquiz import (
+    NeuroQuizChunkAttempt,
+    NeuroQuizQuestion,
+    NeuroQuizVote,
 )
 from app.models.homework import (
     HomeworkAssignment,
@@ -49,6 +57,12 @@ __all__ = [
     "HomeworkSubmission",
     "HomeworkSubmissionFeedback",
     "HomeworkTemplate",
+    "NeuroQuizChunkAttempt",
+    "NeuroQuizQuestion",
+    "NeuroQuizQuestionSource",
+    "NeuroQuizQuestionStatus",
+    "NeuroQuizVote",
+    "NeuroQuizVoteValue",
     "Notification",
     "NotificationType",
     "StepStatus",

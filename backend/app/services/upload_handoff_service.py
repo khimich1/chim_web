@@ -19,8 +19,10 @@ from app.models import (
     TestSessionStep,
     UploadHandoffToken,
     User,
+    UserRole,
 )
 from app.models.enums import GradingMode
+from app.repositories.app.homework_repo import HomeworkRepository
 from app.repositories.app.teacher_theme_repo import TeacherThemeRepository
 from app.repositories.app.test_session_repo import TestSessionRepository
 from app.repositories.app.upload_handoff_repo import UploadHandoffTokenRepository
@@ -71,6 +73,7 @@ class UploadHandoffService:
         self._session = session
         self._settings = settings
         self._handoff_repo = UploadHandoffTokenRepository(session)
+        self._homework_repo = HomeworkRepository(session)
         self._session_repo = TestSessionRepository(session)
         self._theme_repo = TeacherThemeRepository(session)
         self._upload_repo = UploadedImageRepository(session)
@@ -129,12 +132,69 @@ class UploadHandoffService:
             expires_at=record.expires_at,
         )
 
-    async def get_capture_meta(self, token: uuid.UUID) -> CaptureMetaResponse:
-        record = await self._require_active_token(token)
+    async def create_feedback_handoff(
+        self,
+        teacher: User,
+        homework_id: uuid.UUID,
+        position: int | None,
+    ) -> HandoffCreateResponse:
+        assignment = await self._homework_repo.get_by_id(homework_id)
+        if assignment is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Homework not found",
+            )
+        if assignment.teacher_id != teacher.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not your homework",
+            )
+
+        await self._handoff_repo.invalidate_unused_for_feedback(
+            homework_id,
+            position,
+            invalidated_at=datetime.now(timezone.utc),
+        )
+        expires_at = datetime.now(timezone.utc) + _HANDOFF_TTL
+        record = await self._handoff_repo.create_feedback(
+            homework_id=homework_id,
+            teacher_id=teacher.id,
+            position=position,
+            expires_at=expires_at,
+        )
+        await self._session.commit()
+
+        capture_url = (
+            f"{self._settings.frontend_url.rstrip('/')}"
+            f"/student/capture/{record.token}"
+        )
+        return HandoffCreateResponse(
+            token=record.token,
+            capture_url=capture_url,
+            expires_at=record.expires_at,
+        )
+
+    async def get_capture_meta(
+        self,
+        token: uuid.UUID,
+        *,
+        actor: User | None = None,
+    ) -> CaptureMetaResponse:
+        record = await self._load_token(token)
+        if record.purpose == "feedback":
+            await self._ensure_feedback_capture_access(record, actor)
+            if record.used_at is None:
+                await self._ensure_token_not_expired(record)
+            return self._feedback_meta_response(record)
+
+        record = await self._ensure_token_active(record)
+        assert record.session_id is not None
+        assert record.position is not None
         test_session = await self._load_session(record.session_id)
         ctx = await self._load_handoff_step_context(test_session, record.position)
 
         return CaptureMetaResponse(
+            purpose="answer",
             session_id=record.session_id,
             position=record.position,
             task_title=ctx.question_preview,
@@ -148,8 +208,19 @@ class UploadHandoffService:
         self,
         token: uuid.UUID,
         upload: UploadFile,
+        *,
+        actor: User | None = None,
     ) -> CaptureUploadResponse:
-        record = await self._require_active_token(token)
+        record = await self._load_token(token)
+        if record.purpose == "feedback":
+            await self._ensure_feedback_capture_access(record, actor)
+            record = await self._ensure_token_active(record)
+            return await self._capture_feedback_upload(record, upload)
+
+        record = await self._ensure_token_active(record)
+        assert record.session_id is not None
+        assert record.position is not None
+        assert record.student_id is not None
         test_session = await self._load_session(record.session_id)
         ctx = await self._load_handoff_step_context(test_session, record.position)
         self._ensure_self_check_homework_step(test_session, ctx)
@@ -177,24 +248,109 @@ class UploadHandoffService:
         await self._session.commit()
 
         return CaptureUploadResponse(
+            purpose="answer",
             position=ctx.step.position,
             answer_image_ids=ids,
             answer_image_urls=answer_image_urls(ids),
         )
 
-    async def _require_active_token(self, token: uuid.UUID) -> UploadHandoffToken:
+    async def _capture_feedback_upload(
+        self,
+        record: UploadHandoffToken,
+        upload: UploadFile,
+    ) -> CaptureUploadResponse:
+        assert record.teacher_id is not None
+        teacher = await self._user_repo.get_by_id(record.teacher_id)
+        if teacher is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Teacher not found",
+            )
+
+        image_response = await self._upload_service.save_image(teacher, upload)
+        await self._handoff_repo.mark_used(
+            record,
+            datetime.now(timezone.utc),
+            staged_image_id=image_response.id,
+        )
+        await self._session.commit()
+
+        return CaptureUploadResponse(
+            purpose="feedback",
+            position=record.position,
+            staged_image_id=image_response.id,
+            staged_image_url=f"/api/uploads/images/{image_response.id}",
+        )
+
+    def _feedback_meta_response(self, record: UploadHandoffToken) -> CaptureMetaResponse:
+        staged_id = record.staged_image_id
+        staged_url = (
+            f"/api/uploads/images/{staged_id}" if staged_id is not None else None
+        )
+        return CaptureMetaResponse(
+            purpose="feedback",
+            homework_id=record.homework_id,
+            position=record.position,
+            task_title="Фото к разбору",
+            question_preview="Сфотографируйте пояснение к разбору",
+            expires_at=record.expires_at,
+            already_has_photo=record.used_at is not None,
+            staged_image_id=staged_id,
+            staged_image_url=staged_url,
+        )
+
+    async def _ensure_feedback_capture_access(
+        self,
+        record: UploadHandoffToken,
+        actor: User | None,
+    ) -> None:
+        if actor is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated",
+            )
+        if actor.role != UserRole.TEACHER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Teacher role required",
+            )
+        if record.teacher_id != actor.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not your homework",
+            )
+        # Also reject if homework ownership drifted (deleted/reassigned).
+        if record.homework_id is not None:
+            assignment = await self._homework_repo.get_by_id(record.homework_id)
+            if assignment is None or assignment.teacher_id != actor.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Not your homework",
+                )
+
+    async def _load_token(self, token: uuid.UUID) -> UploadHandoffToken:
         record = await self._handoff_repo.get_by_token(token)
         if record is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Handoff token not found",
             )
-        now = datetime.now(timezone.utc)
+        return record
+
+    async def _ensure_token_active(
+        self,
+        record: UploadHandoffToken,
+    ) -> UploadHandoffToken:
         if record.used_at is not None:
             raise HTTPException(
                 status_code=status.HTTP_410_GONE,
                 detail="Handoff token already used",
             )
+        await self._ensure_token_not_expired(record)
+        return record
+
+    async def _ensure_token_not_expired(self, record: UploadHandoffToken) -> None:
+        now = datetime.now(timezone.utc)
         expires_at = record.expires_at
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
@@ -203,7 +359,6 @@ class UploadHandoffService:
                 status_code=status.HTTP_410_GONE,
                 detail="Handoff token expired",
             )
-        return record
 
     async def _load_owned_session(
         self,

@@ -4,12 +4,34 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const WARN_DURATION_SEC = 600;
 
+function MicIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <line x1="12" y1="19" x2="12" y2="23" />
+      <line x1="8" y1="23" x2="16" y2="23" />
+    </svg>
+  );
+}
+
 export function VoiceRecorder({
   onRecorded,
   disabled = false,
+  variant = "button",
 }: {
   onRecorded: (file: File, durationSec: number) => void;
   disabled?: boolean;
+  variant?: "button" | "icon";
 }) {
   const [recording, setRecording] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -135,14 +157,26 @@ export function VoiceRecorder({
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         {!recording && !previewFile ? (
-          <button
-            type="button"
-            className="chem-btn-secondary text-sm"
-            onClick={() => void startRecording()}
-            disabled={disabled}
-          >
-            Записать голос
-          </button>
+          variant === "icon" ? (
+            <button
+              type="button"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400 hover:bg-zinc-50 disabled:opacity-60"
+              onClick={() => void startRecording()}
+              disabled={disabled}
+              aria-label="Записать голос"
+            >
+              <MicIcon className="h-4 w-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="chem-btn-secondary text-sm"
+              onClick={() => void startRecording()}
+              disabled={disabled}
+            >
+              Записать голос
+            </button>
+          )
         ) : null}
 
         {recording ? (

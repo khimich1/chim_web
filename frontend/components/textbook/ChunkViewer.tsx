@@ -1,11 +1,14 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { AudioPlayer } from "@/components/textbook/AudioPlayer";
 import { ChunkNav } from "@/components/textbook/ChunkNav";
 import { LectureContent } from "@/components/textbook/LectureContent";
+import { NeuroQuizOverlay } from "@/components/textbook/NeuroQuizOverlay";
 import { VideoEmbed } from "@/components/textbook/VideoEmbed";
+import { warmupNeuroQuiz } from "@/lib/api/neuroquiz";
 import { getChunk } from "@/lib/api/textbook";
 import { ApiError } from "@/lib/api/client";
 import type { ChunkSummary, TextbookChunk } from "@/lib/api/types";
@@ -15,16 +18,22 @@ export function ChunkViewer({
   summaries,
   initialChunkIdx = 0,
   videoUrl = null,
+  neuroquizEnabled = false,
+  catalogHref = "/student/textbook",
 }: {
   topic: string;
   summaries: ChunkSummary[];
   initialChunkIdx?: number;
   videoUrl?: string | null;
+  neuroquizEnabled?: boolean;
+  catalogHref?: string;
 }) {
+  const router = useRouter();
   const [chunkIdx, setChunkIdx] = useState(initialChunkIdx);
   const [chunk, setChunk] = useState<TextbookChunk | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [quizOpen, setQuizOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +69,15 @@ export function ChunkViewer({
     };
   }, [topic, chunkIdx]);
 
+  useEffect(() => {
+    if (!neuroquizEnabled) {
+      return;
+    }
+    void warmupNeuroQuiz(topic, chunkIdx).catch(() => {
+      // fire-and-forget warm-up; overlay Retry covers failure
+    });
+  }, [neuroquizEnabled, topic, chunkIdx]);
+
   const currentPosition = summaries.findIndex((item) => item.chunk_idx === chunkIdx);
   const prevSummary =
     currentPosition > 0 ? summaries[currentPosition - 1] : null;
@@ -67,6 +85,26 @@ export function ChunkViewer({
     currentPosition >= 0 && currentPosition < summaries.length - 1
       ? summaries[currentPosition + 1]
       : null;
+
+  function goNextChunkOrCatalog() {
+    if (nextSummary) {
+      setChunkIdx(nextSummary.chunk_idx);
+      return;
+    }
+    router.push(catalogHref);
+  }
+
+  function handleNextClick() {
+    if (neuroquizEnabled) {
+      setQuizOpen(true);
+      return;
+    }
+    if (nextSummary) {
+      setChunkIdx(nextSummary.chunk_idx);
+    }
+  }
+
+  const nextDisabled = neuroquizEnabled ? false : !nextSummary;
 
   return (
     <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-8">
@@ -146,8 +184,8 @@ export function ChunkViewer({
             </span>
             <button
               type="button"
-              disabled={!nextSummary}
-              onClick={() => nextSummary && setChunkIdx(nextSummary.chunk_idx)}
+              disabled={nextDisabled}
+              onClick={handleNextClick}
               className="min-h-[44px] min-w-[44px] rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-40"
             >
               Далее
@@ -155,6 +193,19 @@ export function ChunkViewer({
           </div>
         </nav>
       </div>
+
+      {neuroquizEnabled ? (
+        <NeuroQuizOverlay
+          topic={topic}
+          chunkIdx={chunkIdx}
+          open={quizOpen}
+          onSkip={() => setQuizOpen(false)}
+          onComplete={() => {
+            setQuizOpen(false);
+            goNextChunkOrCatalog();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

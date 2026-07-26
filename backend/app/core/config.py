@@ -109,6 +109,7 @@ class Settings(BaseSettings):
         default=True,
         alias="RAG_QUERY_REWRITE_ENABLED",
     )
+    neuroquiz_enabled: bool = Field(default=False, alias="NEUROQUIZ_ENABLED")
     # Max seconds to wait for a single tutor agent (LangGraph) invocation before
     # returning 504. Guards the worker thread pool against a hung LLM call.
     tutor_invoke_timeout: float = Field(

@@ -8,6 +8,7 @@
 
 - [`written-homework-photo-submit.md`](written-homework-photo-submit.md) — сдача фото учеником (§1.9.8, Task 75)
 - [`teacher-task-constructor.md`](teacher-task-constructor.md) — `self_check`, `reference_answer`
+- [`teacher-feedback-composer-ux.md`](teacher-feedback-composer-ux.md) — composer UI + QR для фото разбора
 
 ---
 

@@ -72,3 +72,19 @@ class ActivityEventType(str, enum.Enum):
     ONBOARDING_WELCOME_SKIPPED = "onboarding_welcome_skipped"
     ONBOARDING_CHECKLIST_STEP = "onboarding_checklist_step"
     ONBOARDING_FIRST_ACTION = "onboarding_first_action"
+    NEUROQUIZ_CORRECT = "neuroquiz_correct"
+
+
+class NeuroQuizQuestionSource(str, enum.Enum):
+    QA_PAIR = "qa_pair"
+    LECTURE_GEN = "lecture_gen"
+
+
+class NeuroQuizQuestionStatus(str, enum.Enum):
+    ACTIVE = "active"
+    RETIRED = "retired"
+
+
+class NeuroQuizVoteValue(str, enum.Enum):
+    LIKE = "like"
+    DISLIKE = "dislike"
