@@ -2,12 +2,12 @@
 
 **Проект:** `chim_web`  
 **Дата:** 2026-07-23  
-**Статус:** idea-refine согласован (направление C) → **spec:** [`../specs/llm-provider.md`](../specs/llm-provider.md)  
+**Статус:** idea → spec **approved** → **increment 1 done** (DeepSeek + factory). GigaChat adapter = inc 3. 
 **Связанные артефакты:**
-- [`../specs/llm-provider.md`](../specs/llm-provider.md) — **spec (фаза SPECIFY)**
-- [`../specs/tutor-rag.md`](../specs/tutor-rag.md) §8 — абстракция `LlmProvider` / `LLM_PROVIDER` (обновлено)
-- `backend/app/services/tutor/graph.py` — сейчас жёстко `ChatOpenAI`
-- `backend/app/core/config.py` — `OPENAI_API_KEY` / `OPENAI_MODEL`
+- [`../specs/llm-provider.md`](../specs/llm-provider.md) — approved spec
+- [`../../tasks/llm-provider.md`](../../tasks/llm-provider.md) — PLAN + tasks
+- [`../specs/tutor-rag.md`](../specs/tutor-rag.md) §8 — абстракция `LlmProvider` / `LLM_PROVIDER`
+- `backend/app/services/tutor/llm.py` — `build_chat_llm`
 - Embeddings / hybrid RAG — **вне scope** (другой разработчик)
 
 ---
@@ -84,5 +84,4 @@ RAG / embeddings / pgvector **не трогаем**: keyword fallback остаё
 
 ## Suggested next step
 
-Спека: [`../specs/llm-provider.md`](../specs/llm-provider.md) — **ждёт ревью Assumptions**.  
-После approve → PLAN / tasks → инкремент 1 (DeepSeek + `LLM_*` factory).
+Ручной smoke DeepSeek (чат + solve + off-topic). Затем increment 2 (GigaChat smoke) → 3 (адаптер).

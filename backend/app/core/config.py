@@ -91,7 +91,12 @@ class Settings(BaseSettings):
         alias="RAG_INDEX_PATH",
     )
 
-    # Tutor / RAG (v2+, ported from RAG_chemistry)
+    # Tutor chat LLM (v2+). Canonical: LLM_*; OPENAI_* remain legacy aliases.
+    llm_provider: str = Field(default="deepseek", alias="LLM_PROVIDER")
+    llm_api_key: str = Field(default="", alias="LLM_API_KEY")
+    llm_model: str = Field(default="deepseek-chat", alias="LLM_MODEL")
+    llm_base_url: str = Field(default="", alias="LLM_BASE_URL")
+    # Legacy aliases + embeddings / hybrid RAG (unchanged readers of openai_*)
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
     embedding_model: str = Field(
@@ -148,6 +153,34 @@ class Settings(BaseSettings):
         default=["audio/webm", "audio/ogg"],
         alias="UPLOAD_AUDIO_ALLOWED_MIME",
     )
+
+    @property
+    def effective_llm_api_key(self) -> str:
+        """Chat LLM key: LLM_API_KEY wins; else OPENAI_API_KEY alias."""
+        return self.llm_api_key.strip() or self.openai_api_key.strip()
+
+    @property
+    def effective_llm_model(self) -> str:
+        """Chat model: LLM_MODEL when LLM key set; else OPENAI_MODEL on openai-key fallback."""
+        if self.llm_api_key.strip():
+            return self.llm_model
+        if self.openai_api_key.strip():
+            return self.openai_model
+        return self.llm_model
+
+    @property
+    def effective_llm_base_url(self) -> str:
+        """Explicit LLM_BASE_URL, else DeepSeek default host when provider=deepseek."""
+        if self.llm_base_url.strip():
+            return self.llm_base_url.strip()
+        if self.llm_provider.strip().lower() == "deepseek":
+            return "https://api.deepseek.com"
+        return ""
+
+    @property
+    def llm_configured(self) -> bool:
+        """True when an effective chat API key is present for the active provider path."""
+        return bool(self.effective_llm_api_key)
 
     def tests_db_path_for_track(self, track: str) -> Path:
         if track == "oge":

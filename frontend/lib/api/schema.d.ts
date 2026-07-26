@@ -1917,7 +1917,8 @@ export interface components {
         TutorHealthResponse: {
             /** Rag Index Exists */
             rag_index_exists: boolean;
-            /** Openai Configured */
+            llm_configured: boolean;
+            /** @deprecated Alias of llm_configured */
             openai_configured: boolean;
         };
         /** TutorMessageCreate */

@@ -7,7 +7,7 @@ import logging
 from typing import Any, Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
+from langchain_core.language_models.chat_models import BaseChatModel
 from pydantic import BaseModel, Field
 
 from app.services.tutor.context import TutorRunContext, get_tutor_context
@@ -103,7 +103,7 @@ def _plan_from_text(content: str, state: SolveState) -> SolvePlan:
 
 
 def _invoke_planner_llm(
-    llm: ChatOpenAI,
+    llm: BaseChatModel,
     messages: list[SystemMessage | HumanMessage],
     ctx: TutorRunContext,
 ) -> _PlannerLLMOutput | None:
@@ -123,7 +123,7 @@ def _invoke_planner_llm(
         return None
 
 
-def make_planner_node(llm: ChatOpenAI, ctx: TutorRunContext | None = None):
+def make_planner_node(llm: BaseChatModel, ctx: TutorRunContext | None = None):
     def planner(state: SolveState) -> dict[str, Any]:
         run_ctx = ctx or get_tutor_context()
         messages = _build_planner_messages(state)

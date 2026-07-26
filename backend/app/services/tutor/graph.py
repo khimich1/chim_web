@@ -4,20 +4,20 @@ from __future__ import annotations
 
 from typing import Any
 
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, SystemMessage
-from langchain_openai import ChatOpenAI
-from pydantic import SecretStr
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 
-from app.core.config import Settings, get_settings
+from app.core.config import Settings
 from app.services.tutor.context import TutorRunContext, set_tutor_context
 from app.services.tutor.guards import (
     make_input_guard,
     make_is_on_topic_checker,
     tool_output_guard,
 )
+from app.services.tutor.llm import build_chat_llm
 from app.services.tutor.llm_utils import invoke_llm
 from app.services.tutor.memory import load_profile
 from app.services.tutor.prompts import build_system_prompt
@@ -37,20 +37,7 @@ from app.services.tutor.solve.state import SolveState
 from app.services.tutor.tools import build_tools
 
 
-def _build_llm(settings: Settings | None = None) -> ChatOpenAI:
-    settings = settings or get_settings()
-    return ChatOpenAI(
-        model=settings.openai_model,
-        temperature=0,
-        api_key=(
-            SecretStr(settings.openai_api_key)
-            if settings.openai_api_key
-            else None
-        ),
-    )
-
-
-def make_agent_node(llm: ChatOpenAI, ctx: TutorRunContext, tools: list):
+def make_agent_node(llm: BaseChatModel, ctx: TutorRunContext, tools: list):
     bound = llm.bind_tools(tools, parallel_tool_calls=False)
 
     def agent_node(state: MessagesState) -> dict:
@@ -80,7 +67,7 @@ def route_after_input_guard(state: MessagesState, ctx: TutorRunContext) -> str:
 
 def build_graph(
     ctx: TutorRunContext,
-    llm: ChatOpenAI | None = None,
+    llm: BaseChatModel | None = None,
     *,
     settings: Settings | None = None,
     checkpointer: Any | None = None,
@@ -94,7 +81,7 @@ def build_graph(
     would silently diverge across restarts and uvicorn workers.
     """
     set_tutor_context(ctx)
-    llm = llm or _build_llm(settings)
+    llm = llm or build_chat_llm(settings)
     tools = build_tools(ctx)
     is_on_topic = make_is_on_topic_checker(llm)
 

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 
 from app.services.tutor.context import TutorRunContext, get_tutor_context
 from app.services.tutor.llm_utils import invoke_llm
@@ -81,7 +81,7 @@ def _build_solver_messages(state: SolveState) -> list[SystemMessage | HumanMessa
     return [system, user]
 
 
-def make_solver_node(llm: ChatOpenAI, ctx: TutorRunContext | None = None):
+def make_solver_node(llm: BaseChatModel, ctx: TutorRunContext | None = None):
     def solver(state: SolveState) -> dict[str, Any]:
         run_ctx = ctx or get_tutor_context()
         response = invoke_llm(llm, _build_solver_messages(state), run_ctx)

@@ -112,9 +112,9 @@ export function TutorChatOverlay() {
     setOpening(true);
     try {
       const health = await getTutorHealth();
-      if (!health.openai_configured) {
+      if (!health.llm_configured) {
         setHealthWarning(
-          "OPENAI_API_KEY не задан на сервере. Ответы агента будут недоступны.",
+          "LLM API key не задан на сервере. Ответы агента будут недоступны.",
         );
       }
       if (!health.rag_index_exists) {

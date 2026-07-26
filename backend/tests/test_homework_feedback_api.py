@@ -304,6 +304,62 @@ def test_submission_feedback_optional(client: TestClient) -> None:
     assert feedback.json()["submission"]["teacher_text"] == "Общий комментарий к сдаче"
 
 
+def _submit_lecture_homework(client: TestClient) -> str:
+    student_id = _student_id(client)
+    create = client.post(
+        "/api/homework",
+        json={
+            "student_id": student_id,
+            "title": "Lecture only",
+            "items": [{"kind": "lecture", "topic": "Алканы"}],
+        },
+    )
+    assert create.status_code == 201, create.text
+    assignment_id = create.json()["id"]
+
+    _login(client, STUDENT_EMAIL, STUDENT_PASS)
+    submit = client.post(f"/api/homework/{assignment_id}/submit", json={})
+    assert submit.status_code == 200, submit.text
+    assert submit.json()["submission"]["test_session_id"] is None
+    return assignment_id
+
+
+def test_student_feedback_without_test_session_returns_empty(
+    client: TestClient,
+) -> None:
+    """Lecture/written-without-steps: submission has no test_session_id — still 200."""
+    assignment_id = _submit_lecture_homework(client)
+
+    _login(client, STUDENT_EMAIL, STUDENT_PASS)
+    feedback = client.get(f"/api/student/homework/{assignment_id}/feedback")
+    assert feedback.status_code == 200, feedback.text
+    body = feedback.json()
+    assert body["has_feedback"] is False
+    assert body["steps"] == []
+    assert body["submission"] is None
+
+
+def test_student_reads_submission_feedback_without_test_session(
+    client: TestClient,
+) -> None:
+    assignment_id = _submit_lecture_homework(client)
+    _login(client, TEACHER_EMAIL, TEACHER_PASS)
+
+    save = client.put(
+        f"/api/homework/{assignment_id}/submission-feedback",
+        json={"teacher_text": "Лекцию прочитали — ок"},
+    )
+    assert save.status_code == 200, save.text
+
+    _login(client, STUDENT_EMAIL, STUDENT_PASS)
+    feedback = client.get(f"/api/student/homework/{assignment_id}/feedback")
+    assert feedback.status_code == 200, feedback.text
+    body = feedback.json()
+    assert body["has_feedback"] is True
+    assert body["steps"] == []
+    assert body["submission"]["teacher_text"] == "Лекцию прочитали — ок"
+
+
 def test_student_feedback_before_submit_returns_404(client: TestClient) -> None:
     student_id = _student_id(client)
     create = client.post(

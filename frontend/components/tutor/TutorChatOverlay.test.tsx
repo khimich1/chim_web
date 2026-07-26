@@ -32,6 +32,7 @@ const mockedStream = vi.mocked(streamTutorMessage);
 
 function primeHappyPath() {
   mockedHealth.mockResolvedValue({
+    llm_configured: true,
     openai_configured: true,
     rag_index_exists: true,
   });
@@ -107,6 +108,24 @@ describe("TutorChatOverlay", () => {
     expect(mockedHealth).toHaveBeenCalled();
     expect(
       await screen.findByText(/Задайте вопрос по теории/),
+    ).toBeInTheDocument();
+  });
+
+  it("warns when LLM API key is not configured on the server", async () => {
+    primeHappyPath();
+    mockedHealth.mockResolvedValue({
+      llm_configured: false,
+      openai_configured: false,
+      rag_index_exists: true,
+    });
+    renderOverlay();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "AI-советчик по химии" }),
+    );
+
+    expect(
+      await screen.findByText(/LLM API key не задан на сервере/),
     ).toBeInTheDocument();
   });
 

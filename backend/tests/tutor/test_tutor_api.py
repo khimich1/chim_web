@@ -318,9 +318,12 @@ def test_tutor_health_endpoint(tutor_client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert "rag_index_exists" in body
+    assert "llm_configured" in body
     assert "openai_configured" in body
     assert isinstance(body["rag_index_exists"], bool)
+    assert isinstance(body["llm_configured"], bool)
     assert isinstance(body["openai_configured"], bool)
+    assert body["llm_configured"] == body["openai_configured"]
 
 
 def test_tutor_health_requires_auth(tutor_client: TestClient) -> None:
@@ -397,6 +400,7 @@ def test_send_message_agent_error_returns_503_and_rolls_back(
     )
     assert response.status_code == 503
     assert "OPENAI_API_KEY" not in response.json()["detail"]
+    assert "LLM API key" not in response.json()["detail"]
 
     messages = tutor_client.get(f"/api/tutor/sessions/{session_id}").json()["messages"]
     assert messages == []
@@ -443,7 +447,7 @@ def test_send_message_without_openai_key_returns_503(
     )
 
     get_settings.cache_clear()
-    app = create_app(settings=Settings(openai_api_key=""))
+    app = create_app(settings=Settings(openai_api_key="", llm_api_key=""))
     app.dependency_overrides[get_db] = _override_get_db
 
     with TestClient(app) as client:
@@ -454,11 +458,76 @@ def test_send_message_without_openai_key_returns_503(
             json={"content": "Что такое алканы?"},
         )
         assert response.status_code == 503
-        assert "OPENAI_API_KEY" in response.json()["detail"]
+        detail = response.json()["detail"]
+        assert "LLM API key" in detail
 
         # I7: a misconfigured server must not leave an orphan user message.
-        detail = client.get(f"/api/tutor/sessions/{session_id}")
-        assert detail.status_code == 200
-        assert detail.json()["messages"] == []
+        detail_resp = client.get(f"/api/tutor/sessions/{session_id}")
+        assert detail_resp.status_code == 200
+        assert detail_resp.json()["messages"] == []
+
+    asyncio.run(request_engine.dispose())
+
+
+def test_send_message_gigachat_provider_returns_503_before_persist(
+    tmp_path: Path,
+    rag_retriever,
+    monkeypatch,
+) -> None:
+    """Q2: LLM_PROVIDER=gigachat before adapter → 503 on request; no orphan msg."""
+    db_file = tmp_path / "tutor_gigachat.db"
+    db_url = f"sqlite+aiosqlite:///{db_file.as_posix()}"
+
+    async def _setup() -> None:
+        engine = create_async_engine(db_url)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        session_maker = async_sessionmaker(engine, expire_on_commit=False)
+        async with session_maker() as session:
+            session.add(
+                User(
+                    id=uuid.uuid4(),
+                    email="giga@example.com",
+                    password_hash=hash_password("giga-pass"),
+                    role=UserRole.STUDENT,
+                )
+            )
+            await session.commit()
+        await engine.dispose()
+
+    asyncio.run(_setup())
+
+    request_engine = create_async_engine(db_url, poolclass=NullPool)
+    request_sessions = async_sessionmaker(request_engine, expire_on_commit=False)
+
+    async def _override_get_db():
+        async with request_sessions() as session:
+            yield session
+
+    monkeypatch.setattr(
+        "app.services.rag.theory.Retriever.from_settings",
+        lambda settings=None: rag_retriever,
+    )
+
+    get_settings.cache_clear()
+    app = create_app(
+        settings=Settings(
+            llm_provider="gigachat",
+            llm_api_key="gigachat-creds",
+            openai_api_key="",
+        )
+    )
+    app.dependency_overrides[get_db] = _override_get_db
+
+    with TestClient(app) as client:
+        _login(client, "giga@example.com", "giga-pass")
+        session_id = client.post("/api/tutor/sessions", json={}).json()["id"]
+        response = client.post(
+            f"/api/tutor/sessions/{session_id}/messages",
+            json={"content": "Что такое алканы?"},
+        )
+        assert response.status_code == 503
+        assert "GigaChat" in response.json()["detail"]
+        assert client.get(f"/api/tutor/sessions/{session_id}").json()["messages"] == []
 
     asyncio.run(request_engine.dispose())

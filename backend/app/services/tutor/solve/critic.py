@@ -7,7 +7,7 @@ import logging
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
+from langchain_core.language_models.chat_models import BaseChatModel
 from pydantic import BaseModel, Field
 
 from app.services.tutor.context import TutorRunContext, get_tutor_context
@@ -67,7 +67,7 @@ def _build_chemical_critic_messages(state: SolveState) -> list[SystemMessage | H
 
 
 def _invoke_chemical_critic_llm(
-    llm: ChatOpenAI,
+    llm: BaseChatModel,
     messages: list[SystemMessage | HumanMessage],
     ctx: TutorRunContext,
 ) -> _ChemicalCritiqueOutput | None:
@@ -93,7 +93,7 @@ def _invoke_chemical_critic_llm(
 
 def run_llm_chemical_critic(
     state: SolveState,
-    llm: ChatOpenAI,
+    llm: BaseChatModel,
     ctx: TutorRunContext | None = None,
 ) -> Critique:
     run_ctx = ctx or get_tutor_context()
@@ -110,7 +110,11 @@ def run_llm_chemical_critic(
     return Critique(approved=False, issues=issues, fix_instructions=fix)
 
 
-def run_critic(state: SolveState, llm: ChatOpenAI | None = None, ctx: TutorRunContext | None = None) -> Critique:
+def run_critic(
+    state: SolveState,
+    llm: BaseChatModel | None = None,
+    ctx: TutorRunContext | None = None,
+) -> Critique:
     code_critique = run_code_critic(state)
     if not code_critique.approved:
         return code_critique
@@ -121,7 +125,10 @@ def run_critic(state: SolveState, llm: ChatOpenAI | None = None, ctx: TutorRunCo
     return code_critique
 
 
-def make_critic_node(llm: ChatOpenAI | None = None, ctx: TutorRunContext | None = None):
+def make_critic_node(
+    llm: BaseChatModel | None = None,
+    ctx: TutorRunContext | None = None,
+):
     def critic(state: SolveState) -> dict[str, Any]:
         critique = run_critic(state, llm=llm, ctx=ctx)
         payload = critique.model_dump()
