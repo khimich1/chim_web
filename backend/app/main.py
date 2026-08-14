@@ -20,6 +20,7 @@ from app.api.routers import auth as auth_router
 from app.api.routers import homework as homework_router
 from app.api.routers import homework_templates as homework_templates_router
 from app.api.routers import student_homework as student_homework_router
+from app.api.routers import leads as leads_router
 from app.api.routers import leaderboard as leaderboard_router
 from app.api.routers import notifications as notifications_router
 from app.api.routers import students as students_router
@@ -76,6 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     application.include_router(auth_router.router)
+    application.include_router(leads_router.router)
     application.include_router(students_router.router)
     application.include_router(teacher_stats_router.router)
     application.include_router(leaderboard_router.router)

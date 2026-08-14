@@ -51,6 +51,7 @@ services:
       CONTENT_OGE_DB_PATH: /app/test_oge.db
       CONTENT_LECTURES_DB_PATH: /app/prepared_lectures.db
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_SHEETS_WEBHOOK_URL: ${GOOGLE_SHEETS_WEBHOOK_URL:-}
     volumes:
       - backend_data:/app/backend/data
       # Optional: bind-mount read-only content SQLite from host (files must exist as files):

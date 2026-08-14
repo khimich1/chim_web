@@ -48,6 +48,15 @@ class Settings(BaseSettings):
         default="30/minute",
         alias="TUTOR_MESSAGE_RATE_LIMIT",
     )
+    leads_rate_limit: str = Field(
+        default="5/minute",
+        alias="LEADS_RATE_LIMIT",
+    )
+
+    google_sheets_webhook_url: str | None = Field(
+        default=None,
+        alias="GOOGLE_SHEETS_WEBHOOK_URL",
+    )
 
     # Auth cookie settings. In dev (http://localhost) Secure must be False;
     # set COOKIE_SECURE=true behind HTTPS in production.

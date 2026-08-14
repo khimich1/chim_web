@@ -62,3 +62,10 @@ def enforce_tutor_message_rate_limit(
     settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> None:
     _enforce_rate_limit(request, settings.tutor_message_rate_limit)
+
+
+def enforce_leads_rate_limit(
+    request: Request,
+    settings: Annotated[Settings, Depends(get_app_settings)],
+) -> None:
+    _enforce_rate_limit(request, settings.leads_rate_limit)
