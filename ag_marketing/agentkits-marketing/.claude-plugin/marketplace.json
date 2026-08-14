@@ -1,0 +1,27 @@
+{
+  "name": "agentkits-marketing",
+  "owner": {
+    "name": "AityTech",
+    "email": "contact@agentkits.net"
+  },
+  "metadata": {
+    "description": "AI marketing agent tools by AityTech",
+    "version": "1.7.2"
+  },
+  "plugins": [
+    {
+      "name": "agentkits-marketing",
+      "source": "./",
+      "description": "Full marketing automation suite - 20 agents, 90+ commands, 28 skills, workflows, and training",
+      "version": "1.7.2",
+      "author": {
+        "name": "AityTech"
+      },
+      "homepage": "https://www.agentkits.net/marketing",
+      "repository": "https://github.com/aitytech/agentkits-marketing",
+      "license": "MIT",
+      "category": "marketing",
+      "tags": ["marketing", "content", "seo", "cro", "email", "sales", "campaigns", "automation"]
+    }
+  ]
+}
