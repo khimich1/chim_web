@@ -1,0 +1,300 @@
+---
+name: mkt-workflow-campaign-plan
+description: "Create comprehensive marketing campaign plan. Marketing workflow for Cursor (AgentKits). Use when the user asks for /campaign:plan or a full campaign plan workflow."
+disable-model-invocation: true
+---
+
+# Marketing Workflow: campaign/plan
+
+> Cursor adaptation of AgentKits `/campaign:plan`. Invoke explicitly:
+> «Следуй skill mkt-workflow-campaign-plan» или `@.cursor/skills/mkt-workflow-campaign-plan/SKILL.md`
+
+## Cursor notes
+
+- Slash commands (`/campaign:plan`) недоступны — используй этот workflow skill.
+- Atomic skills: `.cursor/skills/mkt-*/SKILL.md` (префикс `mkt-`, не путать с PM skills).
+- Personas: `.cursor/rules/agents/mkt-*.md`
+- Контекст проекта: `docs/marketing/brand-context.md`, `docs/strategy/seo-strategy.md`
+- Сохраняй артефакты в `docs/marketing/` (campaigns/, research/, content/, plans/)
+- MCP-метрики: если нет интеграции — пиши NOT AVAILABLE, не выдумывай цифры
+
+---
+
+
+## Prerequisites
+
+Before running this command, ensure:
+- [ ] Campaign name or initiative provided as argument
+- [ ] Budget range is known or can be estimated
+- [ ] Timeline constraints are understood
+- [ ] Key stakeholders/approvers identified
+
+---
+
+## Context Loading (Execute First)
+
+Load context in this order:
+1. **Project**: Read `./README.md` for product and audience context
+2. **Brand**: Read `docs/marketing/brand-context.md` for positioning
+3. **Existing Plans**: Check `docs/marketing/campaigns/` for prior campaign work
+4. **Marketing Skill**: Load `.cursor/.cursor/skills/mkt-mkt-marketing-fundamentals/SKILL.md`
+5. **Content Skill**: Load `.cursor/.cursor/skills/mkt-mkt-content-strategy/SKILL.md`
+6. **Analytics Skill**: Load `.cursor/.cursor/skills/mkt-mkt-analytics-attribution/SKILL.md`
+7. **Benchmarks**: Load `.claude/skills/common/data/benchmark-metrics.yaml`
+
+---
+
+## Language & Quality Standards
+
+**CRITICAL**: Respond in the same language the user is using. If Vietnamese, respond in Vietnamese. If Spanish, respond in Spanish.
+
+**Standards**: Token efficiency, sacrifice grammar for concision, list unresolved questions at end.
+
+**Skills**: Read `.cursor/.cursor/skills/mkt-mkt-marketing-fundamentals/SKILL.md`, `.cursor/.cursor/skills/mkt-mkt-content-strategy/SKILL.md`, `.cursor/.cursor/skills/mkt-mkt-analytics-attribution/SKILL.md`.
+
+**Components**: Reference `./.claude/components/interactive-questions.md` and `./.claude/components/date-helpers.md`
+
+---
+
+## Interactive Parameter Collection
+
+### Step 0: Get Current Date (MANDATORY)
+
+```bash
+CURRENT_DATE=$(date +%Y-%m-%d)
+CURRENT_MONTH=$(date +"%B %Y")
+NEXT_MONTH=$(date -v+1m +"%B %Y" 2>/dev/null || date -d "+1 month" +"%B %Y")
+NEXT_QUARTER_START=$(date -v+1m +%Y-%m-01 2>/dev/null || date -d "+1 month" +%Y-%m-01)
+```
+
+---
+
+### Step 1: Ask Campaign Scope
+
+**Question:** "What level of campaign planning do you need?"
+**Header:** "Scope"
+**MultiSelect:** false
+
+**Options:**
+- **Basic** - Quick campaign outline, key elements only
+- **Recommended** - Full campaign plan with timeline and budget
+- **Complete** - Comprehensive plan with all assets and contingencies
+- **Custom** - I'll select specific sections
+
+---
+
+### Step 2: Ask Campaign Goal
+
+**Question:** "What is the primary goal of this campaign?"
+**Header:** "Goal"
+**MultiSelect:** false
+
+**Options:**
+- **Lead Generation** - Capture new leads and grow pipeline
+- **Brand Awareness** - Increase visibility and recognition
+- **Product Launch** - Introduce new product or feature
+- **Revenue/Retention** - Drive conversions or retain customers
+
+---
+
+### Step 3: Ask Target Audience
+
+**Question:** "Who is the primary target audience?"
+**Header:** "Audience"
+**MultiSelect:** false
+
+**Options:**
+- **New Prospects** - People unfamiliar with our brand
+- **Warm Leads** - People who've shown interest
+- **Existing Customers** - Current customer base
+- **Specific Segment** - I'll define a specific segment
+
+---
+
+### Step 4: Ask Budget Range
+
+**Question:** "What is the approximate budget for this campaign?"
+**Header:** "Budget"
+**MultiSelect:** false
+
+**Options:**
+- **Lean ($0-1K)** - Organic and low-cost tactics only
+- **Moderate ($1K-10K)** - Mix of organic and paid
+- **Growth ($10K-50K)** - Significant paid investment
+- **Enterprise ($50K+)** - Full-scale multi-channel campaign
+
+---
+
+### Step 5: Ask Timeline
+
+**Question:** "What is the campaign timeline?"
+**Header:** "Timeline"
+**MultiSelect:** false
+
+**Options (generated from Step 0):**
+- **Sprint (1-2 weeks)** - Quick tactical campaign
+- **Standard (1 month)** - Starting [NEXT_MONTH]
+- **Quarter (3 months)** - Starting [NEXT_QUARTER_START]
+- **Custom dates** - I'll specify start and end dates
+
+---
+
+### Step 6: Ask Channels (Multi-select)
+
+**Question:** "Which channels should we include?"
+**Header:** "Channels"
+**MultiSelect:** true
+
+**Options:**
+- **Email & Automation** - Email marketing, drip sequences
+- **Paid Media** - PPC, display, social ads
+- **Organic & Content** - SEO, blog posts, social media
+- **Events & PR** - Webinars, partnerships, media outreach
+
+---
+
+### Step 7: Confirmation
+
+**Display summary:**
+
+```markdown
+## Campaign Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Campaign Name | [name] |
+| Goal | [selected goal] |
+| Target Audience | [selected audience] |
+| Budget | [selected range] |
+| Timeline | [selected timeline] |
+| Channels | [selected channels] |
+
+**Scope:** [Basic/Recommended/Complete]
+```
+
+**Question:** "Proceed with this campaign plan?"
+**Header:** "Confirm"
+**MultiSelect:** false
+
+**Options:**
+- **Yes, create plan** - Generate campaign plan
+- **No, change settings** - Go back to modify
+
+---
+
+## Workflow
+
+1. **Analyze Objective**
+   - Understand campaign goals and desired outcomes
+   - Identify target audience and segments
+   - Define success metrics and KPIs
+
+2. **Research Phase**
+   - Follow persona @.cursor/rules/agents/mkt-researcher.md for competitive analysis
+   - Analyze market trends and opportunities
+   - Review past campaign performance
+
+3. **Strategy Development**
+   - Define funnel stages and touchpoints
+   - Determine channel mix and allocation
+   - Create messaging framework
+
+4. **Content Requirements**
+   - List all content assets needed
+   - Define content formats and specifications
+   - Create content briefs
+
+5. **Timeline & Budget**
+   - Create milestone-based timeline
+   - Allocate budget across channels
+   - Identify dependencies and risks
+
+---
+
+## Output Format
+
+### Basic Scope
+
+```markdown
+# Campaign Plan: [Name]
+
+## Overview
+| Element | Detail |
+|---------|--------|
+| Goal | [Goal] |
+| Audience | [Audience] |
+| Budget | [Budget] |
+| Timeline | [Start] - [End] |
+
+## Key Messages
+1. [Message 1]
+2. [Message 2]
+3. [Message 3]
+
+## Channel Strategy
+| Channel | Tactic | Budget % |
+|---------|--------|----------|
+| [Channel] | [Tactic] | X% |
+
+## Success Metrics
+| Metric | Target |
+|--------|--------|
+| [Metric] | [Target] |
+
+## Next Steps
+1. [Action item]
+2. [Action item]
+```
+
+### Recommended Scope
+
+[Include Basic + Content Calendar + Detailed Tactics + Risk Mitigation]
+
+### Complete Scope
+
+[Include all + Asset Specifications + Contingency Plans + Approval Workflow]
+
+---
+
+## Agent Delegation
+
+| Task | Agent | Trigger |
+|------|-------|---------|
+| Competitive research | `researcher` | Market analysis |
+| Content planning | `copywriter` | Asset creation |
+| Timeline creation | `planner` | Schedule development |
+| Channel strategy | `attraction-specialist` | Distribution planning |
+
+---
+
+## Output Location
+
+Save plan to: `docs/marketing/campaigns/[campaign-name]/campaign-plan.md`
+
+---
+
+## Pre-Delivery Validation
+
+Before delivering campaign plan:
+
+- [ ] **Goals SMART**: Specific, measurable, achievable, relevant, time-bound
+- [ ] **Audience Defined**: Clear target personas with pain points
+- [ ] **Timeline Realistic**: Milestones achievable with stated resources
+- [ ] **Budget Allocated**: Clear distribution across channels/tactics
+- [ ] **KPIs Measurable**: Metrics have baselines and targets
+- [ ] **Risks Identified**: Potential issues with mitigation strategies
+- [ ] **Dependencies Clear**: Blockers and sequencing documented
+- [ ] **Next Steps Actionable**: Immediate actions identified
+
+---
+
+## Next Steps After Delivery
+
+1. **Review**: Stakeholder review and feedback
+2. **Approve**: Get budget and timeline sign-off
+3. **Brief**: Run `mkt-workflow-campaign-brief` for creative execution
+4. **Content**: Run `mkt-workflow-content-*` commands for asset creation
+5. **Calendar**: Run `mkt-workflow-campaign-calendar` for scheduling
+6. **Launch**: Execute per timeline
+7. **Monitor**: Run `mkt-workflow-campaign-analyze` weekly during campaign
+8. **Report**: Run `mkt-workflow-report-*` for performance reporting

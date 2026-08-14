@@ -1,0 +1,228 @@
+---
+name: mkt-workflow-brand-book
+description: "Generate comprehensive brand book. Marketing workflow for Cursor (AgentKits). Use when the user asks for /brand:book or a full brand book workflow."
+disable-model-invocation: true
+---
+
+# Marketing Workflow: brand/book
+
+> Cursor adaptation of AgentKits `/brand:book`. Invoke explicitly:
+> «Следуй skill mkt-workflow-brand-book» или `@.cursor/skills/mkt-workflow-brand-book/SKILL.md`
+
+## Cursor notes
+
+- Slash commands (`/brand:book`) недоступны — используй этот workflow skill.
+- Atomic skills: `.cursor/skills/mkt-*/SKILL.md` (префикс `mkt-`, не путать с PM skills).
+- Personas: `.cursor/rules/agents/mkt-*.md`
+- Контекст проекта: `docs/marketing/brand-context.md`, `docs/strategy/seo-strategy.md`
+- Сохраняй артефакты в `docs/marketing/` (campaigns/, research/, content/, plans/)
+- MCP-метрики: если нет интеграции — пиши NOT AVAILABLE, не выдумывай цифры
+
+---
+
+
+## Prerequisites
+
+Before running this command, ensure you have:
+- [ ] Brand name and core messaging defined
+- [ ] Visual assets available (logo, colors)
+- [ ] Target audience understood
+
+## Context Loading
+
+Load these files first:
+1. `./README.md` - Product context
+2. `./docs/brand/` - Existing brand documentation
+3. `.cursor/.cursor/skills/mkt-mkt-brand-building/SKILL.md` - Brand frameworks
+
+---
+
+## Language & Quality Standards
+
+**CRITICAL**: Respond in the same language the user is using. If Vietnamese, respond in Vietnamese. If Spanish, respond in Spanish.
+
+**Standards**: Token efficiency, sacrifice grammar for concision, list unresolved questions at end.
+
+**Skills**: Read `.cursor/.cursor/skills/mkt-mkt-brand-building/SKILL.md` and `.cursor/.cursor/skills/mkt-mkt-content-strategy/SKILL.md`.
+
+**Components**: Reference `./.claude/components/interactive-questions.md`
+
+---
+
+## Interactive Parameter Collection
+
+### Step 1: Ask Output Scope
+
+**Question:** "What level of brand book do you need?"
+**Header:** "Scope"
+**MultiSelect:** false
+
+**Options:**
+- **Basic** - Essential brand elements
+- **Recommended** - Full brand book with applications
+- **Complete** - Comprehensive with all assets
+- **Custom** - I'll specify sections
+
+---
+
+### Step 2: Ask Brand Maturity
+
+**Question:** "What's your brand's current state?"
+**Header:** "Maturity"
+**MultiSelect:** false
+
+**Options:**
+- **New Brand** - Starting from scratch
+- **Refresh** - Updating existing brand
+- **Expansion** - Adding to established brand
+- **Documentation** - Codifying existing assets
+
+---
+
+### Step 3: Ask Focus Areas
+
+**Question:** "Which sections should the brand book prioritize?"
+**Header:** "Focus"
+**MultiSelect:** true
+
+**Options:**
+- **Visual Identity** - Logo, colors, typography
+- **Voice & Tone** - Messaging, writing style
+- **Applications** - Digital, print, social
+- **Guidelines** - Usage rules, do's/don'ts
+
+---
+
+### Step 4: Ask Asset Needs
+
+**Question:** "What asset specifications do you need?"
+**Header:** "Assets"
+**MultiSelect:** false
+
+**Options:**
+- **Specs Only** - Color codes, font names
+- **Guidelines** - Usage rules and examples
+- **Templates** - Ready-to-use formats
+- **Full Package** - All of the above
+
+---
+
+### Step 5: Confirmation
+
+**Display summary:**
+
+```markdown
+## Brand Book Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Brand Name | [description] |
+| Maturity | [selected maturity] |
+| Focus Areas | [selected focus] |
+| Asset Needs | [selected assets] |
+| Scope | [Basic/Recommended/Complete] |
+```
+
+**Question:** "Generate this brand book?"
+**Header:** "Confirm"
+**MultiSelect:** false
+
+**Options:**
+- **Yes, generate book** - Start creation
+- **No, change settings** - Go back to modify
+
+---
+
+## Workflow
+
+1. **Brand Essence**
+   - Mission statement
+   - Vision statement
+   - Brand values
+   - Brand promise
+   - Positioning statement
+
+2. **Visual Identity**
+   - Logo usage guidelines
+   - Color palette
+   - Typography system
+   - Imagery style
+
+3. **Voice Guidelines**
+   - Brand personality
+   - Voice attributes
+   - Tone variations
+
+4. **Applications**
+   - Digital formats
+   - Print formats
+   - Social media
+   - Presentations
+
+---
+
+## Agent Delegation
+
+| Task | Agent | Trigger |
+|------|-------|---------|
+| Brand book creation | `copywriter` | Primary task |
+| Visual specs | `docs-manager` | Asset documentation |
+| Voice guidelines | `brand-voice-guardian` | Consistency |
+
+---
+
+## Output Format
+
+### Basic Scope
+
+```markdown
+## Brand Book: [Brand]
+
+### Brand Foundation
+- Mission: [Statement]
+- Vision: [Statement]
+- Values: [List]
+
+### Visual Identity
+- Primary Color: [Hex]
+- Secondary Colors: [Hex list]
+- Typography: [Font names]
+
+### Logo Usage
+- Clear space: [Spec]
+- Minimum size: [Spec]
+```
+
+### Recommended Scope
+
+[Include Basic + Full visual guidelines + Voice & tone + Application examples + Usage rules]
+
+### Complete Scope
+
+[Include all + Asset library + Template package + Quick reference card + Brand story narrative]
+
+---
+
+## Pre-Delivery Validation
+
+Before delivering brand book:
+- [ ] Mission/vision clearly stated
+- [ ] Visual identity specs complete
+- [ ] Voice guidelines included
+- [ ] Usage examples provided
+- [ ] Do's and don'ts clear
+
+---
+
+## Output Location
+
+Save brand book to: `./docs/brand/book-[brand]-[YYYY-MM-DD].md`
+
+---
+
+## Next Steps
+
+After brand book creation, consider:
+- `mkt-workflow-brand-voice` - Detailed voice guidelines
+- `mkt-workflow-brand-assets` - Organize brand assets
+- `mkt-workflow-content-landing` - Create branded landing pages

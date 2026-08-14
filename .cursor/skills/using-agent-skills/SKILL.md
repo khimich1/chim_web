@@ -31,7 +31,8 @@ Agent Skills — набор инженерных workflow, организова�
     │   ├── Проблемы безопасности? ────→ security-and-hardening
     │   └── Документируем решения? ────→ documentation-and-adrs
     ├── Коммитим/ветки? ───────────────→ git-workflow-and-versioning
-    └── Деплой? ───────────────────────→ shipping-and-launch
+    ├── Деплой? ───────────────────────→ shipping-and-launch
+    └── PM (discovery, PRD, GTM…)? ───→ using-pm-skills
 ```
 
 ## Базовые правила поведения
@@ -137,3 +138,4 @@ Skills работают в **Cursor Agent mode** (Composer), не в Claude Code
 | Ship | git-workflow-and-versioning | Атомарные коммиты |
 | Ship | documentation-and-adrs | Документировать «почему» |
 | Ship | shipping-and-launch | Pre-launch checklist, мониторинг, rollback |
+| PM | using-pm-skills | Discovery, strategy, PRD, GTM (65 skills + 36 workflows) |

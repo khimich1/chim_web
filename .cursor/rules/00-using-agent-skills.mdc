@@ -32,7 +32,8 @@ Agent Skills — набор инженерных workflow, организова�
     │   ├── Проблемы безопасности? ────→ security-and-hardening
     │   └── Документируем решения? ────→ documentation-and-adrs
     ├── Коммитим/ветки? ───────────────→ git-workflow-and-versioning
-    └── Деплой? ───────────────────────→ shipping-and-launch (когда появится)
+    ├── Деплой? ───────────────────────→ shipping-and-launch (когда появится)
+    └── PM (discovery, PRD, GTM…)? ───→ using-pm-skills (`.cursor/skills/using-pm-skills/`)
 ```
 
 ## Базовые правила поведения

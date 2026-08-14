@@ -1,0 +1,236 @@
+---
+name: mkt-workflow-competitor-deep
+description: "Deep competitor analysis with strategic insights. Marketing workflow for Cursor (AgentKits). Use when the user asks for /competitor:deep or a full competitor deep workflow."
+disable-model-invocation: true
+---
+
+# Marketing Workflow: competitor/deep
+
+> Cursor adaptation of AgentKits `/competitor:deep`. Invoke explicitly:
+> «Следуй skill mkt-workflow-competitor-deep» или `@.cursor/skills/mkt-workflow-competitor-deep/SKILL.md`
+
+## Cursor notes
+
+- Slash commands (`/competitor:deep`) недоступны — используй этот workflow skill.
+- Atomic skills: `.cursor/skills/mkt-*/SKILL.md` (префикс `mkt-`, не путать с PM skills).
+- Personas: `.cursor/rules/agents/mkt-*.md`
+- Контекст проекта: `docs/marketing/brand-context.md`, `docs/strategy/seo-strategy.md`
+- Сохраняй артефакты в `docs/marketing/` (campaigns/, research/, content/, plans/)
+- MCP-метрики: если нет интеграции — пиши NOT AVAILABLE, не выдумывай цифры
+
+---
+
+
+## Prerequisites
+
+Before running this command, ensure you have:
+- [ ] Competitor name or URL
+- [ ] MCP configured: `semrush`, `dataforseo`, `sensortower` (for apps)
+
+## Context Loading
+
+Load these files first:
+1. `./README.md` - Your product context for positioning
+2. `./docs/competitors/` - Existing competitor research
+3. `.cursor/.cursor/skills/mkt-mkt-marketing-fundamentals/SKILL.md` - Competitive frameworks
+
+---
+
+## Language & Quality Standards
+
+**CRITICAL**: Respond in the same language the user is using. If Vietnamese, respond in Vietnamese. If Spanish, respond in Spanish.
+
+**Standards**: Token efficiency, sacrifice grammar for concision, list unresolved questions at end.
+
+**Skills**: Read `.cursor/.cursor/skills/mkt-mkt-marketing-fundamentals/SKILL.md` and `.cursor/.cursor/skills/mkt-mkt-seo-mastery/SKILL.md`.
+
+**Components**: Reference `./.claude/components/interactive-questions.md`
+
+---
+
+## Data Reliability (MANDATORY)
+
+**CRITICAL**: Follow `./workflows/data-reliability-rules.md` strictly.
+
+### Required MCP Sources
+| Data | MCP Server | Fallback |
+|------|------------|----------|
+| Domain metrics | `semrush` | ⚠️ NOT AVAILABLE |
+| Traffic estimates | `semrush` | ⚠️ NOT AVAILABLE |
+| Keywords | `semrush`, `dataforseo` | ⚠️ NOT AVAILABLE |
+| App data | `sensortower` | ⚠️ NOT AVAILABLE |
+
+---
+
+## Interactive Parameter Collection
+
+### Step 1: Ask Output Scope
+
+**Question:** "What level of competitor analysis do you need?"
+**Header:** "Scope"
+**MultiSelect:** false
+
+**Options:**
+- **Basic** - Company overview and positioning
+- **Recommended** - Full analysis with battlecard
+- **Complete** - Comprehensive with strategy
+- **Custom** - I'll specify focus areas
+
+---
+
+### Step 2: Ask Analysis Focus
+
+**Question:** "What aspects should the analysis prioritize?"
+**Header:** "Focus"
+**MultiSelect:** true
+
+**Options:**
+- **Marketing** - Channels, messaging, content
+- **Product** - Features, pricing, positioning
+- **SEO** - Keywords, backlinks, content
+- **Sales** - Battlecard, objection handling
+
+---
+
+### Step 3: Ask Depth Level
+
+**Question:** "How deep should the analysis go?"
+**Header:** "Depth"
+**MultiSelect:** false
+
+**Options:**
+- **Overview** - High-level summary
+- **Standard** - Detailed analysis
+- **Deep Dive** - Comprehensive research
+- **Ongoing** - Monitoring framework
+
+---
+
+### Step 4: Ask Output Use
+
+**Question:** "How will this analysis be used?"
+**Header:** "Use Case"
+**MultiSelect:** false
+
+**Options:**
+- **Strategy** - Strategic planning
+- **Sales Enablement** - Win/loss preparation
+- **Marketing** - Positioning and messaging
+- **Product** - Feature comparison
+
+---
+
+### Step 5: Confirmation
+
+**Display summary:**
+
+```markdown
+## Competitor Analysis Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Competitor | [description] |
+| Focus Areas | [selected focus] |
+| Depth | [selected depth] |
+| Use Case | [selected use] |
+| Scope | [Basic/Recommended/Complete] |
+```
+
+**Question:** "Conduct this competitor analysis?"
+**Header:** "Confirm"
+**MultiSelect:** false
+
+**Options:**
+- **Yes, analyze** - Start analysis
+- **No, change settings** - Go back to modify
+
+---
+
+## Workflow
+
+1. **Company Research**
+   - Company overview and positioning
+   - Product/service offerings
+   - Target market and customers
+
+2. **Marketing Analysis**
+   - Channel presence and strength
+   - Messaging themes
+   - Content strategy
+
+3. **SEO Analysis**
+   - Domain metrics (via MCP)
+   - Top keywords
+   - Backlink profile
+
+4. **Competitive Positioning**
+   - Strengths and weaknesses
+   - Differentiation opportunities
+   - Battlecard creation
+
+---
+
+## Agent Delegation
+
+| Task | Agent | Trigger |
+|------|-------|---------|
+| Company research | `researcher` | Primary task |
+| SEO analysis | `attraction-specialist` | Keyword gaps |
+| Battlecard creation | `sales-enabler` | Sales enablement |
+
+---
+
+## Output Format
+
+### Basic Scope
+
+```markdown
+## Competitor: [Name]
+
+### Overview
+- Positioning: [Description]
+- Target Market: [Description]
+- Key Differentiators: [List]
+
+### Products/Services
+| Offering | Price | Target |
+|----------|-------|--------|
+
+### Strengths & Weaknesses
+**Strengths:** [List]
+**Weaknesses:** [List]
+```
+
+### Recommended Scope
+
+[Include Basic + Channel analysis + SEO metrics + Messaging themes + Battlecard + Opportunities]
+
+### Complete Scope
+
+[Include all + Full battlecard + Win/loss scenarios + Strategic recommendations + Monitoring plan]
+
+---
+
+## Output Location
+
+Save analysis to: `./docs/competitors/deep-[competitor]-[YYYY-MM-DD].md`
+
+---
+
+## Pre-Delivery Validation
+
+Before delivering competitor analysis:
+- [ ] Data sourced from MCP or marked unavailable
+- [ ] Strengths AND weaknesses balanced
+- [ ] Differentiation opportunities identified
+- [ ] Actionable recommendations included
+- [ ] Battlecard elements ready for sales
+
+---
+
+## Next Steps
+
+After competitor analysis, consider:
+- `mkt-workflow-competitor-alternatives` - Create comparison landing page
+- `mkt-workflow-sales-battlecard` - Create sales battlecard
+- `mkt-workflow-content-landing` - Build comparison page

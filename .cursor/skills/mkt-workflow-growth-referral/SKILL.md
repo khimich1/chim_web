@@ -1,0 +1,239 @@
+---
+name: mkt-workflow-growth-referral
+description: "Design referral program, affiliate program, or word-of-mouth strategy. Marketing workflow for Cursor (AgentKits). Use when the user asks for /growth:referral or a full growth referral workflow."
+disable-model-invocation: true
+---
+
+# Marketing Workflow: growth/referral
+
+> Cursor adaptation of AgentKits `/growth:referral`. Invoke explicitly:
+> «Следуй skill mkt-workflow-growth-referral» или `@.cursor/skills/mkt-workflow-growth-referral/SKILL.md`
+
+## Cursor notes
+
+- Slash commands (`/growth:referral`) недоступны — используй этот workflow skill.
+- Atomic skills: `.cursor/skills/mkt-*/SKILL.md` (префикс `mkt-`, не путать с PM skills).
+- Personas: `.cursor/rules/agents/mkt-*.md`
+- Контекст проекта: `docs/marketing/brand-context.md`, `docs/strategy/seo-strategy.md`
+- Сохраняй артефакты в `docs/marketing/` (campaigns/, research/, content/, plans/)
+- MCP-метрики: если нет интеграции — пиши NOT AVAILABLE, не выдумывай цифры
+
+---
+
+
+## Prerequisites
+
+Before running this command, ensure you have:
+- [ ] Product name and type
+- [ ] CAC and LTV estimates
+- [ ] Current acquisition channels known
+
+## Context Loading
+
+Load these files first:
+1. `./README.md` - Product context
+2. `./docs/personas/` - Target customer profiles
+3. `.cursor/.cursor/skills/mkt-mkt-referral-program/SKILL.md` - Program frameworks
+4. `.cursor/.cursor/skills/mkt-mkt-marketing-psychology/SKILL.md` - Viral mechanics
+
+---
+
+## Language & Quality Standards
+
+**CRITICAL**: Respond in the same language the user is using. If Vietnamese, respond in Vietnamese. If Spanish, respond in Spanish.
+
+**Standards**: Token efficiency, sacrifice grammar for concision, list unresolved questions at end.
+
+**Skills**: Read `.cursor/.cursor/skills/mkt-mkt-referral-program/SKILL.md` and `.cursor/.cursor/skills/mkt-mkt-marketing-psychology/SKILL.md`.
+
+**Components**: Reference `./.claude/components/interactive-questions.md`
+
+---
+
+## Interactive Parameter Collection
+
+### Step 1: Ask Output Scope
+
+**Question:** "What level of referral program design do you need?"
+**Header:** "Scope"
+**MultiSelect:** false
+
+**Options:**
+- **Basic** - Program type and incentive structure
+- **Recommended** - Full program with mechanics
+- **Complete** - Comprehensive with launch plan
+- **Custom** - I'll specify what I need
+
+---
+
+### Step 2: Ask Program Type
+
+**Question:** "What type of referral program?"
+**Header:** "Type"
+**MultiSelect:** false
+
+**Options:**
+- **Customer Referral** - User-to-user referrals
+- **Partner/Affiliate** - Revenue share model
+- **Ambassador** - Community advocates
+- **Influencer** - Paid + commission hybrid
+
+---
+
+### Step 3: Ask Incentive Model
+
+**Question:** "What incentive structure do you prefer?"
+**Header:** "Incentive"
+**MultiSelect:** false
+
+**Options:**
+- **Two-Sided** - Both referrer and referee get rewards
+- **Referrer Only** - Only referrer gets reward
+- **Tiered** - Increasing rewards for more referrals
+- **Points/Credits** - Product credits or points
+
+---
+
+### Step 4: Ask Product Context
+
+**Question:** "What's your product type?"
+**Header:** "Product"
+**MultiSelect:** false
+
+**Options:**
+- **B2B SaaS** - Business software
+- **B2C App** - Consumer application
+- **E-commerce** - Physical products
+- **Services** - Professional services
+
+---
+
+### Step 5: Confirmation
+
+**Display summary:**
+
+```markdown
+## Referral Program Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Product/Context | [description] |
+| Program Type | [selected type] |
+| Incentive Model | [selected incentive] |
+| Product Type | [selected product] |
+| Scope | [Basic/Recommended/Complete] |
+```
+
+**Question:** "Design this referral program?"
+**Header:** "Confirm"
+**MultiSelect:** false
+
+**Options:**
+- **Yes, design program** - Start design
+- **No, change settings** - Go back to modify
+
+---
+
+## Program Types
+
+| Type | Best For | Incentive Model |
+|------|----------|-----------------|
+| Customer Referral | B2C, high-volume | Two-sided rewards |
+| Partner/Affiliate | B2B, services | Revenue share/commission |
+| Ambassador | Community-driven | Status + rewards |
+| Influencer | Consumer products | Fee + commission |
+
+---
+
+## Workflow
+
+1. **Program Economics**
+   - Customer Acquisition Cost (CAC)
+   - Lifetime Value (LTV)
+   - Max referral reward budget
+   - Break-even analysis
+
+2. **Incentive Design**
+   - Referrer reward type
+   - Referee reward type
+   - Timing (immediate vs delayed)
+   - Caps and limits
+
+3. **Viral Mechanics**
+   - Sharing friction
+   - Share channels
+   - Tracking mechanism
+   - Attribution window
+
+4. **Promotion Strategy**
+   - In-app placement
+   - Email integration
+   - Post-purchase prompts
+   - Milestone triggers
+
+---
+
+## Agent Delegation
+
+| Task | Agent | Trigger |
+|------|-------|---------|
+| Program design | `upsell-maximizer` | Primary task |
+| Launch planning | `planner` | Complete scope |
+| Referral copy | `copywriter` | Messaging |
+
+---
+
+## Output Format
+
+### Basic Scope
+
+```markdown
+## Referral Program: [Product]
+
+### Program Type
+- Type: [Customer/Partner/Ambassador]
+- Model: [Two-sided/Tiered/etc.]
+
+### Incentives
+- Referrer: [Reward]
+- Referee: [Reward]
+- Timing: [Immediate/Delayed]
+
+### Economics
+- CAC target: $[X]
+- Max reward: $[X]
+```
+
+### Recommended Scope
+
+[Include Basic + Viral mechanics + Share channels + Tracking requirements + Success metrics]
+
+### Complete Scope
+
+[Include all + Launch plan + A/B test framework + Fraud prevention + Scaling triggers + Optimization roadmap]
+
+---
+
+## Output Location
+
+Save program to: `./docs/growth/referral-[product]-[YYYY-MM-DD].md`
+
+---
+
+## Pre-Delivery Validation
+
+Before delivering referral program:
+- [ ] Economics validated (reward < CAC)
+- [ ] Incentive structure clear for both parties
+- [ ] Viral mechanics designed
+- [ ] Fraud prevention considered
+- [ ] Launch plan included (Complete scope)
+
+---
+
+## Next Steps
+
+After referral program design, consider:
+- `mkt-workflow-content-email` - Create referral invitation emails
+- `mkt-workflow-cro-page` - Optimize referral landing page
+- `mkt-workflow-test-ab-setup` - Plan incentive A/B tests

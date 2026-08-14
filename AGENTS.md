@@ -51,12 +51,54 @@ chim_web/
 | `01-git-workflow.mdc` | Git, коммиты, размер diff |
 | `02-incremental-implementation.mdc` | Вертикальные full-stack срезы |
 
+## PM Skills (Product Manager Agent)
+
+Адаптировано из [`prodakt/product-manager-agent-main/`](prodakt/product-manager-agent-main/) ([phuryn/pm-skills](https://github.com/phuryn/pm-skills)).
+
+| Компонент | Где |
+|-----------|-----|
+| 65 PM frameworks | `.cursor/skills/<name>/` (create-prd, swot-analysis, …) |
+| 36 workflows | `.cursor/skills/pm-workflow-*/` (discover, write-prd, strategy, …) |
+| Маршрутизация | skill `using-pm-skills` |
+| Документация | [`docs/pm-skills-cursor.md`](docs/pm-skills-cursor.md) |
+
+```bash
+# Обновить skills после pull upstream
+./prodakt/product-manager-agent-main/scripts/sync-to-cursor.sh
+```
+
+Примеры: «Следуй skill pm-workflow-discover», «Следуй skill pm-workflow-write-prd», `@.cursor/skills/north-star-metric/SKILL.md`.
+
+## Marketing Skills (AgentKits Marketing)
+
+Адаптировано из [`ag_marketing/agentkits-marketing/`](ag_marketing/agentkits-marketing/) ([aitytech/agentkits-marketing](https://github.com/aitytech/agentkits-marketing)).
+
+| Компонент | Где |
+|-----------|-----|
+| 32 atomic skills | `.cursor/skills/mkt-*/` (seo-mastery, page-cro, copywriting, …) |
+| 75 workflows | `.cursor/skills/mkt-workflow-*/` (campaign-plan, seo-audit, cro-form, …) |
+| 20 personas | `.cursor/rules/agents/mkt-*.md` (copywriter, seo-specialist, …) |
+| Маршрутизация | skill `using-marketing-skills` |
+| Brand context | [`docs/marketing/brand-context.md`](docs/marketing/brand-context.md) |
+| Документация | [`docs/marketing-skills-cursor.md`](docs/marketing-skills-cursor.md) |
+
+```bash
+# Обновить skills после pull upstream
+./ag_marketing/agentkits-marketing/scripts/sync-to-cursor.sh
+```
+
+Примеры: «Следуй skill mkt-workflow-campaign-plan», «Следуй skill mkt-workflow-seo-audit», `@.cursor/skills/mkt-seo-mastery/SKILL.md`, `@.cursor/rules/agents/mkt-copywriter.md`.
+
+**Префикс `mkt-`** — не путать с PM skills (`marketing-ideas`, `pricing-strategy`).
+
 ## On-demand rules
 
 Скажи: **«Следуй правилу `<name>`»** или включи rule в Cursor.
 
-| Задача | Rule |
-|--------|------|
+| Задача | Rule / Skill |
+|--------|--------------|
+| PM discovery, strategy, PRD | `using-pm-skills` |
+| SEO, CRO, кампании, контент | `using-marketing-skills` |
 | Размытая идея, нужны варианты | `idea-refine` |
 | Новая фича без spec | `spec-driven-development` |
 | Spec → план задач | `planning-and-task-breakdown` |
@@ -131,8 +173,11 @@ npm run build
 | Code review | `agents/code-reviewer.md` |
 | Security audit | `agents/security-auditor.md` |
 | Тесты / coverage | `agents/test-engineer.md` |
+| Marketing copy | `agents/mkt-copywriter.md` |
+| SEO | `agents/mkt-seo-specialist.md` |
+| CRO | `agents/mkt-conversion-optimizer.md` |
 
-Пример: *«Review diff по code-reviewer и security-auditor»*.
+Пример: *«Review diff по code-reviewer и security-auditor»* или *«Review copy по mkt-copywriter»*.
 
 ## Справочники
 
@@ -178,4 +223,5 @@ npm run build
 
 ## Источник rules
 
-Адаптировано из [agent-skills-main/](agent-skills-main/). Оригинал — reference.
+- Dev skills: [agent-skills-main/](agent-skills-main/)
+- PM skills: [prodakt/product-manager-agent-main/](prodakt/product-manager-agent-main/) → [`docs/pm-skills-cursor.md`](docs/pm-skills-cursor.md)
