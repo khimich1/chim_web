@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { TeacherNav } from "@/components/layout/TeacherNav";
 import { TutorShell } from "@/components/tutor/TutorShell";
+import { DecorativeBlobs } from "@/components/ui/DecorativeBlobs";
 import {
   getCurrentUser,
   getNotificationUnreadCount,
@@ -27,12 +28,15 @@ export default async function TeacherLayout({
   ]);
 
   return (
-    <TutorShell>
+    <>
+      <DecorativeBlobs />
+      <TutorShell>
       <TeacherNav
         initialNotifications={notifications.slice(0, 5)}
         initialUnread={unread}
       />
       {children}
     </TutorShell>
+    </>
   );
 }

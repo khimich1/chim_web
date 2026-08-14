@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { StudentNav } from "@/components/layout/StudentNav";
 import { StudentOnboardingGate } from "@/components/student/StudentOnboardingGate";
 import { TutorShell } from "@/components/tutor/TutorShell";
+import { DecorativeBlobs } from "@/components/ui/DecorativeBlobs";
 import { getCurrentUser } from "@/lib/api/server";
 
 export default async function StudentLayout({
@@ -18,10 +19,13 @@ export default async function StudentLayout({
     redirect("/teacher");
   }
   return (
-    <TutorShell>
+    <>
+      <DecorativeBlobs />
+      <TutorShell>
       <StudentOnboardingGate />
       <StudentNav />
       {children}
     </TutorShell>
+    </>
   );
 }
