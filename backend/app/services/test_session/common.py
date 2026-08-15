@@ -129,11 +129,10 @@ class SessionAdapterBase:
         action: Callable[[], Awaitable[_T]],
     ) -> None:
         try:
-            await action()
-            await self._session.commit()
+            async with self._session.begin_nested():
+                await action()
         except Exception:
             logger.exception("Activity hook failed: %s", hook_name)
-            await self._session.rollback()
 
     async def resolve_track(self, student: User) -> ExamTrack:
         profile = await self._session.scalar(

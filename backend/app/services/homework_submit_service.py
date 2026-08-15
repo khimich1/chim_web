@@ -122,11 +122,10 @@ class HomeworkSubmitService:
         action: Callable[[], Awaitable[_T]],
     ) -> None:
         try:
-            await action()
-            await self._session.commit()
+            async with self._session.begin_nested():
+                await action()
         except Exception:
             logger.exception("Activity hook failed: %s", hook_name)
-            await self._session.rollback()
 
     async def submit(
         self,
@@ -222,7 +221,6 @@ class HomeworkSubmitService:
 
         await self._homework.update_status(assignment, HomeworkStatus.SUBMITTED)
         await self._notify_teacher(assignment, student, progress)
-        await self._session.commit()
 
         assignment_id = assignment.id
         student_id = student.id
@@ -252,6 +250,7 @@ class HomeworkSubmitService:
                     payload=activity_payload,
                 ),
             )
+        await self._session.commit()
 
         self._session.expire_all()
 

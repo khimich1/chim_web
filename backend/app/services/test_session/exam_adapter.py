@@ -163,7 +163,6 @@ class ExamSessionAdapter(SessionAdapterBase):
         step.is_correct = is_correct
         step.status = StepStatus.CHECKED
         step.checked_at = datetime.now(timezone.utc)
-        await self._session.commit()
 
         if is_correct and not was_already_correct:
             step_id = step.id
@@ -172,6 +171,7 @@ class ExamSessionAdapter(SessionAdapterBase):
                 "record_step_correct",
                 lambda: self._activity.record_step_correct(student_id, step_id),
             )
+        await self._session.commit()
 
         return StepCheckResponse(
             position=step.position,
@@ -332,7 +332,6 @@ class ExamSessionAdapter(SessionAdapterBase):
             test_session.completed_at = completed_at
         test_session.score = score
         test_session.max_score = max_score
-        await self._session.commit()
 
         if not was_already_completed:
             minutes = session_duration_minutes(test_session.created_at, completed_at)
@@ -341,6 +340,7 @@ class ExamSessionAdapter(SessionAdapterBase):
                 "add_session_minutes",
                 lambda: self._activity.add_session_minutes(student_id, minutes),
             )
+        await self._session.commit()
 
         summary_steps = [
             SessionSummaryStep(

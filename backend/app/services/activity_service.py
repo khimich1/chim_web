@@ -6,9 +6,17 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ActivityEventType, StudentStats
+from app.models import (
+    ActivityEventType,
+    HomeworkAssignment,
+    HomeworkSubmission,
+    StudentStats,
+    TestSession,
+    TestSessionStep,
+)
 from app.repositories.app.activity_repo import ActivityRepository, LeaderboardPeriod
 from app.schemas.activity import (
     LeaderboardEntry,
@@ -234,6 +242,9 @@ class ActivityService:
         teacher_id: uuid.UUID,
     ) -> list[TeacherStudentStatsRead]:
         rows = await self._repo.list_teacher_students_stats(teacher_id)
+        for user, _profile, _stats in rows:
+            await self.reconcile_student(user.id)
+        rows = await self._repo.list_teacher_students_stats(teacher_id)
         entries: list[TeacherStudentStatsRead] = []
         for user, profile, stats in rows:
             entries.append(
@@ -274,6 +285,117 @@ class ActivityService:
                 )
             )
         return entries
+
+    async def reconcile_student(self, student_id: uuid.UUID) -> int:
+        """Insert missing HOMEWORK_COMPLETE / STEP_CORRECT. Idempotent. Returns rows created."""
+        created = 0
+        created += await self._reconcile_homework_complete(student_id)
+        created += await self._reconcile_step_correct(student_id)
+        return created
+
+    async def _reconcile_homework_complete(self, student_id: uuid.UUID) -> int:
+        from app.services.homework_submit_service import compute_homework_points
+
+        stmt = (
+            select(HomeworkSubmission)
+            .join(
+                HomeworkAssignment,
+                HomeworkSubmission.assignment_id == HomeworkAssignment.id,
+            )
+            .where(HomeworkAssignment.student_id == student_id)
+        )
+        submissions = (await self._session.scalars(stmt)).all()
+        created = 0
+        for submission in submissions:
+            ref_id = str(submission.assignment_id)
+            existing = await self._repo.get_event(
+                student_id, ActivityEventType.HOMEWORK_COMPLETE, ref_id
+            )
+            if existing is not None:
+                continue
+            points = compute_homework_points(
+                submission.answered_steps or 0,
+                submission.total_steps or 0,
+            )
+            created += await self._record_reconcile_gap(
+                student_id,
+                event_type=ActivityEventType.HOMEWORK_COMPLETE,
+                ref_id=ref_id,
+                points=points,
+                occurred_at=submission.submitted_at,
+                bump_tasks_solved=False,
+            )
+        return created
+
+    async def _reconcile_step_correct(self, student_id: uuid.UUID) -> int:
+        stmt = (
+            select(TestSessionStep, TestSession)
+            .join(TestSession, TestSessionStep.session_id == TestSession.id)
+            .where(
+                TestSession.student_id == student_id,
+                TestSessionStep.is_correct.is_(True),
+            )
+        )
+        rows = (await self._session.execute(stmt)).all()
+        created = 0
+        for step, test_session in rows:
+            ref_id = str(step.id)
+            existing = await self._repo.get_event(
+                student_id, ActivityEventType.STEP_CORRECT, ref_id
+            )
+            if existing is not None:
+                continue
+            occurred_at = step.checked_at or test_session.created_at
+            created += await self._record_reconcile_gap(
+                student_id,
+                event_type=ActivityEventType.STEP_CORRECT,
+                ref_id=ref_id,
+                points=POINTS_STEP_CORRECT,
+                occurred_at=occurred_at,
+                bump_tasks_solved=True,
+            )
+        return created
+
+    async def _record_reconcile_gap(
+        self,
+        student_id: uuid.UUID,
+        *,
+        event_type: ActivityEventType,
+        ref_id: str,
+        points: int,
+        occurred_at: datetime | None,
+        bump_tasks_solved: bool,
+    ) -> int:
+        stats = await self._repo.get_or_create_stats(student_id)
+        event_date = _utc_now(occurred_at).date()
+        if stats.last_active_date is not None and event_date < stats.last_active_date:
+            event = await self._repo.try_create_event(
+                student_id=student_id,
+                event_type=event_type,
+                ref_id=ref_id,
+                points=points,
+            )
+            if event is None:
+                return 0
+            stats.total_points += points
+            if bump_tasks_solved:
+                stats.tasks_solved += 1
+            return 1
+
+        if event_type == ActivityEventType.HOMEWORK_COMPLETE:
+            result = await self.record_homework_complete(
+                student_id,
+                uuid.UUID(ref_id),
+                points=points,
+                occurred_at=occurred_at,
+            )
+        else:
+            result = await self.record_step_correct(
+                student_id,
+                uuid.UUID(ref_id),
+                occurred_at=occurred_at,
+            )
+        return 1 if result.created else 0
 
     def _apply_points_to_stats(
         self,

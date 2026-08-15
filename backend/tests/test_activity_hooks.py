@@ -6,11 +6,11 @@ import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -19,14 +19,31 @@ from app.core.security import hash_password
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
-from app.models import ExamTrack, StudentProfile, StudentStats, User, UserRole
+from app.models import (
+    ExamTrack,
+    HomeworkAssignment,
+    HomeworkStatus,
+    HomeworkSubmission,
+    Notification,
+    NotificationType,
+    StepStatus,
+    StudentActivityEvent,
+    StudentProfile,
+    StudentStats,
+    User,
+    UserRole,
+)
+from app.models.enums import ActivityEventType
 from app.models.test_session import TestSession as TestSessionModel
+from app.models.test_session import TestSessionStep as SessionStepRow
 from app.services.activity_service import (
     POINTS_HOMEWORK_COMPLETE,
     POINTS_STEP_CORRECT,
     POINTS_STREAK_DAILY,
     ActivityService,
 )
+from app.services.homework_submit_service import HomeworkSubmitService
+from app.services.test_session.common import SessionAdapterBase
 from tests.content.conftest import _create_tests_db
 
 TEACHER_EMAIL = "teacher-hooks@example.com"
@@ -170,6 +187,103 @@ async def _backdate_session(
         await session.commit()
 
 
+def _mock_session_for_hook() -> AsyncMock:
+    session = AsyncMock()
+    nested = AsyncMock()
+    nested.__aenter__ = AsyncMock(return_value=None)
+    nested.__aexit__ = AsyncMock(return_value=False)
+    session.begin_nested = MagicMock(return_value=nested)
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    return session
+
+
+async def _load_assignment(db_url: str, assignment_id: str) -> HomeworkAssignment:
+    engine = create_async_engine(db_url, poolclass=NullPool)
+    session_maker = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_maker() as session:
+            assignment = await session.get(HomeworkAssignment, uuid.UUID(assignment_id))
+            assert assignment is not None
+            return assignment
+    finally:
+        await engine.dispose()
+
+
+async def _load_submission(
+    db_url: str, assignment_id: str
+) -> HomeworkSubmission | None:
+    engine = create_async_engine(db_url, poolclass=NullPool)
+    session_maker = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_maker() as session:
+            return await session.scalar(
+                select(HomeworkSubmission).where(
+                    HomeworkSubmission.assignment_id == uuid.UUID(assignment_id)
+                )
+            )
+    finally:
+        await engine.dispose()
+
+
+async def _count_notifications(
+    db_url: str, *, notification_type: NotificationType
+) -> int:
+    engine = create_async_engine(db_url, poolclass=NullPool)
+    session_maker = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_maker() as session:
+            rows = (
+                await session.scalars(
+                    select(Notification).where(Notification.type == notification_type)
+                )
+            ).all()
+            return len(list(rows))
+    finally:
+        await engine.dispose()
+
+
+async def _count_events(
+    db_url: str,
+    student_id: uuid.UUID,
+    event_type: ActivityEventType,
+) -> int:
+    engine = create_async_engine(db_url, poolclass=NullPool)
+    session_maker = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_maker() as session:
+            rows = (
+                await session.scalars(
+                    select(StudentActivityEvent).where(
+                        StudentActivityEvent.student_id == student_id,
+                        StudentActivityEvent.event_type == event_type,
+                    )
+                )
+            ).all()
+            return len(list(rows))
+    finally:
+        await engine.dispose()
+
+
+async def _load_step(
+    db_url: str, session_id: str, *, position: int = 0
+) -> SessionStepRow:
+    engine = create_async_engine(db_url, poolclass=NullPool)
+    session_maker = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_maker() as session:
+            step = await session.scalar(
+                select(SessionStepRow).where(
+                    SessionStepRow.session_id == uuid.UUID(session_id),
+                    SessionStepRow.position == position,
+                )
+            )
+            assert step is not None
+            return step
+    finally:
+        await engine.dispose()
+
+
 def test_check_step_correct_updates_stats(client: TestClient, hooks_env) -> None:
     _login(client)
     session_id = _create_session(client)["id"]
@@ -310,3 +424,108 @@ def test_activity_failure_does_not_break_check_step(client: TestClient) -> None:
 
     state = client.get(f"/api/tests/sessions/{session_id}").json()
     assert state["steps"][0]["is_correct"] is True
+
+
+async def test_run_activity_hook_does_not_commit_or_rollback() -> None:
+    settings = MagicMock()
+    settings.content_ege_db_path = ":memory:"
+    settings.content_oge_db_path = ":memory:"
+
+    async def boom() -> None:
+        raise RuntimeError("activity down")
+
+    adapter_session = _mock_session_for_hook()
+    adapter = SessionAdapterBase(adapter_session, settings, activity=MagicMock())
+    await adapter.run_activity_hook("record_step_correct", boom)
+    adapter_session.commit.assert_not_called()
+    adapter_session.rollback.assert_not_called()
+    adapter_session.begin_nested.assert_called()
+
+    submit_session = _mock_session_for_hook()
+    submit_service = HomeworkSubmitService(
+        submit_session, activity=MagicMock(), settings=settings
+    )
+    await submit_service._run_activity_hook("record_homework_complete", boom)
+    submit_session.commit.assert_not_called()
+    submit_session.rollback.assert_not_called()
+    submit_session.begin_nested.assert_called()
+
+
+def test_homework_submit_keeps_assignment_when_activity_raises(
+    client: TestClient, hooks_env
+) -> None:
+    assignment_id = _create_homework(client)
+
+    _login(client)
+    session = client.post(
+        "/api/tests/sessions",
+        json={"homework_assignment_id": assignment_id},
+    ).json()
+    session_id = session["id"]
+
+    client.post(
+        f"/api/tests/sessions/{session_id}/steps/0/check",
+        json={"answer": "1"},
+    )
+    client.post(
+        f"/api/tests/sessions/{session_id}/steps/1/check",
+        json={"answer": "2"},
+    )
+    assert client.post(f"/api/tests/sessions/{session_id}/complete").status_code == 200
+
+    with patch.object(
+        ActivityService,
+        "record_homework_complete",
+        AsyncMock(side_effect=RuntimeError("activity down")),
+    ):
+        submit = client.post(
+            f"/api/homework/{assignment_id}/submit",
+            json={"test_session_id": session_id},
+        )
+
+    assert submit.status_code < 500
+    assignment = asyncio.run(_load_assignment(hooks_env["db_url"], assignment_id))
+    assert assignment.status == HomeworkStatus.SUBMITTED
+    submission = asyncio.run(_load_submission(hooks_env["db_url"], assignment_id))
+    assert submission is not None
+    assert (
+        asyncio.run(
+            _count_notifications(
+                hooks_env["db_url"],
+                notification_type=NotificationType.HOMEWORK_SUBMITTED,
+            )
+        )
+        == 1
+    )
+    assert (
+        asyncio.run(
+            _count_events(
+                hooks_env["db_url"],
+                hooks_env["student_id"],
+                ActivityEventType.HOMEWORK_COMPLETE,
+            )
+        )
+        == 0
+    )
+
+
+def test_check_step_keeps_checked_when_activity_raises(
+    client: TestClient, hooks_env
+) -> None:
+    _login(client)
+    session_id = _create_session(client)["id"]
+
+    with patch.object(
+        ActivityService,
+        "record_step_correct",
+        AsyncMock(side_effect=RuntimeError("activity down")),
+    ):
+        response = client.post(
+            f"/api/tests/sessions/{session_id}/steps/0/check",
+            json={"answer": "1"},
+        )
+
+    assert response.status_code < 500
+    step = asyncio.run(_load_step(hooks_env["db_url"], session_id, position=0))
+    assert step.status == StepStatus.CHECKED
+    assert step.is_correct is True

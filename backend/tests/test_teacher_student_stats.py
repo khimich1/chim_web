@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -17,7 +18,19 @@ from app.core.security import hash_password
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
-from app.models import ExamTrack, StudentProfile, StudentStats, User, UserRole
+from app.models import (
+    ActivityEventType,
+    ExamTrack,
+    HomeworkAssignment,
+    HomeworkStatus,
+    HomeworkSubmission,
+    StudentActivityEvent,
+    StudentProfile,
+    StudentStats,
+    User,
+    UserRole,
+)
+from app.services.homework_submit_service import compute_homework_points
 
 TEACHER_A_EMAIL = "teacher-a-stats@example.com"
 TEACHER_B_EMAIL = "teacher-b-stats@example.com"
@@ -362,5 +375,159 @@ def test_empty_list_when_teacher_has_no_students(tmp_path: Path) -> None:
         response = test_client.get("/api/teacher/students/stats")
         assert response.status_code == 200
         assert response.json() == []
+
+    asyncio.run(request_engine.dispose())
+
+
+def test_teacher_stats_heals_own_student_hole_not_other_teacher(tmp_path: Path) -> None:
+    db_file = tmp_path / "teacher_stats_heal.db"
+    db_url = f"sqlite+aiosqlite:///{db_file.as_posix()}"
+    teacher_a_id = uuid.uuid4()
+    teacher_b_id = uuid.uuid4()
+    student_a_id = uuid.uuid4()
+    student_other_id = uuid.uuid4()
+    assignment_a_id = uuid.uuid4()
+    assignment_other_id = uuid.uuid4()
+    submitted_at = datetime(2026, 8, 10, 12, 0, tzinfo=timezone.utc)
+    teacher_a_email = "heal-teacher-a@example.com"
+    teacher_b_email = "heal-teacher-b@example.com"
+    student_a_email = "heal-student-a@example.com"
+    student_other_email = "heal-student-other@example.com"
+
+    async def _setup() -> None:
+        engine = create_async_engine(db_url)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        session_maker = async_sessionmaker(engine, expire_on_commit=False)
+        async with session_maker() as session:
+            session.add_all(
+                [
+                    User(
+                        id=teacher_a_id,
+                        email=teacher_a_email,
+                        password_hash=hash_password(PASS),
+                        role=UserRole.TEACHER,
+                    ),
+                    User(
+                        id=teacher_b_id,
+                        email=teacher_b_email,
+                        password_hash=hash_password(PASS),
+                        role=UserRole.TEACHER,
+                    ),
+                    User(
+                        id=student_a_id,
+                        email=student_a_email,
+                        password_hash=hash_password(PASS),
+                        role=UserRole.STUDENT,
+                    ),
+                    User(
+                        id=student_other_id,
+                        email=student_other_email,
+                        password_hash=hash_password(PASS),
+                        role=UserRole.STUDENT,
+                    ),
+                ]
+            )
+            await session.flush()
+            session.add_all(
+                [
+                    StudentProfile(
+                        user_id=student_a_id,
+                        teacher_id=teacher_a_id,
+                        track=ExamTrack.EGE,
+                    ),
+                    StudentProfile(
+                        user_id=student_other_id,
+                        teacher_id=teacher_b_id,
+                        track=ExamTrack.EGE,
+                    ),
+                    HomeworkAssignment(
+                        id=assignment_a_id,
+                        student_id=student_a_id,
+                        teacher_id=teacher_a_id,
+                        title="Own hole",
+                        items=[{"kind": "lecture", "topic": "x"}],
+                        status=HomeworkStatus.SUBMITTED,
+                    ),
+                    HomeworkAssignment(
+                        id=assignment_other_id,
+                        student_id=student_other_id,
+                        teacher_id=teacher_b_id,
+                        title="Other hole",
+                        items=[{"kind": "lecture", "topic": "y"}],
+                        status=HomeworkStatus.SUBMITTED,
+                    ),
+                ]
+            )
+            await session.flush()
+            session.add_all(
+                [
+                    HomeworkSubmission(
+                        assignment_id=assignment_a_id,
+                        submitted_at=submitted_at,
+                        answered_steps=2,
+                        total_steps=2,
+                        completion_percent=100,
+                    ),
+                    HomeworkSubmission(
+                        assignment_id=assignment_other_id,
+                        submitted_at=submitted_at,
+                        answered_steps=2,
+                        total_steps=2,
+                        completion_percent=100,
+                    ),
+                ]
+            )
+            await session.commit()
+        await engine.dispose()
+
+    asyncio.run(_setup())
+
+    request_engine = create_async_engine(db_url, poolclass=NullPool)
+    request_sessions = async_sessionmaker(request_engine, expire_on_commit=False)
+
+    async def _override_get_db():
+        async with request_sessions() as session:
+            yield session
+
+    get_settings.cache_clear()
+    app = create_app(
+        settings=Settings(
+            DATABASE_URL=db_url,
+            JWT_SECRET="test-jwt-secret-for-teacher-stats-heal-32b",
+        )
+    )
+    app.dependency_overrides[get_db] = _override_get_db
+
+    expected = compute_homework_points(2, 2)
+
+    async def _count(student_id: uuid.UUID) -> int:
+        async with request_sessions() as session:
+            return await session.scalar(
+                select(func.count())
+                .select_from(StudentActivityEvent)
+                .where(
+                    StudentActivityEvent.student_id == student_id,
+                    StudentActivityEvent.event_type
+                    == ActivityEventType.HOMEWORK_COMPLETE,
+                )
+            )
+
+    with TestClient(app) as test_client:
+        _login(test_client, teacher_a_email)
+        first = test_client.get("/api/teacher/students/stats")
+        assert first.status_code == 200
+        body = first.json()
+        assert len(body) == 1
+        assert body[0]["id"] == str(student_a_id)
+        assert body[0]["total_points"] == expected
+        assert str(student_other_id) not in first.text
+        assert asyncio.run(_count(student_a_id)) == 1
+        assert asyncio.run(_count(student_other_id)) == 0
+
+        second = test_client.get("/api/teacher/students/stats")
+        assert second.status_code == 200
+        assert second.json()[0]["total_points"] == expected
+        assert asyncio.run(_count(student_a_id)) == 1
 
     asyncio.run(request_engine.dispose())

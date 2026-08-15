@@ -363,7 +363,6 @@ class HomeworkSessionAdapter(SessionAdapterBase):
             test_session.completed_at = completed_at
         test_session.score = score
         test_session.max_score = max_score
-        await self._session.commit()
 
         if not was_already_completed:
             minutes = session_duration_minutes(test_session.created_at, completed_at)
@@ -372,6 +371,7 @@ class HomeworkSessionAdapter(SessionAdapterBase):
                 "add_session_minutes",
                 lambda: self._activity.add_session_minutes(student_id, minutes),
             )
+        await self._session.commit()
 
         return SessionSummary(
             id=test_session.id,

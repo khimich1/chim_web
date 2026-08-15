@@ -444,6 +444,8 @@ test_session_service.check_step()  → activity_service.record_step_correct()   
 homework_submit_service.submit()   → activity_service.record_homework_complete() # при полной сдаче
 ```
 
+Хуки activity **не** вызывают `commit`/`rollback` сессии: баллы пишутся в `begin_nested()` (SAVEPOINT), затем один внешний `commit` вместе со сдачей или шагом. Догонка только отсутствующих `HOMEWORK_COMPLETE` и `STEP_CORRECT` — на `GET /api/students/me/stats`, `GET /api/teacher/students/stats` и CLI `python -m app.cli.reconcile_activity` (dry-run по умолчанию, запись с `--apply`). `GET /api/leaderboard` не сканирует ledger и не лечит дыры. Подробнее: [`docs/specs/activity-savepoint-reconcile.md`](docs/specs/activity-savepoint-reconcile.md).
+
 Возобновление `TestSession` (`in_progress`, §1.3.2) — backend готов; улучшения карточек «Продолжить» — frontend (Task 63).
 
 #### Вне scope этого среза
@@ -1754,6 +1756,7 @@ CustomTask (Phase 14, §1.9)
 ---
 
 *Changelog:*  
+- 0.8.4 — §1.8 хуки: activity не коммитит (savepoint); догонка только `HOMEWORK_COMPLETE` / `STEP_CORRECT` на student/teacher stats и CLI; leaderboard не сканирует. Спека: `docs/specs/activity-savepoint-reconcile.md`.  
 - 0.8.3 — §1.12 **учебник: скорость аудио, три раздела, embed-видео**: AC-1.6–1.8; допущение 6b; API `/api/textbook/sections`, `?section=`; компоненты audio speed presets + `VideoEmbed`; mapping 31 тем → basics/elements/organic; идея — `docs/ideas/textbook-audio-sections-video.md`; план — Phase 18 (Tasks 101–104).  
 - 0.8.2 — §1.11 **multi-teacher на одном инстансе (Variant A)**: допущения §3/§4/§15; provisioning `seed_teacher` × N; три слоя данных (shared / cross-tenant leaderboard / tenant `teacher_id`); AC-MT.1–MT.5; IDOR checklist + `tests/multi_teacher/`; связь с Phase 17 (`docs/ideas/production-hardening.md`, Tasks 92–99). Обновлены §1.8 (leaderboard cross-tenant), «Для кого», §5 Testing, §6 Boundaries, §10 Risks, §11. Убрано «один преподаватель на инстанс».  
 - 0.8.1 — §1.10 **письменная часть ЕГЭ 29–34 в content DB**: источник `ege (копия).db`, миграция в `test_ege.db`, `self_check` (§1.9.8/1.9.9), не в score; обновлены §1.4–1.5 (не скрывать до AI); AC-2.1; план Phase 16 (`tasks/plan.md`, Tasks 85–91). Код **не** в scope этого релиза спеки.  

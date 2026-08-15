@@ -49,7 +49,10 @@ def get_onboarding_service(
 async def get_my_stats(
     student: StudentUser,
     activity: Annotated[ActivityService, Depends(get_activity_service)],
+    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> StudentStatsRead:
+    await activity.reconcile_student(student.id)
+    await db.commit()
     return await activity.get_stats(student.id)
 
 
